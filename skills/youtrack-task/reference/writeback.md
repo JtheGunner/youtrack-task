@@ -21,6 +21,7 @@ Cache the resolved field name for the rest of the session; re-resolve per projec
 | Trigger | Target state | Skip when |
 | --- | --- | --- |
 | pickup (primary flow, unless `--no-move`) | `in_progress_state` | issue already at In Progress, Testing, or Done |
+| `/youtrack-task pr` (unless `--no-move`) | `testing_state` | issue already at Testing or Done |
 | `/youtrack-task testing` | `testing_state` | issue already at Testing or Done |
 | `/youtrack-task done` | `done_state` | issue already at Done |
 
@@ -45,6 +46,8 @@ Use `add_issue_comment`. Markdown body. One comment per event.
 | plan | `## 📝 Implementation plan (Claude Code)\n\n_Generated <ISO-date>_\n\n<plan markdown>` |
 | completion | `## ✅ Implemented (Claude Code)\n\nBranch `<branch>`. Files touched:\n<bullet list>\n\nNot pushed; no PR.` — one comment, only when step 8 actually implemented something |
 | `log` | handled by `log_work`; add a comment only if the user passed a description |
+| `pr` | `🔗 PR opened: <url>` — append `, moved to Testing.` when `pr` also moves the state; if the PR already existed, `🔗 PR: <url>` |
+| `link` | `🔗 PR: <url>` |
 | `testing` | `🧪 Moved to Testing by Claude Code.` + optional user note |
 | `done` | `✅ Moved to Done by Claude Code.` + optional user note |
 

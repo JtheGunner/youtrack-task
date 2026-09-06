@@ -1,6 +1,6 @@
 ---
 name: youtrack-task
-description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch, moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task comment|log|testing|done.
+description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch, moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task comment|log|pr|link|testing|done.
 ---
 
 # youtrack-task
@@ -40,11 +40,13 @@ specific action:
   it, otherwise describe what could not be verified.
 - **Never start servers, daemons, or watchers without asking**, and stop any you
   were told to start.
-- **No `git push`, no PR, no force-push.** Pushing and shipping are the user's
-  call (`/ship` or by hand). Say the branch is ready and stop there.
+- **Pushing and opening a PR happen only in the explicit `pr` sub-command** (or
+  the user's own `/ship`), after a confirmation prompt. Never as an implicit part
+  of the primary flow, `done`, or anything else. **Never force-push**, never
+  merge a PR, never delete a branch.
 - The only YouTrack writes are: the pickup state change + comment, the plan
   comment, an optional one-line completion comment, and the explicit
-  `comment` / `log` / `testing` / `done` sub-commands.
+  `comment` / `log` / `pr` / `link` / `testing` / `done` sub-commands.
 
 ## Config
 
@@ -67,12 +69,14 @@ is optional. Defaults:
 | *(none)*, an issue ID (`^[A-Z][A-Z0-9_]+-\d+$`), or a bare number | **Primary flow** (below) |
 | `comment` | `add_issue_comment` with the rest of the line, to the current branch's issue |
 | `log` | time logging — see "log" below |
+| `pr` | push the branch, open a PR, link it on the issue, move to Testing — see "pr" below |
+| `link` | attach an existing PR URL to the issue as a comment — see "link" below |
 | `testing` | move the issue to `testing_state` — see "state sub-commands" |
 | `done` | move the issue to `done_state` — see "state sub-commands" |
 
-For `comment` / `log` / `testing` / `done`, resolve the issue ID from an explicit
-argument if given, else extract `[A-Z]+-\d+` from `git branch --show-current`,
-else ask the user.
+For `comment` / `log` / `pr` / `link` / `testing` / `done`, resolve the issue ID
+from an explicit leading `ISSUE-ID` argument if given, else extract `[A-Z]+-\d+`
+from `git branch --show-current`, else ask the user.
 
 ---
 
@@ -171,8 +175,9 @@ If the user wants to proceed with the implementation now, continue in the normal
 development workflow (TDD where it applies) — bound by the **Guardrails** above.
 When the implementation is done, post one short completion comment to the issue
 (`add_issue_comment`, template in `reference/writeback.md`) listing the branch and
-the files touched. Do not push, open a PR, or move the issue — tell the user the
-branch is ready and that `/youtrack-task testing` / `/ship` are the next steps.
+the files touched. Do not push, open a PR, or move the issue here — tell the user
+the branch is ready and that `/youtrack-task pr` (push + PR + link + move to
+Testing) or their own `/ship` is the next step.
 
 ---
 
@@ -187,8 +192,11 @@ branch is ready and that `/youtrack-task testing` / `/ship` are the next steps.
 5. Otherwise `update_issue` to the target, then `add_issue_comment` with the
    matching template. If the user appended text after the sub-command, include it
    in the comment as a note.
+6. After `done`: if a local branch for this issue still exists and `gh pr view
+   <branch>` shows no merged PR, add one line — *"Branch `<branch>` isn't merged
+   yet — `/youtrack-task pr` or `/ship` to integrate it."* No git action.
 
-Never move an issue backward.
+Never move an issue backward. These commands never touch git.
 
 ## log
 
@@ -209,6 +217,59 @@ Never move an issue backward.
 2. `mcp__youtrack__add_issue_comment` with the verbatim text (no emoji prefix
    added — the user's words stand as-is).
 3. Confirm.
+
+## pr
+
+`/youtrack-task pr [ISSUE-ID] [--no-move] [--base <branch>] [--draft]`
+
+Push the current feature branch, open a GitHub PR, record it on the issue, and
+move the issue to Testing. This is the one place the skill is allowed to push.
+Requires `gh` on `PATH` (`gh --version`); if missing, stop and tell the user to
+push + open the PR themselves, then run `/youtrack-task link <url>`.
+
+1. Resolve the issue ID (leading arg → branch → ask).
+2. Checks, all must pass or stop:
+   - inside a git repo, and **not** on the default branch (resolve the default
+     the same way as `reference/branching.md`; `--base` overrides).
+   - the branch has commits ahead of the base (`git rev-list --count <base>..HEAD`
+     > 0), else *"no commits on this branch"*.
+   - clean working tree. If dirty, warn that uncommitted changes won't be in the
+     PR and ask whether to continue.
+3. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`, then
+   **ask for confirmation** before pushing.
+4. `git push -u origin <branch>` (plain push; never `--force`).
+5. Open the PR:
+   - If `gh pr view <branch> --json url,state` already shows an open PR, reuse its
+     URL — don't create a second one.
+   - Else `gh pr create --base <base> --head <branch> --title "<ID>: <summary>"
+     --body "<body>"` (`--draft` if the flag was passed). If the repo has
+     `.github/pull_request_template.md` or `.github/PULL_REQUEST_TEMPLATE/`,
+     fill that template and append the lines below rather than replacing it.
+   - `<body>` always includes: a link to the YouTrack issue
+     (`<YOUTRACK_MCP_URL without /mcp>/issue/<ID>`), a one-line summary, and a
+     short bullet list of the commits.
+6. Capture the PR URL from the command output.
+7. YouTrack write-back:
+   - `add_issue_comment`: the `pr` template from `reference/writeback.md`
+     (`🔗 PR opened: <url>` — add `, moved to Testing` when step 8 moves it).
+   - Unless `--no-move`: if the issue is before `testing_state` on the ladder,
+     `update_issue` → `testing_state`. Skip silently if already at Testing/Done.
+8. Report: PR URL, whether it was newly created or already existed, the state
+   change, and that `/youtrack-task done` is the step after the PR merges.
+
+## link
+
+`/youtrack-task link [ISSUE-ID] <pr-url>`
+
+Attach an already-existing PR (from `/ship`, `gh`, or the web UI) to the issue.
+Does not push and does not change state.
+
+1. Parse args: if the first token is an issue ID, the second is the URL; otherwise
+   the first token is the URL and the issue ID comes from the branch (else ask).
+2. Sanity-check the URL is `http(s)://…`; warn (don't block) if it isn't a
+   `…/pull/<n>` GitHub URL.
+3. `mcp__youtrack__add_issue_comment`: `🔗 PR: <url>`.
+4. Confirm.
 
 ## Notes
 

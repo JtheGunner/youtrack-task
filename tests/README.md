@@ -14,8 +14,13 @@ Use a throwaway or low-stakes issue.
 | 7 | Run against an issue whose project ≠ current repo | mismatch warning; can override |
 | 8 | Approve a plan | 📝 plan comment on the issue; `docs/plans/‹ID›.md` created only if repo has `docs/` |
 | 9 | `/youtrack-task comment hello world` | comment "hello world" on the branch's issue, no emoji prefix |
-| 10 | `/youtrack-task log 15m tried X` | 15m work item logged on the branch's issue |
-| 11 | `/youtrack-task testing` | issue → Testing; 🧪 comment |
-| 12 | `/youtrack-task done` | issue → Done; ✅ comment |
-| 13 | `/youtrack-task testing` on an already-Done issue | no change; reports current state |
-| 14 | Unset `YOUTRACK_TOKEN`, restart, run anything | setup message, no stack trace |
+| 10 | `/youtrack-task log 15m tried X` | 15m work item logged (or graceful "time tracking not enabled" message) |
+| 11 | `/youtrack-task pr` on a branch with commits | shows commits + diffstat, asks before push; then `git push`, `gh pr create`, `🔗 PR opened` comment, issue → Testing |
+| 12 | `/youtrack-task pr` again on the same branch | reuses the existing PR URL, no second PR; comment + state still consistent |
+| 13 | `/youtrack-task pr` with `gh` not on PATH | stops with instructions to push + open PR manually, then use `link` |
+| 14 | `/youtrack-task pr --no-move` | PR opened + linked, issue state unchanged |
+| 15 | `/youtrack-task link https://github.com/o/r/pull/1` | `🔗 PR: <url>` comment; no push, no state change |
+| 16 | `/youtrack-task testing` | issue → Testing; 🧪 comment |
+| 17 | `/youtrack-task done` | issue → Done; ✅ comment; if branch unmerged, one-line `/youtrack-task pr` reminder |
+| 18 | `/youtrack-task testing` on an already-Done issue | no change; reports current state |
+| 19 | Unset `YOUTRACK_TOKEN`, restart, run anything | setup message, no stack trace |

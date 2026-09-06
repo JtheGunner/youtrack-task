@@ -18,6 +18,8 @@ server.
   / SSO (Authelia, Authentik, oauth2-proxy…), allow the `/mcp` path through with
   bearer-token auth.
 - `git` on your `PATH`.
+- The [`gh` CLI](https://cli.github.com/) on your `PATH` if you want to use
+  `/youtrack-task pr`. Not needed for anything else.
 
 ## Setup (one time)
 
@@ -104,14 +106,32 @@ Flags:
 /youtrack-task comment <text>          # add a comment to the current branch's issue
 /youtrack-task log 1h30m <what>         # log time on the current branch's issue
 /youtrack-task log INFRA-42 45m <what>  # ...or on a specific issue
+/youtrack-task pr                       # push branch + open PR + link it + move to Testing
+/youtrack-task link <pr-url>            # attach an already-open PR to the issue
 /youtrack-task testing                  # move the issue to Testing
 /youtrack-task done                     # move the issue to Done
 ```
 
-`comment` / `log` / `testing` / `done` figure out the issue ID from your current
-branch name; pass an explicit `ID` as the first argument to override. State moves
-are forward-only along `Open → In Progress → Testing → Done` — asking to move an
-issue to a state it's already at or past does nothing.
+`comment` / `log` / `pr` / `link` / `testing` / `done` figure out the issue ID
+from your current branch name; pass an explicit `ID` as the first argument to
+override. State moves are forward-only along `Open → In Progress → Testing → Done`
+— asking to move an issue to a state it's already at or past does nothing.
+
+### The full lifecycle
+
+```
+/youtrack-task ADMIN-6   →  branch, In Progress, plan, (optional) implement
+/youtrack-task pr        →  push + GitHub PR + PR link on the issue + → Testing
+      … PR review + merge …
+/youtrack-task done      →  → Done
+```
+
+`pr` is the only command that pushes, and it asks first (shows the commits and
+diffstat). It needs the [`gh` CLI](https://cli.github.com/). It never
+force-pushes, merges, or deletes anything. If you'd rather run your own richer
+ship flow (tests, version bump, changelog), do that instead and then
+`/youtrack-task link <pr-url>` to record the PR on the issue. `done` is always
+last — it means "merged and accepted", so run it after the PR lands, not before.
 
 ---
 

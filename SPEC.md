@@ -117,14 +117,23 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 ```
 /youtrack-task comment <text>                           # add_issue_comment to the current branch's issue
 /youtrack-task log [ISSUE-ID] <duration> [description]  # log_work; issue inferred from branch if omitted
+/youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft]  # push + gh PR + link on issue + → Testing
+/youtrack-task link [ISSUE-ID] <pr-url>                 # attach an existing PR URL as a comment
 /youtrack-task testing [ISSUE-ID]                       # move state → Testing
 /youtrack-task done [ISSUE-ID]                          # move state → Done
 ```
 
 State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
-Progress` automatically; `testing` and `done` are explicit steps the user runs.
-When `ISSUE-ID` is omitted for `comment` / `log` / `testing` / `done`, it is
-extracted from the current git branch name; if that fails, the skill asks.
+Progress` automatically. `pr` is the only command that pushes — it needs `gh`,
+prompts before pushing, never force-pushes/merges/deletes, and moves the issue to
+Testing. `testing` / `done` are pure state transitions (no git). `done` is always
+last: it means "merged and accepted". When `ISSUE-ID` is omitted for any
+sub-command it is taken from the current branch name; if that fails, the skill
+asks.
+
+Lifecycle: `/youtrack-task <id>` → (implement) → `/youtrack-task pr` → *review +
+merge* → `/youtrack-task done`. Users who prefer their own ship flow run that
+instead of `pr`, then `/youtrack-task link <url>`.
 
 ## Primary flow
 
@@ -253,7 +262,9 @@ plan is approved, but never crosses these without explicit per-action approval:
   the flow and is reported.
 - No writes to databases / seed data / fixtures / credentials — including for QA.
 - No servers/daemons started without asking.
-- No `git push`, no PR, no force-push — that is `/ship` or the user's call.
+- Push + PR only in the explicit `pr` sub-command (or the user's own ship flow),
+  after a confirmation prompt. Never as part of the primary flow or `done`. Never
+  force-push, merge a PR, or delete a branch.
 - Branch slug: leading type word stripped ("Bugfix:", "Feature/Refactoring:"),
   40-char cap, name shown for accept/rename before use.
 
