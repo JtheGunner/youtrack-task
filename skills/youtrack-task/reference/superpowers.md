@@ -90,6 +90,13 @@ Bound by the Guardrails. Path from step 6:
 - Do not invoke `superpowers:finishing-a-development-branch`; integration is the
   `pr` sub-command's / the user's job.
 
+## Language
+
+Whatever language the issue is in, everything this path writes to **git** —
+commit messages from the TDD / execution steps, any branch it creates — is in
+**English** (Guardrails). Design docs / plan files written locally are English
+too. Only the YouTrack plan comment follows the issue's language.
+
 ## Fallback (no superpowers)
 
 Exactly today's behaviour: plan mode for step 6, the normal development workflow

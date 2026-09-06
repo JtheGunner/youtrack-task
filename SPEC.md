@@ -45,6 +45,14 @@ youtrack-task/
 └── SPEC.md                  # this file
 ```
 
+### Language
+
+Git artifacts — branch names, commit messages, PR titles and bodies, locally
+written plan / design docs — are **always English**, whatever language the issue
+is in (the skill translates the summary). YouTrack-side text follows the issue's
+language: comments mirror it, and `/youtrack-task new` writes the issue in the
+input's language.
+
 ### Nothing instance-specific in the repo
 
 The repo is public and must leak neither the YouTrack URL nor any

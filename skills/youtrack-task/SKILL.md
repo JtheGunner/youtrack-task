@@ -47,6 +47,10 @@ specific action:
 - The only YouTrack writes are: the pickup state change + comment, the plan
   comment, an optional one-line completion comment, and the explicit
   `comment` / `log` / `pr` / `link` / `testing` / `done` sub-commands.
+- **All git artifacts are in English** — branch names, commit messages, PR
+  titles and PR bodies — regardless of the issue's language. Translate the issue
+  summary to English for these. YouTrack-side text (comments, the issue created
+  by `new`) instead follows the issue's / the user's language.
 
 ## Config
 
@@ -367,13 +371,16 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
      URL — don't create a second one.
    - Else `gh pr create --base <base> --head <branch> --title "<ID>: <clean-summary>"
      --body "<body>"` (`--draft` if the flag was passed). `<clean-summary>` is the
-     issue summary with the leading type word stripped, same rule as the slug in
-     `reference/branching.md` (`"Bugfix: Hover …"` → `"Hover …"`). If the repo has
-     `.github/pull_request_template.md` or `.github/PULL_REQUEST_TEMPLATE/`,
-     fill that template and append the lines below rather than replacing it.
-   - `<body>` always includes: a link to the YouTrack issue
+     issue summary **in English** (translate if the issue isn't), with the
+     leading type word stripped — same as the slug rule in `reference/branching.md`
+     (`"Bugfix: Hover-Effekt bei markierten Zeilen"` → `"Keep row tint visible on hover"`).
+     If the repo has `.github/pull_request_template.md` or
+     `.github/PULL_REQUEST_TEMPLATE/`, fill that template and append the lines
+     below rather than replacing it.
+   - `<body>` is **English** and always includes: a link to the YouTrack issue
      (`<YOUTRACK_MCP_URL without /mcp>/issue/<ID>`), a one-line summary, and a
-     short bullet list of the commits.
+     short bullet list of the commits. The merge commit inherits this title, so
+     it must not carry non-English text.
 6. Capture the PR URL from the command output.
 7. YouTrack write-back:
    - `add_issue_comment`: the `pr` template from `reference/writeback.md`

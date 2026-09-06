@@ -92,7 +92,7 @@ What happens:
    `Task→chore`, `Epic→feat`, `Cosmetics→style`, else `chore`.
    Example: `chore/INFRA-42-rotate-vault-unseal-keys`.
    Refuses on a dirty tree (offers to stash); switches to the branch if it
-   already exists.
+   already exists. The slug is always English even when the issue isn't.
 4. **In Progress** — moves the issue to *In Progress* (unless it's already there
    or further) and adds a comment: *📌 Picked up in Claude Code — branch `…`*.
 5. **Plan** — Claude explores the repo and drafts an implementation plan. If the
@@ -171,7 +171,9 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 
 `pr` is the only command that pushes, and it asks first (shows the commits and
 diffstat). It needs the [`gh` CLI](https://cli.github.com/). It never
-force-pushes, merges, or deletes anything. If you'd rather run your own richer
+force-pushes, merges, or deletes anything. Branch names, commit messages and the
+PR title/body are always English — even for a German (or other non-English)
+issue; only the YouTrack comments follow the issue's language. If you'd rather run your own richer
 ship flow (tests, version bump, changelog), do that instead and then
 `/youtrack-task link <pr-url>` to record the PR on the issue. `done` is always
 last — it means "merged and accepted", so run it after the PR lands, not before.

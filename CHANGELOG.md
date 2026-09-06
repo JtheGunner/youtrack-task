@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 — 2026-09-06
+
+- Git artifacts are always English now — branch slugs, commit messages, PR title
+  and body — regardless of the issue's language; the skill translates the
+  summary. YouTrack comments still follow the issue's language. Fixes non-English
+  text leaking into merge commits via the PR title.
+
 ## 0.4.2 — 2026-09-06
 
 - Docs: link the changelog from the README; Keep a Changelog / SemVer preamble.

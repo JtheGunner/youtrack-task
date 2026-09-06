@@ -34,11 +34,18 @@ as YouTrack reports it).
    `^\s*(bug ?fix|hot ?fix|fix|feature|feat|refactoring|refactor|task|epic|chore|cosmetics?|change|docs?)(\s*/\s*(refactoring|refactor|feature|fix|task))*\s*[:\-–]\s*`
    from the front. E.g. `"Bugfix: Hover-Effekt …"` → `"Hover-Effekt …"`,
    `"Feature/Refactoring: Tabs …"` → `"Tabs …"`.
-3. Lowercase.
-4. Replace every run of non-`[a-z0-9]` characters with a single `-`.
-5. Trim leading/trailing `-`.
-6. Truncate to 40 characters; if the cut lands inside a word, back up to the last
+3. **Render it in English.** If the summary is not already English, produce a
+   short English equivalent — terse, this is a branch name, not a translation.
+   Identifiers, product names and proper nouns stay as-is.
+   E.g. `"Hover-Effekt bei farblich markierten Tabellenzeilen korrigieren"` →
+   `"fix hover on tinted table rows"`.
+4. Lowercase.
+5. Replace every run of non-`[a-z0-9]` characters with a single `-`.
+6. Trim leading/trailing `-`.
+7. Truncate to 40 characters; if the cut lands inside a word, back up to the last
    `-`; then trim a trailing `-`.
+
+Branch names are **always English**, whatever language the issue is written in.
 
 ## Full-name cap
 

@@ -3,6 +3,11 @@
 All writes go through the YouTrack MCP server (`mcp__youtrack__*`). Never call the
 REST API directly.
 
+**Language:** YouTrack comments follow the issue's language (a German issue gets
+German comments). Git artifacts — branch names, commit messages, PR title/body —
+are always English (see `reference/branching.md` and the Guardrails). Don't mix
+the two up.
+
 ## Finding the state field (do this before any state change)
 
 1. Call `get_issue_fields_schema` for the issue's project.
