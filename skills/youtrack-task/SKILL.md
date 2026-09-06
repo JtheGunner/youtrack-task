@@ -40,7 +40,7 @@ is optional. Defaults:
 
 | First arg | Action |
 | --- | --- |
-| *(none)* or looks like an issue ID (`^[A-Z][A-Z0-9_]+-\d+$`) | **Primary flow** (below) |
+| *(none)*, an issue ID (`^[A-Z][A-Z0-9_]+-\d+$`), or a bare number | **Primary flow** (below) |
 | `comment` | `add_issue_comment` with the rest of the line, to the current branch's issue |
 | `log` | time logging — see "log" below |
 | `testing` | move the issue to `testing_state` — see "state sub-commands" |
@@ -56,12 +56,27 @@ else ask the user.
 
 ### 1. Resolve the issue ID
 
-- Arg matches `^[A-Z][A-Z0-9_]+-\d+$` → use it.
-- Else `git branch --show-current`; if it contains `[A-Z]+-\d+`, extract it and
-  ask: *"Continue on `<ID>` (from branch `<branch>`)?"* — proceed only on yes.
-- Else `mcp__youtrack__search_issues` with `list_query`. Show a numbered list:
-  `<ID> — <summary> — <state>`. Let the user pick one. If the list is empty, say
-  so and ask for an explicit ID.
+Resolve in this order:
+
+1. **Arg is a full ID** (`^[A-Z][A-Z0-9_]+-\d+$`) → use it verbatim.
+2. **Arg is a bare number** `N` → qualify it with the current repo's project key
+   (see below): the issue is `<PROJECT>-N`. Echo one line —
+   *"→ `<PROJECT>-N`: <summary>. Continue?"* — and proceed only on yes. If the
+   project key can't be determined, ask for a full ID instead.
+3. **No arg** → `git branch --show-current`; if it contains `[A-Z]+-\d+`, extract
+   that ID and ask *"Continue on `<ID>` (from branch `<branch>`)?"* — proceed
+   only on yes.
+4. **Still nothing** → `mcp__youtrack__search_issues` with `list_query` and show
+   the candidates as:
+   `<ID> — <summary> — <state>` (one per line, no leading row numbers).
+   Ask the user to reply **with an issue ID** (e.g. `ADMIN-6`). A bare number in
+   the reply is treated exactly like rule 2 (→ `<PROJECT>-N`), **never** as a
+   position in the list. Empty list → say so, ask for an explicit ID.
+
+**Current repo's project key:** derive it from the git remote / cwd and match it
+against YouTrack projects (`mcp__youtrack__find_projects` / `get_project`), or take
+the dominant project prefix among the issues returned by `list_query` for this
+repo. This is the same project used for the sanity check in step 3.
 
 ### 2. Fetch context
 
