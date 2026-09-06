@@ -27,6 +27,9 @@ Use a throwaway or low-stakes issue.
 | 8s | `/youtrack-task worktree list` | lists only `.worktrees/<ID>-<slug>` entries with branch + YouTrack state |
 | 8t | `/youtrack-task done` for an issue whose worktree's PR is merged | clean → offers `git worktree remove` + `git branch -d`; **dirty → reports it and removes nothing, no prompt** |
 | 8u | `/youtrack-task worktree prune` with one dirty worktree among Done ones | removes the clean Done ones + their merged branches (`git branch -d`), reports the dirty one, never `--force` |
+| 8v | `/youtrack-task ADMIN-x` where the issue is already In Progress **and** a worktree for it exists | resumes into that worktree (`EnterWorktree`/cd), no new branch, no state change, no pickup comment; goes straight to plan/implement reusing the existing plan comment |
+| 8w | same, but the previous session's branch was deleted (no branch/worktree for the issue) | announces "already In Progress but has no branch — starting a fresh one", runs step 4 **in full incl. the worktree decision** (so under `worktree = always` it lands in `.worktrees/…`, not an in-place branch), skips only the state change |
+| 8x | resume where a local `*ADMIN-x*` branch exists but isn't checked out | offers `git switch` or `git worktree add <path> <that-branch>` per the worktree decision; doesn't recreate the branch |
 | 8b | `/youtrack-task new` (bare) inside a repo | asks free-text-or-fields; field path → prompts project (repo default offered), title, description; infers Type + confirm; one confirm → created; reports ID + URL; offers pickup |
 | 8c | `/youtrack-task new --project ADMIN --title "X" --description "Y" --priority Major --type Bug` | no prompts except the final confirm; issue created with Bug + Major |
 | 8d | `/youtrack-task new --title "Fix broken login redirect" --description "..."` (no --type) | Type inferred as Bug/Fix with a rationale line, asked to confirm |

@@ -217,6 +217,15 @@ pickup (`/youtrack-task <new-ID>`), no auto-chain.
 `get_issue` + `get_issue_comments`. Present a 3–6 line summary: ID, title, type,
 priority, state, subsystem if present, and the gist of the description.
 
+### 3b. Resume check
+
+If the issue is already `In Progress` or later it was picked up before. Look for
+existing work first: a worktree whose branch/dir contains `<ID>-` → enter it, skip
+steps 4–5; a local branch `*<ID>-*` → switch or `git worktree add` it; nothing →
+run step 4 **in full** (worktree decision included) and skip only step 5's state
+change. A resume never bypasses the worktree-vs-in-place decision. An existing
+plan comment is reused, not re-generated or re-posted.
+
 ### 3. Repo sanity check
 
 - `git rev-parse --is-inside-work-tree` must succeed, else stop.
@@ -227,6 +236,9 @@ priority, state, subsystem if present, and the gist of the description.
   a legitimate reason.
 
 ### 4. Create the branch (or worktree)
+
+Runs on a fresh pickup and whenever step 3b found no existing branch. The
+worktree-vs-in-place decision applies every time a branch is created.
 
 - Base: `--base` if given, else `git symbolic-ref refs/remotes/origin/HEAD`
   (fallback `main`, then `master`). `git fetch origin <base>`.

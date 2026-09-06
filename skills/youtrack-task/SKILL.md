@@ -156,7 +156,37 @@ issue has one), and a 2–4 sentence gist of the description + any decisive comm
   mismatch, warn once: *"`<ID>` is in project `<PROJ>` but this repo looks like
   `<slug>` — continue anyway?"* Continue only on yes. Never hard-block.
 
+### 3b. Resume check (issue already In Progress or later)
+
+If the issue's state is `Open` (or earlier) → skip this step, do a normal fresh
+pickup.
+
+If it's already at `In Progress` / `Testing` / `Done`, it was picked up before —
+find the existing work before creating anything:
+
+1. `git worktree list --porcelain` → a worktree whose branch or directory name
+   contains `<ID>-` → **enter it** (`EnterWorktree` with its path if available,
+   else `cd`). Announce *"Resuming `<ID>` in `<path>` on `<branch>`."* Skip step 4
+   and step 5's state change entirely. Go to step 6.
+2. else `git branch --list "*<ID>-*"` → a local branch not checked out anywhere →
+   tell the user it exists and either `git switch` to it (in-place) or, per the
+   worktree decision in step 4, `git worktree add <path> <that-branch>`. Then skip
+   step 5's state change; go to step 6.
+3. else **no branch or worktree for this issue here** (e.g. a previous session's
+   branch was deleted) → say so: *"`<ID>` is already In Progress but has no branch
+   in this repo — starting a fresh one."* Then run **step 4 in full** (the
+   worktree-vs-in-place decision included). In step 5, skip the state change
+   (already In Progress) but still post a one-line pickup comment noting the
+   restart.
+
+When resuming, a plan comment usually already exists — reuse it in step 6, don't
+re-run brainstorming unless the user asks, and don't re-post it in step 7.
+
 ### 4. Create the branch (or worktree)
+
+Runs on a fresh pickup **and** whenever step 3b found no existing branch. The
+worktree-vs-in-place decision below applies **every time a branch is created** —
+never skip it on a resume.
 
 Common to both:
 - resolve base branch, `git fetch origin <base>` (`reference/branching.md`)
@@ -192,13 +222,15 @@ linked, and anything the user still needs to run.
 
 ### 5. Write-back on pickup
 
-Skip this whole step if `--no-writeback` was passed.
+Skip this whole step if `--no-writeback` was passed, or if step 3b resumed into an
+existing branch / worktree (cases 1 and 2 — the pickup already happened).
 
 Follow `reference/writeback.md`:
 - resolve the state field via `get_issue_fields_schema`
 - if the issue is before `In Progress` on the ladder, `update_issue` → `in_progress_state`
   (skip silently if already at In Progress / Testing / Done)
-- `add_issue_comment` with the pickup template
+- `add_issue_comment` with the pickup template (for a step 3b case 3 restart, a
+  one-liner noting the branch was recreated)
 
 `--no-move` skips only the state change, keeps the pickup comment.
 
