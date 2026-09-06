@@ -241,8 +241,10 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
 5. Open the PR:
    - If `gh pr view <branch> --json url,state` already shows an open PR, reuse its
      URL — don't create a second one.
-   - Else `gh pr create --base <base> --head <branch> --title "<ID>: <summary>"
-     --body "<body>"` (`--draft` if the flag was passed). If the repo has
+   - Else `gh pr create --base <base> --head <branch> --title "<ID>: <clean-summary>"
+     --body "<body>"` (`--draft` if the flag was passed). `<clean-summary>` is the
+     issue summary with the leading type word stripped, same rule as the slug in
+     `reference/branching.md` (`"Bugfix: Hover …"` → `"Hover …"`). If the repo has
      `.github/pull_request_template.md` or `.github/PULL_REQUEST_TEMPLATE/`,
      fill that template and append the lines below rather than replacing it.
    - `<body>` always includes: a link to the YouTrack issue
