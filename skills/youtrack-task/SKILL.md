@@ -1,6 +1,6 @@
 ---
 name: youtrack-task
-description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch, moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task comment|log|pr|link|testing|done.
+description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch, moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done.
 ---
 
 # youtrack-task
@@ -60,6 +60,7 @@ is optional. Defaults:
 | `testing_state` | `Testing` |
 | `done_state` | `Done` |
 | `local_plan_copy` | `auto` |
+| `default_new_type` | *(unset)* — fallback Type for `new` when inference is uncertain |
 | `[type_prefix]` table | see `reference/branching.md` |
 
 ## Dispatch on the first argument
@@ -67,6 +68,7 @@ is optional. Defaults:
 | First arg | Action |
 | --- | --- |
 | *(none)*, an issue ID (`^[A-Z][A-Z0-9_]+-\d+$`), or a bare number | **Primary flow** (below) |
+| `new` | create a new issue — see "new" below |
 | `comment` | `add_issue_comment` with the rest of the line, to the current branch's issue |
 | `log` | time logging — see "log" below |
 | `pr` | push the branch, open a PR, link it on the issue, move to Testing — see "pr" below |
@@ -217,6 +219,67 @@ Never move an issue backward. These commands never touch git.
 2. `mcp__youtrack__add_issue_comment` with the verbatim text (no emoji prefix
    added — the user's words stand as-is).
 3. Confirm.
+
+## new
+
+`/youtrack-task new [--project KEY] [--title "..."] [--description "..."] [--priority NAME] [--type NAME]`
+
+Create a new YouTrack issue. Any missing **required** field (project, title,
+description) is asked for, one at a time. Bare `/youtrack-task new` → fully
+interactive.
+
+### 1. Resolve the fields
+
+**project** (required)
+- `--project KEY` if given.
+- Else derive the current repo's project key (git remote / cwd → match YouTrack
+  projects, same as the primary flow's step 3) and offer it: *"Create in `ADMIN`
+  (this repo)? or name another project."*
+- Else list projects via `mcp__youtrack__find_projects` and ask.
+- Validate the key exists (`mcp__youtrack__get_project`) before continuing.
+
+**title** (required) — `--title` or ask.
+
+**description** (required) — `--description` or ask. Multi-line is fine.
+
+**type**
+- `--type NAME` → validate against the project's allowed Type values and use it.
+- Omitted → **infer** from title + description: pick one of the project's allowed
+  Type values (Bug / Cosmetics / Feature / Task / Epic or whatever the schema
+  lists), and show it with a one-line rationale for confirmation —
+  *"Type: Bug (title mentions 'Fehler' / 'korrigieren'). OK, or pick another?"*
+  Never create with an inferred Type unconfirmed. If inference is genuinely
+  unclear and `default_new_type` is set in config, propose that instead.
+
+**priority** (optional)
+- `--priority NAME` → validate against the schema and use it.
+- Omitted → leave unset; YouTrack applies the project default. Do not infer.
+
+### 2. Read the schema
+
+`mcp__youtrack__get_issue_fields_schema` for the project → exact field names and
+allowed value spellings for Type and Priority. Match user/inferred values to the
+schema's spelling (case-insensitive); if no match, show the allowed values and
+ask.
+
+### 3. Confirm, then create
+
+Show the assembled issue — project, title, full description, Type, Priority
+(or "project default") — and get **one confirmation**.
+
+Then `mcp__youtrack__create_issue` with project, summary (= title), description,
+and the Type/Priority custom fields. If the create call can't set a custom field,
+follow up with `mcp__youtrack__update_issue` on the new issue.
+
+### 4. Report and offer pickup
+
+Report the new issue ID, its URL, project, Type, Priority, title. Then offer:
+*"Pick it up now? → `/youtrack-task <new-ID>`"* (branch + In Progress + plan).
+Don't chain automatically.
+
+Creating is one MCP write; on failure report what failed and stop (nothing half-
+created to clean up unless `update_issue` failed after `create_issue` — then say
+the issue exists but a field didn't stick).
 
 ## pr
 

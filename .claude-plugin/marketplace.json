@@ -7,8 +7,8 @@
   "plugins": [
     {
       "name": "youtrack-task",
-      "description": "Pick up a JetBrains YouTrack issue from any repo: fetch it, branch, move it to In Progress, plan it, and write the plan back as a comment.",
-      "version": "0.1.0",
+      "description": "Create or pick up a JetBrains YouTrack issue from any repo: branch, move to In Progress, plan, ship a PR, and write everything back to the issue.",
+      "version": "0.2.0",
       "source": "./",
       "author": {
         "name": "Jeffry Wuermli"

@@ -22,6 +22,10 @@
 #   never  -> never write a local file; plan lives only as a YouTrack comment
 # local_plan_copy = "auto"
 
+# Fallback issue Type for `/youtrack-task new` when it can't confidently infer one
+# from the title + description. Unset -> the skill just asks you to pick.
+# default_new_type = "Task"
+
 # Branch prefix per YouTrack issue Type. Keys are Type names exactly as YouTrack
 # reports them (case-sensitive). Unlisted types fall back to "chore".
 # [type_prefix]

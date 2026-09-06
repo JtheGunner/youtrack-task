@@ -97,6 +97,8 @@ From the YouTrack predefined MCP tool set, namespaced by Claude Code as
 | `update_issue` | move state to *In Progress* (and later *Testing*/*Done*) |
 | `add_issue_comment` | post the pickup note and the plan |
 | `log_work` | `/youtrack-task log` sub-command |
+| `find_projects` | resolve / list projects for `/youtrack-task new` |
+| `create_issue` | `/youtrack-task new` |
 | `link_issues` | future: link the GitHub PR / sub-tasks |
 
 The skill never hardcodes custom-field names. It calls `get_issue_fields_schema`
@@ -115,6 +117,7 @@ Primary:
 Sub-commands (same skill, dispatched on first arg). All ship in v1.
 
 ```
+/youtrack-task new [--project KEY] [--title "..."] [--description "..."] [--priority N] [--type N]  # create_issue
 /youtrack-task comment <text>                           # add_issue_comment to the current branch's issue
 /youtrack-task log [ISSUE-ID] <duration> [description]  # log_work; issue inferred from branch if omitted
 /youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft]  # push + gh PR + link on issue + → Testing
@@ -131,9 +134,27 @@ last: it means "merged and accepted". When `ISSUE-ID` is omitted for any
 sub-command it is taken from the current branch name; if that fails, the skill
 asks.
 
-Lifecycle: `/youtrack-task <id>` → (implement) → `/youtrack-task pr` → *review +
-merge* → `/youtrack-task done`. Users who prefer their own ship flow run that
-instead of `pr`, then `/youtrack-task link <url>`.
+Lifecycle: `/youtrack-task new` (optional) → `/youtrack-task <id>` → (implement) →
+`/youtrack-task pr` → *review + merge* → `/youtrack-task done`. Users who prefer
+their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
+
+### `new` — create an issue
+
+Required: `project`, `title`, `description`. Missing required fields are prompted
+one at a time; bare `/youtrack-task new` is fully interactive.
+
+- **project**: `--project` → repo-derived default → `find_projects` list. Validated.
+- **title / description**: flag or prompt.
+- **type**: `--type` (validated against the project schema) → else inferred from
+  title + description and shown for confirmation before creating; never created
+  unconfirmed. `default_new_type` (config) is the fallback when inference is unsure.
+- **priority**: `--priority` (validated) → else left unset (project default). Never inferred.
+
+Flow: resolve fields → `get_issue_fields_schema` for exact field spellings →
+show the assembled issue and get one confirmation → `create_issue` (with Type /
+Priority custom fields; `update_issue` fallback if a field can't be set in the
+create call) → report ID + URL → offer to pick it up (`/youtrack-task <new-ID>`),
+no auto-chain.
 
 ## Primary flow
 

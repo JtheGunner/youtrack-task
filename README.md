@@ -100,6 +100,19 @@ Flags:
 | `--no-writeback` | don't change state and don't add the pickup comment |
 | `--base ‹branch›` | branch from `‹branch›` instead of the detected default |
 
+### Create an issue
+
+```
+/youtrack-task new                     # fully interactive: asks for project, title, description
+/youtrack-task new --project ADMIN --title "..." --description "..." --priority Major --type Bug
+```
+
+Required: project, title, description. `--project` defaults to the YouTrack
+project matching the current repo. `--priority` is optional (project default
+otherwise). `--type` is inferred from the title + description and shown for
+confirmation when you don't pass it. After creating, Claude offers to pick the
+issue up right away.
+
 ### During and after the work
 
 ```
@@ -120,6 +133,7 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 ### The full lifecycle
 
 ```
+/youtrack-task new …     →  (optional) create the issue first
 /youtrack-task ADMIN-6   →  branch, In Progress, plan, (optional) implement
 /youtrack-task pr        →  push + GitHub PR + PR link on the issue + → Testing
       … PR review + merge …
@@ -156,9 +170,9 @@ last — it means "merged and accepted", so run it after the PR lands, not befor
 
 ## MCP tools used
 
-`get_current_user`, `search_issues`, `get_issue`, `get_issue_fields_schema`,
-`get_issue_comments`, `get_project`, `update_issue`, `add_issue_comment`,
-`log_work` — all from YouTrack's predefined MCP tool set.
+`get_current_user`, `find_projects`, `get_project`, `search_issues`, `get_issue`,
+`get_issue_fields_schema`, `get_issue_comments`, `create_issue`, `update_issue`,
+`add_issue_comment`, `log_work` — all from YouTrack's predefined MCP tool set.
 
 ## License
 
