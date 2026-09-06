@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.0 — 2026-09-06
+
+- Isolated **git worktrees** for parallel tasks. `worktree = auto` (default): a
+  pickup drops into `<repo>/.worktrees/<ID>-<slug>` on its own branch when the
+  current checkout is dirty or on a non-default branch, so several pickups in
+  separate terminals don't collide. Bootstrap: copy-on-write clone of
+  `node_modules` / `vendor` (`+ storage` for Laravel) via `cp -c` on APFS,
+  symlinked `.env`, optional `.claude/youtrack-worktree-setup.sh`. New
+  `--worktree` / `--no-worktree` flags; new config `worktree`, `worktree_dir`,
+  `worktree_clone`, `worktree_link`. New `/youtrack-task worktree list|prune`;
+  `done` offers to remove a merged task's worktree. Never `--force` /
+  `git branch -D` / touches a dirty worktree. `reference/worktrees.md`.
+
 ## 0.5.0 — 2026-09-06
 
 - Git artifacts are always English now — branch slugs, commit messages, PR title

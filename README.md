@@ -118,6 +118,7 @@ Flags:
 | `--no-move` | don't change the issue state; still add the pickup comment |
 | `--no-writeback` | don't change state and don't add the pickup comment |
 | `--base ‹branch›` | branch from `‹branch›` instead of the detected default |
+| `--worktree` / `--no-worktree` | force / skip an isolated git worktree for this pickup (default: `worktree` config, itself `auto`) |
 | `--checkpoints` | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
 | `--review` / `--no-review` | force / skip the automatic code review in the implement step (default: review only when a written plan was executed) |
 
@@ -142,6 +143,31 @@ default otherwise; only proposed automatically if the text says "blocker" /
 "asap" / etc.). `--type` is inferred from the content and shown for confirmation
 when you don't pass it. After creating, Claude offers to pick the issue up.
 
+### Working several tasks in parallel
+
+By default (`worktree = auto`) a pickup drops into an **isolated git worktree**
+when your current checkout is busy — dirty, or already on another task's branch.
+So you can:
+
+```
+# terminal 1
+cd ~/projects/admin-dashboard-vue && claude
+> /youtrack-task ADMIN-1        # → .worktrees/ADMIN-1-…  on feat/ADMIN-1-…
+
+# terminal 2, at the same time
+cd ~/projects/admin-dashboard-vue && claude
+> /youtrack-task ADMIN-6        # → .worktrees/ADMIN-6-…  on fix/ADMIN-6-…
+```
+
+Each worktree gets its own `node_modules` / `vendor` (copy-on-write clone on
+APFS — instant, no extra disk until changed) and a symlinked `.env`. Drop a
+`.claude/youtrack-worktree-setup.sh` in the repo for anything project-specific
+(per-worktree DB, asset build). `/youtrack-task done` offers to remove a
+worktree once its PR is merged; `/youtrack-task worktree list|prune` manages them.
+
+Force it per run with `--worktree` / `--no-worktree`; set `worktree = off`
+(pre-0.6 behaviour: switch the current checkout) or `always` in the config.
+
 ### During and after the work
 
 ```
@@ -152,6 +178,7 @@ when you don't pass it. After creating, Claude offers to pick the issue up.
 /youtrack-task link <pr-url>            # attach an already-open PR to the issue
 /youtrack-task testing                  # move the issue to Testing
 /youtrack-task done                     # move the issue to Done
+/youtrack-task worktree list|prune      # manage the plugin's worktrees
 ```
 
 `comment` / `log` / `pr` / `link` / `testing` / `done` figure out the issue ID

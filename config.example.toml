@@ -38,6 +38,18 @@
 #   never  -> never auto-review (you still have --review to force it)
 # review_before_pr = "auto"
 
+# Isolate each pickup in its own git worktree (for working several tasks in
+# parallel). See reference/worktrees.md.
+#   auto   -> worktree when the checkout is dirty or on a non-default branch
+#   off    -> always switch the current checkout in place
+#   always -> every pickup gets a worktree
+# worktree = "auto"
+# worktree_dir = ".worktrees"                 # dir under the repo root, must be gitignored
+# worktree_clone = ["node_modules", "vendor"] # CoW-copied into a new worktree (isolated)
+# worktree_link  = [".env"]                   # symlinked from the main checkout (shared)
+# A repo may also provide .claude/youtrack-worktree-setup.sh (run after creation,
+# env: WORKTREE_PATH, MAIN_PATH, BRANCH, ISSUE_ID) for project-specific bootstrap.
+
 # Branch prefix per YouTrack issue Type. Keys are Type names exactly as YouTrack
 # reports them (case-sensitive). Unlisted types fall back to "chore".
 # [type_prefix]

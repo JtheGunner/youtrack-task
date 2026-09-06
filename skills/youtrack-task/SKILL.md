@@ -1,6 +1,6 @@
 ---
 name: youtrack-task
-description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch, moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done.
+description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch (optionally an isolated worktree for parallel tasks), moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done|worktree.
 ---
 
 # youtrack-task
@@ -44,6 +44,9 @@ specific action:
   the user's own `/ship`), after a confirmation prompt. Never as an implicit part
   of the primary flow, `done`, or anything else. **Never force-push**, never
   merge a PR, never delete a branch.
+- **Worktree removal** (`done` cleanup, `worktree prune`) never uses
+  `git worktree remove --force` and never `git branch -D`. A worktree with
+  uncommitted changes is left alone and reported, not removed.
 - The only YouTrack writes are: the pickup state change + comment, the plan
   comment, an optional one-line completion comment, and the explicit
   `comment` / `log` / `pr` / `link` / `testing` / `done` sub-commands.
@@ -67,6 +70,10 @@ is optional. Defaults:
 | `default_new_type` | *(unset)* — fallback Type for `new` when inference is uncertain |
 | `use_superpowers` | `auto` — `auto` \| `always` \| `never` (see `reference/superpowers.md`) |
 | `review_before_pr` | `auto` — `auto` (review on the architectural path) \| `always` \| `never` |
+| `worktree` | `auto` — `auto` (worktree when the checkout is dirty / on a non-default branch) \| `off` \| `always` |
+| `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
+| `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
+| `worktree_link` | `[".env"]` — paths symlinked from the main checkout into a new worktree |
 | `[type_prefix]` table | see `reference/branching.md` |
 
 ## Dispatch on the first argument
@@ -81,6 +88,7 @@ is optional. Defaults:
 | `link` | attach an existing PR URL to the issue as a comment — see "link" below |
 | `testing` | move the issue to `testing_state` — see "state sub-commands" |
 | `done` | move the issue to `done_state` — see "state sub-commands" |
+| `worktree` | `list` / `prune` this plugin's worktrees — see "worktree" below |
 
 For `comment` / `log` / `pr` / `link` / `testing` / `done`, resolve the issue ID
 from an explicit leading `ISSUE-ID` argument if given, else extract `[A-Z]+-\d+`
@@ -92,12 +100,15 @@ from `git branch --show-current`, else ask the user.
 
 ```
 /youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
-               [--checkpoints] [--review | --no-review]
+               [--worktree | --no-worktree] [--checkpoints] [--review | --no-review]
 ```
 
 - `--no-move` — don't change the issue state on pickup (keep the pickup comment).
 - `--no-writeback` — no pickup state change and no pickup comment.
 - `--base <branch>` — branch from `<branch>` instead of the detected default.
+- `--worktree` / `--no-worktree` — force / skip an isolated git worktree for this
+  pickup (default: `config` `worktree`, itself defaulting to `auto`). See
+  `reference/worktrees.md`.
 - `--checkpoints` — step 8 executes an architectural plan with
   `superpowers:executing-plans` (review stop after each phase) instead of
   `subagent-driven-development`.
@@ -145,18 +156,35 @@ issue has one), and a 2–4 sentence gist of the description + any decisive comm
   mismatch, warn once: *"`<ID>` is in project `<PROJ>` but this repo looks like
   `<slug>` — continue anyway?"* Continue only on yes. Never hard-block.
 
-### 4. Create the branch
+### 4. Create the branch (or worktree)
 
-Follow `reference/branching.md` exactly:
-- resolve base branch, `git fetch origin <base>`
-- compute `<prefix>/<ID>-<slug>` (leading type word stripped, 40-char slug cap),
-  show it, let the user accept or rename
-- dirty tree → stash or carry onto the feature branch per `branching.md`; **never
-  commit on the base branch**
+Common to both:
+- resolve base branch, `git fetch origin <base>` (`reference/branching.md`)
+- compute `<prefix>/<ID>-<slug>` — leading type word stripped, English slug,
+  40-char cap — show it, let the user accept or rename
+- **never commit on the base branch**
+
+**Decide worktree vs in-place** (`reference/worktrees.md`):
+- `--no-worktree` → in-place. `--worktree` → worktree.
+- else `config` `worktree`: `off` → in-place · `always` → worktree · `auto`
+  (default) → worktree when the working tree is dirty **or** the current branch
+  isn't the repo default; in-place otherwise.
+- if already inside a linked worktree (`GIT_DIR != GIT_COMMON`, not a submodule)
+  → in-place here, never nest.
+
+**In-place:**
+- dirty tree → stash or carry onto the feature branch per `branching.md`
 - existing branch → `git switch` instead of recreating
 - `git switch -c <branch> origin/<base>`
 
-Report the branch created and the base it started from.
+**Worktree** — follow `reference/worktrees.md`: ensure `<worktree_dir>/` is
+gitignored → `git worktree add <repo>/<worktree_dir>/<ID>-<slug> -b <branch>
+origin/<base>` → bootstrap (CoW-clone `worktree_clone`, symlink `worktree_link`,
+run `.claude/youtrack-worktree-setup.sh` if present) → enter it (`EnterWorktree`
+if available, else `cd` + absolute paths). Steps 5–8 run in the worktree.
+
+Report: the branch, the base, and — for a worktree — its path, what was cloned /
+linked, and anything the user still needs to run.
 
 ### 5. Write-back on pickup
 
@@ -233,9 +261,13 @@ open a PR, or move the issue here — tell the user the branch is ready and that
 5. Otherwise `update_issue` to the target, then `add_issue_comment` with the
    matching template. If the user appended text after the sub-command, include it
    in the comment as a note.
-6. After `done`: if a local branch for this issue still exists and `gh pr view
-   <branch>` shows no merged PR, add one line — *"Branch `<branch>` isn't merged
-   yet — `/youtrack-task pr` or `/ship` to integrate it."* No git action.
+6. After `done`:
+   - if a local branch for this issue still exists and `gh pr view <branch>`
+     shows no merged PR, add one line — *"Branch `<branch>` isn't merged yet —
+     `/youtrack-task pr` or `/ship` to integrate it."* No git action.
+   - if the issue's branch lives in a worktree under `worktree_dir` and its PR is
+     merged / gone, offer to `git worktree remove <path>` + `git branch -d
+     <branch>` (never `--force` / `-D`; ask if the worktree is dirty).
 
 Never move an issue backward. These commands never touch git.
 
@@ -403,6 +435,18 @@ Does not push and does not change state.
    `…/pull/<n>` GitHub URL.
 3. `mcp__youtrack__add_issue_comment`: `🔗 PR: <url>`.
 4. Confirm.
+
+## worktree
+
+`/youtrack-task worktree list|prune`  (see `reference/worktrees.md`)
+
+- **`list`** — `git worktree list` filtered to worktrees under `worktree_dir`
+  whose name looks like `<ID>-<slug>`; for each, show the branch and the issue's
+  current YouTrack state (`get_issue`).
+- **`prune`** — for every such worktree whose issue is at `done_state` (or whose
+  PR is merged / gone), `git worktree remove <path>` then `git worktree prune`.
+  Skip worktrees with uncommitted changes and list them for the user. Never
+  `--force`; never delete a branch with `-D`.
 
 ## Notes
 

@@ -38,7 +38,8 @@ youtrack-task/
 │           ├── branching.md      # branch-name + type→prefix rules
 │           ├── writeback.md      # state-transition + comment rules
 │           ├── issue-template.md # structure for `new` free-text generation
-│           └── superpowers.md    # routing for the superpowers plan/impl path
+│           ├── superpowers.md    # routing for the superpowers plan/impl path
+│           └── worktrees.md      # isolated-worktree pickup + bootstrap + cleanup
 ├── config.example.toml      # documents every optional override, dummy values only
 ├── README.md                # setup: 2 env vars + token, then /plugin install
 ├── LICENSE                  # MIT
@@ -122,12 +123,13 @@ Primary:
 
 ```
 /youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
-               [--checkpoints] [--review | --no-review]
+               [--worktree | --no-worktree] [--checkpoints] [--review | --no-review]
 ```
 
-`--checkpoints` runs an architectural plan's execution with review stops
-(`superpowers:executing-plans`). `--review` / `--no-review` force / skip the
-automatic code review in the implement step.
+`--worktree` / `--no-worktree` force / skip an isolated git worktree (default
+`worktree` config = `auto`). `--checkpoints` runs an architectural plan's
+execution with review stops (`superpowers:executing-plans`). `--review` /
+`--no-review` force / skip the automatic code review in the implement step.
 
 Sub-commands (same skill, dispatched on first arg). All ship in v1.
 
@@ -139,6 +141,7 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 /youtrack-task link [ISSUE-ID] <pr-url>                 # attach an existing PR URL as a comment
 /youtrack-task testing [ISSUE-ID]                       # move state → Testing
 /youtrack-task done [ISSUE-ID]                          # move state → Done
+/youtrack-task worktree list|prune                      # manage this plugin's worktrees
 ```
 
 State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
@@ -152,6 +155,20 @@ asks.
 Lifecycle: `/youtrack-task new` (optional) → `/youtrack-task <id>` → (implement) →
 `/youtrack-task pr` → *review + merge* → `/youtrack-task done`. Users who prefer
 their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
+
+### Worktrees (parallel tasks)
+
+`reference/worktrees.md`. Default `worktree = auto`: a pickup goes into
+`<repo>/<worktree_dir>/<ID>-<slug>` (own branch, gitignored dir) when the current
+checkout is dirty or on a non-default branch — so several pickups in separate
+terminals don't collide. Bootstrap: CoW-clone (`cp -c` on APFS) the isolated
+dirs (`worktree_clone`, `+ storage` for Laravel), symlink the shared ones
+(`worktree_link`), run `.claude/youtrack-worktree-setup.sh` if present; no blind
+`npm ci`. `comment` / `log` / `pr` / `testing` / `done` work unchanged from
+inside a worktree (issue ID from the branch name). Cleanup: `done` offers removal
+once the PR is merged; `worktree prune` sweeps worktrees whose issue is Done.
+Never `git worktree remove --force`, never `git branch -D`, never touch a dirty
+worktree.
 
 ### `new` — create an issue
 
@@ -206,21 +223,26 @@ priority, state, subsystem if present, and the gist of the description.
   `admin-dashboard-vue` — continue anyway?"). Never hard-block; the user may have
   a legitimate reason.
 
-### 4. Create the branch
+### 4. Create the branch (or worktree)
 
-- Base: `--base` if given, else the repo default branch resolved via
-  `git symbolic-ref refs/remotes/origin/HEAD` (fallback `main`, then `master`).
-- `git fetch origin <base>` then branch from `origin/<base>`.
-- Name: `<prefix>/<ID>-<slug>` per `reference/branching.md`
-  - `<prefix>` from the issue Type (Bug→`fix`, Feature→`feat`, Task→`chore`,
-    Epic→`feat`, Cosmetics→`style`; default `chore`; config `type_prefix`).
-  - `<slug>` = summary with a leading type word stripped ("Bugfix:",
-    "Feature/Refactoring:"), lowercased, non-alphanumeric → `-`, 40-char cap.
-  - Full name capped at 60 chars. The computed name is shown for accept/rename.
-- Guards: never commit on the base branch — a dirty tree is stash-or-carry only
-  (`reference/branching.md`); if the target branch exists, offer `git switch`
-  instead of recreating.
-- `git switch -c <branch> origin/<base>`.
+- Base: `--base` if given, else `git symbolic-ref refs/remotes/origin/HEAD`
+  (fallback `main`, then `master`). `git fetch origin <base>`.
+- Name: `<prefix>/<ID>-<slug>` per `reference/branching.md` — prefix from Type
+  (Bug→`fix`, Feature→`feat`, Task→`chore`, Epic→`feat`, Cosmetics→`style`;
+  default `chore`; config `type_prefix`); `<slug>` = English rendering of the
+  summary, leading type word stripped, 40-char cap; full name ≤ 60. Shown for
+  accept/rename.
+- Never commit on the base branch — a dirty tree is stash-or-carry only.
+- **Worktree vs in-place** (`reference/worktrees.md`): flags `--worktree` /
+  `--no-worktree`, else config `worktree` (`auto` default → worktree when the
+  checkout is dirty or on a non-default branch; `off` / `always`). Already inside
+  a linked worktree → in-place, no nesting.
+  - in-place: existing branch → `git switch`; else `git switch -c <branch> origin/<base>`.
+  - worktree: ensure `<worktree_dir>/` is gitignored → `git worktree add
+    <repo>/<worktree_dir>/<ID>-<slug> -b <branch> origin/<base>` → bootstrap
+    (CoW-clone `worktree_clone`, symlink `worktree_link`, run
+    `.claude/youtrack-worktree-setup.sh` if present) → enter it (`EnterWorktree`
+    if available, else cd + absolute paths). Steps 5–8 run there.
 
 ### 5. Write-back on pickup (default on)
 
@@ -271,6 +293,10 @@ verification pass. Never pushes / PRs / moves state — that's `pr` / the user.
 ```toml
 # use_superpowers   = "auto"          # auto | always | never
 # review_before_pr  = "auto"          # auto (architectural only) | always | never
+# worktree          = "auto"          # auto (checkout busy) | off | always
+# worktree_dir      = ".worktrees"    # gitignored dir under the repo root
+# worktree_clone    = ["node_modules", "vendor"]   # CoW-copied (isolated)
+# worktree_link     = [".env"]        # symlinked from the main checkout (shared)
 # default_new_type  = "Task"          # fallback Type for `new` when inference is unsure
 # list_query        = "for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc"
 # in_progress_state = "In Progress"   # state name used on pickup
