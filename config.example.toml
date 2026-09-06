@@ -40,7 +40,9 @@
 
 # Isolate each pickup in its own git worktree (for working several tasks in
 # parallel). See reference/worktrees.md.
-#   auto   -> worktree when the checkout is dirty or on a non-default branch
+#   auto   -> worktree when the checkout is dirty, on a non-default branch, or a
+#             plugin worktree already exists (first pickup in a clean repo stays
+#             in place -> use "always" for genuinely parallel work)
 #   off    -> always switch the current checkout in place
 #   always -> every pickup gets a worktree
 # worktree = "auto"

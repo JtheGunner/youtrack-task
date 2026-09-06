@@ -19,13 +19,14 @@ Use a throwaway or low-stakes issue.
 | 8l | `use_superpowers = "never"` in config | plain plan mode, no superpowers skills invoked |
 | 8m | `--no-review` on an architectural task | code review skipped, verification still runs |
 | 8n | `/youtrack-task ADMIN-x` while the checkout is clean and on the default branch (`worktree = auto`) | in-place `git switch -c`, no worktree |
-| 8o | same, but checkout is on another `feat/…` branch | worktree created at `.worktrees/ADMIN-x-…`; `.worktrees/` added to `.gitignore` if missing (one commit) |
+| 8o | same, but checkout is on another `feat/…` branch | worktree at `.worktrees/ADMIN-x-…`; `.worktrees/` appended to `.git/info/exclude` if not already ignored — **no commit on the user's branch** |
 | 8p | worktree pickup in a Laravel repo | `node_modules`, `vendor`, `storage` CoW-cloned (`cp -c`), `.env` symlinked; `.claude/youtrack-worktree-setup.sh` run if present; report lists what was linked + any `npm run build` hint |
-| 8q | run `/youtrack-task ADMIN-a` and `/youtrack-task ADMIN-b` in two terminals | two independent worktrees + branches; `pr` from each resolves the right issue |
+| 8q | `worktree = always`, run `/youtrack-task ADMIN-a` and `/youtrack-task ADMIN-b` in two terminals | two independent worktrees + branches; `pr` from each resolves the right issue; a racing `git worktree add` retries once on `index.lock` |
+| 8q2 | `worktree = auto`, same two-terminal run from a clean on-default repo | first pickup is **in-place**, only the second becomes a worktree (documented asymmetry) |
 | 8r | `--no-worktree` while on a feat branch | forced in-place (stash/carry prompt), no worktree |
 | 8s | `/youtrack-task worktree list` | lists only `.worktrees/<ID>-<slug>` entries with branch + YouTrack state |
-| 8t | `/youtrack-task done` for an issue whose worktree's PR is merged | offers `git worktree remove` + `git branch -d`; declines on a dirty worktree |
-| 8u | `/youtrack-task worktree prune` with one dirty worktree among Done ones | removes the clean Done ones, reports the dirty one, never `--force` |
+| 8t | `/youtrack-task done` for an issue whose worktree's PR is merged | clean → offers `git worktree remove` + `git branch -d`; **dirty → reports it and removes nothing, no prompt** |
+| 8u | `/youtrack-task worktree prune` with one dirty worktree among Done ones | removes the clean Done ones + their merged branches (`git branch -d`), reports the dirty one, never `--force` |
 | 8b | `/youtrack-task new` (bare) inside a repo | asks free-text-or-fields; field path → prompts project (repo default offered), title, description; infers Type + confirm; one confirm → created; reports ID + URL; offers pickup |
 | 8c | `/youtrack-task new --project ADMIN --title "X" --description "Y" --priority Major --type Bug` | no prompts except the final confirm; issue created with Bug + Major |
 | 8d | `/youtrack-task new --title "Fix broken login redirect" --description "..."` (no --type) | Type inferred as Bug/Fix with a rationale line, asked to confirm |

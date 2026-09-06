@@ -145,9 +145,9 @@ when you don't pass it. After creating, Claude offers to pick the issue up.
 
 ### Working several tasks in parallel
 
-By default (`worktree = auto`) a pickup drops into an **isolated git worktree**
-when your current checkout is busy — dirty, or already on another task's branch.
-So you can:
+Put `worktree = "always"` in `~/.config/youtrack-task/config.toml` (or pass
+`--worktree` each time). Then every pickup lands in its own **isolated git
+worktree**:
 
 ```
 # terminal 1
@@ -162,11 +162,16 @@ cd ~/projects/admin-dashboard-vue && claude
 Each worktree gets its own `node_modules` / `vendor` (copy-on-write clone on
 APFS — instant, no extra disk until changed) and a symlinked `.env`. Drop a
 `.claude/youtrack-worktree-setup.sh` in the repo for anything project-specific
-(per-worktree DB, asset build). `/youtrack-task done` offers to remove a
-worktree once its PR is merged; `/youtrack-task worktree list|prune` manages them.
+(per-worktree DB, asset build). The worktree dir is ignored via
+`.git/info/exclude` — no commit on your branch. `/youtrack-task done` offers to
+remove a worktree once its PR is merged (dirty ones are left alone);
+`/youtrack-task worktree list|prune` manages them.
 
-Force it per run with `--worktree` / `--no-worktree`; set `worktree = off`
-(pre-0.6 behaviour: switch the current checkout) or `always` in the config.
+The default, `worktree = "auto"`, only makes a worktree when the current checkout
+is already busy (dirty or on a task branch) or another worktree exists — so the
+*first* pickup in a clean repo stays in place. That's fine for one-at-a-time
+work; use `always` for parallel. `worktree = "off"` = pre-0.6 behaviour (switch
+the current checkout).
 
 ### During and after the work
 

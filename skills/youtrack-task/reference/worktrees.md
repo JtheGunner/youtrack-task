@@ -11,12 +11,25 @@ Config `worktree`:
 
 | value | behaviour |
 | --- | --- |
-| `auto` *(default)* | create a worktree when the current checkout is **dirty** or already on a **non-default branch**; otherwise switch in place |
+| `auto` *(default)* | worktree when the current checkout is **dirty**, already on a **non-default branch**, or **another plugin worktree already exists** for this repo; otherwise switch in place |
 | `off` | always switch in place (`git switch -c`) — the pre-0.6 behaviour |
 | `always` | every pickup gets a worktree |
 
 Flags override for one run: `--worktree` forces one, `--no-worktree` forces
 in-place.
+
+**For genuinely parallel work, set `worktree = always` (or pass `--worktree`
+each time).** Under `auto`, the *first* pickup in a clean, on-default repo goes
+in-place by design — only once that checkout is on a task branch (or a worktree
+exists) do later pickups branch off into worktrees. That asymmetry is fine for
+"pick up one thing"; it is not what you want when you plan to run two tasks at
+once.
+
+**Concurrency.** Two pickups racing `git worktree add` in the same repo can hit
+`fatal: Unable to create '…/index.lock'`. On that error, wait ~2 s and retry
+once; if it still fails, tell the user another git/worktree operation is in
+progress. The ignore guard below is idempotent, so a second concurrent pickup
+that finds `<worktree_dir>` already excluded just skips it.
 
 ## Step 0 — detect existing isolation
 
@@ -39,10 +52,13 @@ GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 defaults to `.worktrees`. The directory name is the flat `<ID>-<slug>`; the
 branch keeps the full `<prefix>/<ID>-<slug>`.
 
-**Gitignore guard (required):** `git check-ignore -q <worktree_dir>` must pass.
-If it doesn't, add `/<worktree_dir>/` to the repo's `.gitignore` and commit that
-one change (English message, e.g. `chore: ignore .worktrees/`) before creating
-anything.
+**Ignore guard (required):** `git check-ignore -q <worktree_dir>` must pass so a
+worktree is never accidentally committed. If it doesn't, append
+`/<worktree_dir>/` to **`.git/info/exclude`** — not the tracked `.gitignore`.
+`.git/info/exclude` is per-repo, untracked, and needs no commit, so this never
+lands a surprise `chore: ignore …` commit on whatever branch the user happens to
+be on, and it works even when the tree is dirty. (If the repo already ignores
+`<worktree_dir>` via a committed `.gitignore`, leave it — the guard just passes.)
 
 **Create:**
 ```bash
@@ -93,20 +109,27 @@ unchanged from inside any worktree.
 
 ## Cleanup
 
+A worktree with **uncommitted changes is never removed** by the plugin — it is
+reported and left for the user. No "remove anyway?" prompt.
+
 `/youtrack-task done` — after the state change, if the issue's branch lives in a
 worktree under `<worktree_dir>` and (`gh pr view <branch>` shows) its PR is merged
-or gone, offer:
-```bash
-git worktree remove "<path>"        # never --force; if the tree is dirty, ask first
-git branch -d "<branch>"            # -d only; never -D
-```
+or gone:
+- clean → offer:
+  ```bash
+  git worktree remove "<path>"     # never --force
+  git branch -d "<branch>"         # -d only; never -D
+  ```
+- dirty → report the path + that it has uncommitted changes; do nothing.
 
 `/youtrack-task worktree` sub-command:
 - `list` — `git worktree list` filtered to this plugin's worktrees, each with its
   issue's current YouTrack state.
 - `prune` — for every plugin worktree whose issue is `done_state` (or whose PR is
-  merged), `git worktree remove` (skip dirty ones, report them) then
-  `git worktree prune`.
+  merged / gone) **and clean**: `git worktree remove "<path>"` then
+  `git branch -d "<branch>"` (the merged branch; `-d` refuses if unmerged, which
+  is the safe outcome), then a final `git worktree prune`. Dirty ones are skipped
+  and listed.
 
-Never `git worktree remove --force`, never `git branch -D`, never delete a
-worktree with uncommitted changes without explicit confirmation.
+Never `git worktree remove --force`, never `git branch -D`, never remove a
+worktree that has uncommitted changes.

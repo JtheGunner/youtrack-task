@@ -158,17 +158,20 @@ their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
 
 ### Worktrees (parallel tasks)
 
-`reference/worktrees.md`. Default `worktree = auto`: a pickup goes into
-`<repo>/<worktree_dir>/<ID>-<slug>` (own branch, gitignored dir) when the current
-checkout is dirty or on a non-default branch — so several pickups in separate
-terminals don't collide. Bootstrap: CoW-clone (`cp -c` on APFS) the isolated
-dirs (`worktree_clone`, `+ storage` for Laravel), symlink the shared ones
-(`worktree_link`), run `.claude/youtrack-worktree-setup.sh` if present; no blind
-`npm ci`. `comment` / `log` / `pr` / `testing` / `done` work unchanged from
-inside a worktree (issue ID from the branch name). Cleanup: `done` offers removal
-once the PR is merged; `worktree prune` sweeps worktrees whose issue is Done.
-Never `git worktree remove --force`, never `git branch -D`, never touch a dirty
-worktree.
+`reference/worktrees.md`. `worktree = always` (or `--worktree`) for genuinely
+parallel work — every pickup goes into `<repo>/<worktree_dir>/<ID>-<slug>` (own
+branch; dir ignored via `.git/info/exclude`, no commit). Default `auto` only
+makes a worktree when the checkout is already busy (dirty / non-default branch)
+or a plugin worktree exists, so the first pickup in a clean repo stays in place.
+Bootstrap: CoW-clone (`cp -c` on APFS) the isolated dirs (`worktree_clone`, `+
+storage` for Laravel), symlink the shared ones (`worktree_link`), run
+`.claude/youtrack-worktree-setup.sh` if present; no blind `npm ci`. Racing
+`git worktree add` retries once on `index.lock`. `comment` / `log` / `pr` /
+`testing` / `done` work unchanged from inside a worktree (issue ID from the
+branch name). Cleanup: `done` offers removal once the PR is merged (dirty ones
+reported, never removed, no prompt); `worktree prune` sweeps clean Done worktrees
+and their merged branches (`git branch -d`). Never `--force`, never `git branch
+-D`, never remove a dirty worktree.
 
 ### `new` — create an issue
 
@@ -238,8 +241,9 @@ priority, state, subsystem if present, and the gist of the description.
   checkout is dirty or on a non-default branch; `off` / `always`). Already inside
   a linked worktree → in-place, no nesting.
   - in-place: existing branch → `git switch`; else `git switch -c <branch> origin/<base>`.
-  - worktree: ensure `<worktree_dir>/` is gitignored → `git worktree add
-    <repo>/<worktree_dir>/<ID>-<slug> -b <branch> origin/<base>` → bootstrap
+  - worktree: ignore `<worktree_dir>/` via `.git/info/exclude` (never a
+    `.gitignore` commit) → `git worktree add <repo>/<worktree_dir>/<ID>-<slug> -b
+    <branch> origin/<base>` (retry once on an `index.lock` race) → bootstrap
     (CoW-clone `worktree_clone`, symlink `worktree_link`, run
     `.claude/youtrack-worktree-setup.sh` if present) → enter it (`EnterWorktree`
     if available, else cd + absolute paths). Steps 5–8 run there.

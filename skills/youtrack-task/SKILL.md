@@ -70,7 +70,7 @@ is optional. Defaults:
 | `default_new_type` | *(unset)* — fallback Type for `new` when inference is uncertain |
 | `use_superpowers` | `auto` — `auto` \| `always` \| `never` (see `reference/superpowers.md`) |
 | `review_before_pr` | `auto` — `auto` (review on the architectural path) \| `always` \| `never` |
-| `worktree` | `auto` — `auto` (worktree when the checkout is dirty / on a non-default branch) \| `off` \| `always` |
+| `worktree` | `auto` — `auto` (worktree when the checkout is dirty, on a non-default branch, or a plugin worktree already exists; parallel work wants `always`) \| `off` \| `always` |
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
 | `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
 | `worktree_link` | `[".env"]` — paths symlinked from the main checkout into a new worktree |
@@ -167,8 +167,10 @@ Common to both:
 **Decide worktree vs in-place** (`reference/worktrees.md`):
 - `--no-worktree` → in-place. `--worktree` → worktree.
 - else `config` `worktree`: `off` → in-place · `always` → worktree · `auto`
-  (default) → worktree when the working tree is dirty **or** the current branch
-  isn't the repo default; in-place otherwise.
+  (default) → worktree when the working tree is dirty, the current branch isn't
+  the repo default, **or** a plugin worktree already exists for this repo;
+  in-place otherwise. (For parallel tasks use `--worktree` / `worktree = always`
+  — under `auto` the first pickup in a clean on-default repo is in-place.)
 - if already inside a linked worktree (`GIT_DIR != GIT_COMMON`, not a submodule)
   → in-place here, never nest.
 
@@ -178,10 +180,12 @@ Common to both:
 - `git switch -c <branch> origin/<base>`
 
 **Worktree** — follow `reference/worktrees.md`: ensure `<worktree_dir>/` is
-gitignored → `git worktree add <repo>/<worktree_dir>/<ID>-<slug> -b <branch>
-origin/<base>` → bootstrap (CoW-clone `worktree_clone`, symlink `worktree_link`,
-run `.claude/youtrack-worktree-setup.sh` if present) → enter it (`EnterWorktree`
-if available, else `cd` + absolute paths). Steps 5–8 run in the worktree.
+ignored via **`.git/info/exclude`** (never a `.gitignore` commit) → `git worktree
+add <repo>/<worktree_dir>/<ID>-<slug> -b <branch> origin/<base>` (retry once on an
+`index.lock` race) → bootstrap (CoW-clone `worktree_clone`, symlink
+`worktree_link`, run `.claude/youtrack-worktree-setup.sh` if present) → enter it
+(`EnterWorktree` if available, else `cd` + absolute paths). Steps 5–8 run in the
+worktree.
 
 Report: the branch, the base, and — for a worktree — its path, what was cloned /
 linked, and anything the user still needs to run.
@@ -269,8 +273,9 @@ open a PR, or move the issue here — tell the user the branch is ready and that
      shows no merged PR, add one line — *"Branch `<branch>` isn't merged yet —
      `/youtrack-task pr` or `/ship` to integrate it."* No git action.
    - if the issue's branch lives in a worktree under `worktree_dir` and its PR is
-     merged / gone, offer to `git worktree remove <path>` + `git branch -d
-     <branch>` (never `--force` / `-D`; ask if the worktree is dirty).
+     merged / gone: **clean** → offer `git worktree remove <path>` + `git branch
+     -d <branch>` (never `--force` / `-D`); **dirty** → report the path and its
+     uncommitted changes, remove nothing, no prompt.
 
 Never move an issue backward. These commands never touch git.
 
@@ -448,9 +453,10 @@ Does not push and does not change state.
   whose name looks like `<ID>-<slug>`; for each, show the branch and the issue's
   current YouTrack state (`get_issue`).
 - **`prune`** — for every such worktree whose issue is at `done_state` (or whose
-  PR is merged / gone), `git worktree remove <path>` then `git worktree prune`.
-  Skip worktrees with uncommitted changes and list them for the user. Never
-  `--force`; never delete a branch with `-D`.
+  PR is merged / gone) **and clean**: `git worktree remove <path>`, then
+  `git branch -d <branch>` (`-d` refuses an unmerged branch — the safe outcome),
+  then a final `git worktree prune`. Worktrees with uncommitted changes are
+  skipped and listed. Never `--force`; never `git branch -D`.
 
 ## Notes
 
