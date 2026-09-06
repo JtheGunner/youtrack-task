@@ -222,11 +222,36 @@ Never move an issue backward. These commands never touch git.
 
 ## new
 
-`/youtrack-task new [--project KEY] [--title "..."] [--description "..."] [--priority NAME] [--type NAME]`
+```
+/youtrack-task new "<free text describing the work>"     # free-text mode
+/youtrack-task new [--project KEY] [--title "..."] [--description "..."] [--priority NAME] [--type NAME]
+```
 
-Create a new YouTrack issue. Any missing **required** field (project, title,
-description) is asked for, one at a time. Bare `/youtrack-task new` → fully
-interactive.
+Create a new YouTrack issue. Two ways to supply the content:
+
+- **Free-text mode** — the first non-flag argument is a prose blob (has spaces
+  and isn't a bare project key), or `--from-text "..."` is given. The skill
+  generates the title and a structured description from it (see step 0).
+- **Field mode** — pass `--title` / `--description` etc.; any missing required
+  field (project, title, description) is asked for, one at a time.
+
+Bare `/youtrack-task new` → ask first: *"Paste a free-text description, or fill
+the fields one by one?"*
+
+### 0. Free-text mode: generate title + description
+
+Follow `reference/issue-template.md`:
+- Produce a `title` (one imperative line, ≤ 70 chars, no type word).
+- Produce a `description` in the fixed sections
+  (Summary / Context / Goal / Acceptance criteria / Scope / Technical notes? /
+  Open questions?), in the language of the input.
+- Do not invent facts — gaps go in **Open questions**.
+- `--title` / `--description` passed alongside free text override the generated
+  value for that field.
+
+Then continue with steps 1–4 using the generated values. Priority is still only
+set if the input explicitly signals urgency (then propose + ask) or `--priority`
+is given.
 
 ### 1. Resolve the fields
 
@@ -265,7 +290,8 @@ ask.
 ### 3. Confirm, then create
 
 Show the assembled issue — project, title, full description, Type, Priority
-(or "project default") — and get **one confirmation**.
+(or "project default") — and get **one confirmation**. In free-text mode the
+user may edit any field here before confirming.
 
 Then `mcp__youtrack__create_issue` with project, summary (= title), description,
 and the Type/Priority custom fields. If the create call can't set a custom field,

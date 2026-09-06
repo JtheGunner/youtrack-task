@@ -103,15 +103,23 @@ Flags:
 ### Create an issue
 
 ```
-/youtrack-task new                     # fully interactive: asks for project, title, description
+/youtrack-task new "hover on tinted rows loses the colour, needs a same-hue hover instead"
+/youtrack-task new                     # interactive: free text, or field by field
 /youtrack-task new --project ADMIN --title "..." --description "..." --priority Major --type Bug
 ```
 
-Required: project, title, description. `--project` defaults to the YouTrack
-project matching the current repo. `--priority` is optional (project default
-otherwise). `--type` is inferred from the title + description and shown for
-confirmation when you don't pass it. After creating, Claude offers to pick the
-issue up right away.
+**Free-text mode** (first form): give one blob of text and Claude generates the
+title and a **structured description** — Summary / Context / Goal / Acceptance
+criteria / Scope / Technical notes / Open questions. That structure is the same
+one a later `/youtrack-task <id>` reads back to build its plan, so nothing is
+lost between capturing the task and working it. You review and edit the
+generated issue before it's created.
+
+Required either way: project, title, description. `--project` defaults to the
+YouTrack project matching the current repo. `--priority` is optional (project
+default otherwise; only proposed automatically if the text says "blocker" /
+"asap" / etc.). `--type` is inferred from the content and shown for confirmation
+when you don't pass it. After creating, Claude offers to pick the issue up.
 
 ### During and after the work
 

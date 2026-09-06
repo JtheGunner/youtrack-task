@@ -1,7 +1,7 @@
 {
   "name": "youtrack-task",
   "description": "Create or pick up a JetBrains YouTrack issue from any repo: branch, move to In Progress, plan, ship a PR, and write everything back to the issue.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "Jeffry Wuermli"
   },

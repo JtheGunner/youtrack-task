@@ -35,8 +35,9 @@ youtrack-task/
 │   └── youtrack-task/
 │       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
 │       └── reference/
-│           ├── branching.md # branch-name + type→prefix rules
-│           └── writeback.md # state-transition + comment rules
+│           ├── branching.md      # branch-name + type→prefix rules
+│           ├── writeback.md      # state-transition + comment rules
+│           └── issue-template.md # structure for `new` free-text generation
 ├── config.example.toml      # documents every optional override, dummy values only
 ├── README.md                # setup: 2 env vars + token, then /plugin install
 ├── LICENSE                  # MIT
@@ -117,7 +118,7 @@ Primary:
 Sub-commands (same skill, dispatched on first arg). All ship in v1.
 
 ```
-/youtrack-task new [--project KEY] [--title "..."] [--description "..."] [--priority N] [--type N]  # create_issue
+/youtrack-task new "<free text>"   |   new [--project KEY] [--title …] [--description …] [--priority N] [--type N]
 /youtrack-task comment <text>                           # add_issue_comment to the current branch's issue
 /youtrack-task log [ISSUE-ID] <duration> [description]  # log_work; issue inferred from branch if omitted
 /youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft]  # push + gh PR + link on issue + → Testing
@@ -140,21 +141,29 @@ their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
 
 ### `new` — create an issue
 
-Required: `project`, `title`, `description`. Missing required fields are prompted
-one at a time; bare `/youtrack-task new` is fully interactive.
+Required: `project`, `title`, `description`. Two input modes:
 
+- **Free-text**: `/youtrack-task new "<blob>"` (or `--from-text`). The skill
+  generates `title` + a structured `description` per `reference/issue-template.md`
+  — fixed sections Summary / Context / Goal / Acceptance criteria / Scope /
+  Technical notes? / Open questions?, in the input's language, no invented facts
+  (gaps → Open questions). This is the same structure `/youtrack-task <id>` reads
+  back when planning, so capture → work loses nothing.
+- **Field**: `--title` / `--description` etc.; missing required fields prompted
+  one at a time. Bare `new` asks free-text-or-fields first.
+
+Field resolution:
 - **project**: `--project` → repo-derived default → `find_projects` list. Validated.
-- **title / description**: flag or prompt.
 - **type**: `--type` (validated against the project schema) → else inferred from
-  title + description and shown for confirmation before creating; never created
-  unconfirmed. `default_new_type` (config) is the fallback when inference is unsure.
-- **priority**: `--priority` (validated) → else left unset (project default). Never inferred.
+  the (generated or given) title + description and shown for confirmation; never
+  created unconfirmed. `default_new_type` (config) is the fallback when unsure.
+- **priority**: `--priority` (validated) → else unset (project default). Not
+  inferred, except: free text that explicitly signals urgency → propose + ask.
 
-Flow: resolve fields → `get_issue_fields_schema` for exact field spellings →
-show the assembled issue and get one confirmation → `create_issue` (with Type /
-Priority custom fields; `update_issue` fallback if a field can't be set in the
-create call) → report ID + URL → offer to pick it up (`/youtrack-task <new-ID>`),
-no auto-chain.
+Flow: resolve/generate fields → `get_issue_fields_schema` for exact spellings →
+show the assembled issue, editable, one confirmation → `create_issue` (Type /
+Priority as custom fields; `update_issue` fallback) → report ID + URL → offer
+pickup (`/youtrack-task <new-ID>`), no auto-chain.
 
 ## Primary flow
 
