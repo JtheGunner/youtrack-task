@@ -1,5 +1,13 @@
 # Changelog
 
+All notable changes to this project are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## 0.4.2 — 2026-09-06
+
+- Docs: link the changelog from the README; Keep a Changelog / SemVer preamble.
+
 ## 0.4.1 — 2026-09-06
 
 - Docs: README rewritten intro (create / pick up / ship), `--checkpoints` /

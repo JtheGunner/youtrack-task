@@ -203,6 +203,11 @@ last — it means "merged and accepted", so run it after the PR lands, not befor
 `get_issue_fields_schema`, `get_issue_comments`, `create_issue`, `update_issue`,
 `add_issue_comment`, `log_work` — all from YouTrack's predefined MCP tool set.
 
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md). Versioning follows [SemVer](https://semver.org/);
+each release is also a git tag (`vMAJOR.MINOR.PATCH`).
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
