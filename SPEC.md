@@ -276,8 +276,3 @@ plan is approved, but never crosses these without explicit per-action approval:
 3. Emoji in write-back comments is fine (📌 pickup, 📝 plan, ⏱️ log, ✅ done).
 4. After implementation: a written "how it works" walkthrough, then a joint test
    run against real YouTrack issues.
-
----
-
-Attribution: implementation commits will carry
-`Claude-Session: https://claude.ai/code/session_016V1ZNsh7y2kFyqW7A7FHsu`.
