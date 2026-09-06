@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0 — 2026-09-07
+
+- **Root fix for "no worktree was used" and "worktrees never cleaned up":** the
+  worktree decision and cleanup were long prose in SKILL.md that the model had to
+  execute faithfully every run — it regularly skipped it and did a plain
+  `git switch -c`, and nothing swept worktrees after `pr`. Moved both to bundled
+  scripts the skill now just *runs*:
+  - `scripts/setup-workspace` — step 4: reads `config` `worktree`, checks dirty
+    (tracked only) / branch / existing worktree, then resumes, switches in place,
+    or creates + bootstraps a worktree; prints `MODE=`/`BRANCH=`/`DIR=`/… The
+    model acts on that instead of improvising. `--allow-dirty` carries a dirty
+    tree onto the new branch when the user chooses; `ERROR=dirty-tree` otherwise.
+  - `scripts/sweep-worktrees` — removes clean worktrees whose PR is merged/closed
+    (`git worktree remove` + `git branch -d` + `git worktree prune`); dirty ones
+    and open PRs are listed, not touched. `pr` runs it (excluding the just-opened
+    branch) so worktrees stop piling up; `done` and `worktree prune` run it too.
+  - Merged step 3b (resume) into the script — a resume can no longer bypass the
+    worktree decision, whatever the issue's state.
+
 ## 0.6.3 — 2026-09-07
 
 - Fix: re-running `/youtrack-task <id>` on an issue that's already In Progress had

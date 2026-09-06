@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# sweep-worktrees — remove this plugin's worktrees whose PR is merged or closed
+# and whose tree is clean. Safe by construction: never --force, never
+# `git branch -D`, never touches a dirty worktree. Spec: reference/worktrees.md.
+#
+# Usage: sweep-worktrees [--exclude <branch>] [--dry-run]
+#
+# Prints KEY=VALUE lines:
+#   REMOVED=<path> (<branch>)        one per removed worktree
+#   KEPT_OPEN=<path> (<branch>)      PR still open / no PR
+#   KEPT_DIRTY=<path> (<branch>)     uncommitted changes — left alone
+#   KEPT_EXCLUDED=<path> (<branch>)  matched --exclude
+#   SKIPPED=no-gh                    gh CLI unavailable, nothing swept
+#   DONE=<n removed>
+set -uo pipefail
+
+EXCLUDE= DRY=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --exclude) EXCLUDE=$2; shift 2 ;;
+    --dry-run) DRY=true; shift ;;
+    *) echo "ERROR=unknown arg: $1"; exit 2 ;;
+  esac
+done
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "ERROR=not-in-git-repo"; exit 2; }
+command -v gh >/dev/null 2>&1 || { echo "SKIPPED=no-gh"; echo "DONE=0"; exit 0; }
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
+WT_DIR=$( [ -f "$CFG" ] && sed -nE 's/^[[:space:]]*worktree_dir[[:space:]]*=[[:space:]]*"?([A-Za-z0-9._/-]+)"?.*/\1/p' "$CFG" | head -1 )
+WT_DIR=${WT_DIR:-.worktrees}
+
+removed=0
+# iterate worktrees
+paths=(); branches=()
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*) cur=${line#worktree } ;;
+    "branch "*)   br=${line#branch }; br=${br#refs/heads/}
+                  case "$cur" in "$REPO_ROOT/$WT_DIR/"*) paths+=("$cur"); branches+=("$br") ;; esac ;;
+  esac
+done < <(git worktree list --porcelain)
+
+i=0
+while [ $i -lt ${#paths[@]} ]; do
+  p=${paths[$i]}; b=${branches[$i]}; i=$((i+1))
+  if [ -n "$EXCLUDE" ] && [ "$b" = "$EXCLUDE" ]; then
+    echo "KEPT_EXCLUDED=$p ($b)"; continue
+  fi
+  if [ -n "$(git -C "$p" status --porcelain 2>/dev/null)" ]; then
+    echo "KEPT_DIRTY=$p ($b)"; continue
+  fi
+  state=$(gh pr view "$b" --json state -q .state 2>/dev/null)
+  if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+    if $DRY; then
+      echo "REMOVED=$p ($b)  [dry-run]"; removed=$((removed+1)); continue
+    fi
+    if git worktree remove "$p" 2>/dev/null; then
+      git branch -d "$b" 2>/dev/null || true
+      echo "REMOVED=$p ($b)"; removed=$((removed+1))
+    else
+      echo "KEPT_DIRTY=$p ($b)"   # remove refused (untracked/modified) -> treat as keep
+    fi
+  else
+    echo "KEPT_OPEN=$p ($b)"
+  fi
+done
+
+$DRY || git worktree prune >/dev/null 2>&1 || true
+echo "DONE=$removed"

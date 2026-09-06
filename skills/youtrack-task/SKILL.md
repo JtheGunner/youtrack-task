@@ -55,10 +55,21 @@ specific action:
   summary to English for these. YouTrack-side text (comments, the issue created
   by `new`) instead follows the issue's / the user's language.
 
+## Scripts
+
+This skill bundles two helpers in its `scripts/` directory — run them, don't
+reimplement their logic:
+- `setup-workspace` — step 4: the worktree-vs-in-place decision, branch / worktree
+  creation, resume detection, and worktree bootstrap. Reads the config below.
+- `sweep-worktrees` — `pr` step 8, `done`, and `worktree prune`: removes finished
+  worktrees (clean + PR merged/closed) safely.
+
+Both echo `KEY=VALUE` lines; the contract is in `reference/worktrees.md`.
+
 ## Config
 
 Optional file `~/.config/youtrack-task/config.toml`. Read it if present; every key
-is optional. Defaults:
+is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 
 | Key | Default |
 | --- | --- |
@@ -156,81 +167,49 @@ issue has one), and a 2–4 sentence gist of the description + any decisive comm
   mismatch, warn once: *"`<ID>` is in project `<PROJ>` but this repo looks like
   `<slug>` — continue anyway?"* Continue only on yes. Never hard-block.
 
-### 3b. Resume check (issue already In Progress or later)
+### 4. Set up the workspace
 
-If the issue's state is `Open` (or earlier) → skip this step, do a normal fresh
-pickup.
+Compute `<prefix>` and `<slug>` per `reference/branching.md` (English, leading
+type word stripped, 40-char cap). Show the resulting branch name for
+accept/rename, then run the bundled script — **do not hand-roll the branch /
+worktree logic**, the script is the source of truth
+(spec: `reference/worktrees.md`):
 
-If it's already at `In Progress` / `Testing` / `Done`, it was picked up before —
-find the existing work before creating anything:
+```
+scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> \
+    [--base <branch>] [--mode worktree|inplace]
+```
+(run it from this skill's `scripts/` directory). `--mode worktree` for
+`--worktree`, `--mode inplace` for `--no-worktree`; omit otherwise — the script
+reads `config` `worktree`, does the dirty / branch / existing-worktree checks,
+creates or resumes, and bootstraps a new worktree.
 
-1. `git worktree list --porcelain` → a worktree whose branch or directory name
-   contains `<ID>-` → **enter it** (`EnterWorktree` with its path if available,
-   else `cd`). Announce *"Resuming `<ID>` in `<path>` on `<branch>`."* Skip step 4
-   and step 5's state change entirely. Go to step 6.
-2. else `git branch --list "*<ID>-*"` → a local branch not checked out anywhere →
-   tell the user it exists and either `git switch` to it (in-place) or, per the
-   worktree decision in step 4, `git worktree add <path> <that-branch>`. Then skip
-   step 5's state change; go to step 6.
-3. else **no branch or worktree for this issue here** (e.g. a previous session's
-   branch was deleted) → say so: *"`<ID>` is already In Progress but has no branch
-   in this repo — starting a fresh one."* Then run **step 4 in full** (the
-   worktree-vs-in-place decision included). In step 5, skip the state change
-   (already In Progress) but still post a one-line pickup comment noting the
-   restart.
+Act on its `KEY=VALUE` output:
 
-When resuming, a plan comment usually already exists — reuse it in step 6, don't
-re-run brainstorming unless the user asks, and don't re-post it in step 7.
+| `MODE=` | do this |
+| --- | --- |
+| `inplace` | you're on `BRANCH` in the repo root. Report `BRANCH` / `BASE`. |
+| `worktree` | `cd` to `NEXT_CD` (or `EnterWorktree` that path). Report `BRANCH` `BASE` `DIR` `CLONED` `LINKED` + any `NOTE=` lines. Steps 5–8 run there. |
+| `existing-worktree` | a worktree for this issue already exists → `cd` to `NEXT_CD` (or `EnterWorktree`). Announce *"Resuming `<ID>` in `<DIR>`."* **Skip step 5.** In step 6 reuse the existing plan comment — don't re-brainstorm unless asked, don't re-post it in step 7. |
+| `existing-branch` | a branch for this issue exists but isn't checked out. Ask the user: `git switch <BRANCH>`, or `git worktree add <repo>/<worktree_dir>/<ID>-<slug> <BRANCH>` then enter it. **Skip step 5.** Reuse the plan comment as above. |
 
-### 4. Create the branch (or worktree)
-
-Runs on a fresh pickup **and** whenever step 3b found no existing branch. The
-worktree-vs-in-place decision below applies **every time a branch is created** —
-never skip it on a resume.
-
-Common to both:
-- resolve base branch, `git fetch origin <base>` (`reference/branching.md`)
-- compute `<prefix>/<ID>-<slug>` — leading type word stripped, English slug,
-  40-char cap — show it, let the user accept or rename
-- **never commit on the base branch**
-
-**Decide worktree vs in-place** (`reference/worktrees.md`):
-- `--no-worktree` → in-place. `--worktree` → worktree.
-- else `config` `worktree`: `off` → in-place · `always` → worktree · `auto`
-  (default) → worktree when the working tree is dirty, the current branch isn't
-  the repo default, **or** a plugin worktree already exists for this repo;
-  in-place otherwise. (For parallel tasks use `--worktree` / `worktree = always`
-  — under `auto` the first pickup in a clean on-default repo is in-place.)
-- if already inside a linked worktree (`GIT_DIR != GIT_COMMON`, not a submodule)
-  → in-place here, never nest.
-
-**In-place:**
-- dirty tree → stash or carry onto the feature branch per `branching.md`
-- existing branch → `git switch` instead of recreating
-- `git switch -c <branch> origin/<base>`
-
-**Worktree** — follow `reference/worktrees.md`: ensure `<worktree_dir>/` is
-ignored via **`.git/info/exclude`** (never a `.gitignore` commit) → `git worktree
-add <repo>/<worktree_dir>/<ID>-<slug> -b <branch> origin/<base>` (retry once on an
-`index.lock` race) → bootstrap (CoW-clone `worktree_clone`, symlink
-`worktree_link`, run `.claude/youtrack-worktree-setup.sh` if present) → enter it
-(`EnterWorktree` if available, else `cd` + absolute paths). Steps 5–8 run in the
-worktree.
-
-Report: the branch, the base, and — for a worktree — its path, what was cloned /
-linked, and anything the user still needs to run.
+`ERROR=dirty-tree` (exit 2) → tracked changes present, in-place branch wanted.
+Ask the user: stash (`git stash push -u`, re-run, then pop or keep) or carry
+(re-run with `--allow-dirty` — the changes ride onto the feature branch). Never a
+commit on the base branch. Any other `ERROR=` → stop and show it.
 
 ### 5. Write-back on pickup
 
-Skip this whole step if `--no-writeback` was passed, or if step 3b resumed into an
-existing branch / worktree (cases 1 and 2 — the pickup already happened).
+Skip this whole step if `--no-writeback` was passed, or if step 4 returned
+`existing-worktree` / `existing-branch` (the pickup already happened).
 
 Follow `reference/writeback.md`:
 - resolve the state field via `get_issue_fields_schema`
 - if the issue is before `In Progress` on the ladder, `update_issue` → `in_progress_state`
   (skip silently if already at In Progress / Testing / Done)
-- `add_issue_comment` with the pickup template (for a step 3b case 3 restart, a
-  one-liner noting the branch was recreated)
+- `add_issue_comment` with the pickup template. If the issue was already In
+  Progress and step 4 made a fresh branch anyway (a previous session's branch was
+  lost), make it a one-liner noting the branch was recreated.
 
 `--no-move` skips only the state change, keeps the pickup comment.
 
@@ -304,12 +283,14 @@ open a PR, or move the issue here — tell the user the branch is ready and that
    - if a local branch for this issue still exists and `gh pr view <branch>`
      shows no merged PR, add one line — *"Branch `<branch>` isn't merged yet —
      `/youtrack-task pr` or `/ship` to integrate it."* No git action.
-   - if the issue's branch lives in a worktree under `worktree_dir` and its PR is
-     merged / gone: **clean** → offer `git worktree remove <path>` + `git branch
-     -d <branch>` (never `--force` / `-D`); **dirty** → report the path and its
-     uncommitted changes, remove nothing, no prompt.
+   - otherwise run `scripts/sweep-worktrees` (from this skill's `scripts/` dir)
+     and report its `REMOVED` / `KEPT_DIRTY` / `KEPT_OPEN` lines. It removes only
+     clean worktrees whose PR is merged/closed — never `--force`, never `-D`,
+     never a dirty one.
 
-Never move an issue backward. These commands never touch git.
+Never move an issue backward. `testing` / `done` change YouTrack state and, via
+`sweep-worktrees`, only ever *remove* finished worktrees — they never create or
+switch branches.
 
 ## log
 
@@ -460,8 +441,13 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
      (`🔗 PR opened: <url>` — add `, moved to Testing` when step 8 moves it).
    - Unless `--no-move`: if the issue is before `testing_state` on the ladder,
      `update_issue` → `testing_state`. Skip silently if already at Testing/Done.
-8. Report: PR URL, whether it was newly created or already existed, the state
-   change, and that `/youtrack-task done` is the step after the PR merges.
+8. Run `scripts/sweep-worktrees --exclude <this-branch>` (from this skill's
+   `scripts/` dir) to clear worktrees whose PR has already merged/closed. Report
+   its `REMOVED` lines. **This** worktree stays — the PR is open, review fixes go
+   here; `/youtrack-task done` (or `worktree prune`) removes it once merged.
+9. Report: PR URL, whether it was newly created or already existed, the state
+   change, what `sweep-worktrees` cleaned up, and that `/youtrack-task done` is
+   the step after the PR merges.
 
 ## link
 
@@ -484,11 +470,10 @@ Does not push and does not change state.
 - **`list`** — `git worktree list` filtered to worktrees under `worktree_dir`
   whose name looks like `<ID>-<slug>`; for each, show the branch and the issue's
   current YouTrack state (`get_issue`).
-- **`prune`** — for every such worktree whose issue is at `done_state` (or whose
-  PR is merged / gone) **and clean**: `git worktree remove <path>`, then
-  `git branch -d <branch>` (`-d` refuses an unmerged branch — the safe outcome),
-  then a final `git worktree prune`. Worktrees with uncommitted changes are
-  skipped and listed. Never `--force`; never `git branch -D`.
+- **`prune`** — run `scripts/sweep-worktrees` (from this skill's `scripts/` dir)
+  and report every line. It removes clean worktrees whose PR is merged/closed and
+  `git branch -d`s the merged branch, then `git worktree prune`; dirty ones and
+  still-open PRs are listed, not touched. Never `--force`, never `git branch -D`.
 
 ## Notes
 

@@ -5,6 +5,10 @@ work in progress), a pickup can create the branch in its own **git worktree**, s
 several `/youtrack-task <id>` runs — in different terminals / sessions — each get
 an isolated working directory.
 
+> **This document is the behavioural contract for `scripts/setup-workspace` and
+> `scripts/sweep-worktrees`.** The skill runs those scripts; it does not perform
+> these steps by hand. Change the scripts and this file together.
+
 ## When a worktree is used
 
 Config `worktree`:

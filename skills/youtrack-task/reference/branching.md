@@ -60,26 +60,24 @@ computed name only after the user has seen it.
 
 ## Base branch
 
-1. `--base <branch>` argument if given.
-2. else `git symbolic-ref --short refs/remotes/origin/HEAD` (strip `origin/`).
-3. else `main` if `origin/main` exists.
-4. else `master` if `origin/master` exists.
-5. else abort and ask.
-
-Always `git fetch origin <base>` first, then branch from `origin/<base>` so the
-new branch starts from the current remote tip, not a stale local ref.
+`scripts/setup-workspace` resolves it: `--base` arg → `origin/HEAD` →
+`origin/main` → `origin/master` → abort. It `git fetch`es the base and branches
+from `origin/<base>` so the branch starts at the current remote tip.
 
 ## Guards
 
-- **Never commit anything to the default branch.** If `git status --porcelain` is
-  non-empty before branching, the only options are:
-  1. `git stash push -u`, create the branch, then ask whether to `git stash pop`
-     onto it or leave the stash for the user; or
-  2. if the user confirms the pending changes belong with this issue, create the
-     branch from the current dirty state and carry them over (no commit on the
-     base branch).
-  Do not offer "commit it on `<base>` first" — that is out of bounds.
-- If the target branch already exists (`git rev-parse --verify <branch>`), do not
-  recreate it — offer `git switch <branch>` instead.
-- Never `git commit --no-verify` and never amend or rewrite existing commits. If a
-  pre-commit hook fails or misbehaves, stop and report it; let the user decide.
+`scripts/setup-workspace` and `sweep-worktrees` enforce the git-level guards
+(no branch on the default, ignore-guard via `.git/info/exclude`, `index.lock`
+retry, never `--force` / `git branch -D`, dirty worktrees untouched). What stays
+with the skill:
+
+- **Never commit anything to the default branch.** When `setup-workspace` returns
+  `ERROR=dirty-tree`, ask the user which:
+  1. `git stash push -u` → re-run the script → ask whether to `git stash pop`
+     onto the new branch or leave the stash; or
+  2. the pending changes belong with this issue → re-run with `--allow-dirty`
+     (the script `git switch -c`s and the changes are carried onto the feature
+     branch — never a commit on the base branch).
+  Do not offer "commit it on `<base>` first".
+- Never `git commit --no-verify`, never amend or rewrite existing commits. If a
+  pre-commit hook fails, stop and report it.

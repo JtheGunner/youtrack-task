@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# setup-workspace — decide worktree vs in-place, then create/enter the workspace
+# for a YouTrack issue. Deterministic replacement for the prose in SKILL.md
+# step 3b/4. Spec: reference/worktrees.md + reference/branching.md.
+#
+# Usage:
+#   setup-workspace --id ADMIN-7 --slug english-slug --prefix feat \
+#                   [--base main] [--mode default|worktree|inplace] [--allow-dirty]
+#
+# --mode default (or omitted) -> read config `worktree` (auto|off|always)
+# --mode worktree / inplace   -> forced (from --worktree / --no-worktree flags)
+# --allow-dirty               -> in-place with a dirty tree: git switch -c anyway,
+#                                carrying the tracked changes onto the new branch
+#                                (instead of ERROR=dirty-tree). Never for worktree.
+#
+# Prints KEY=VALUE lines on stdout. The caller acts on:
+#   MODE=existing-worktree | existing-branch | worktree | inplace
+#   BRANCH=<full branch name>
+#   BASE=<base branch>            (for freshly created branches)
+#   DIR=<absolute path to work in>   (worktree path, or repo root for in-place)
+#   NEXT_CD=<same as DIR>         (convenience: cd here, or EnterWorktree it)
+#   CLONED=<space-separated dirs>     (worktree only)
+#   LINKED=<space-separated paths>    (worktree only)
+#   HOOK=ran|absent|failed           (worktree only)
+#   NOTE=<free text hint>             (0+ lines)
+# On a condition the script must not decide, it prints ERROR=... and exits 2:
+#   ERROR=dirty-tree  -> in-place wanted but working tree is dirty; caller
+#                        resolves stash/carry (branching.md), then re-runs.
+#   ERROR=...         -> other hard stop.
+set -uo pipefail
+
+die() { echo "ERROR=$*"; exit 2; }
+
+ID= SLUG= PREFIX= BASE= MODE=default ALLOW_DIRTY=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --id)          ID=$2; shift 2 ;;
+    --slug)        SLUG=$2; shift 2 ;;
+    --prefix)      PREFIX=$2; shift 2 ;;
+    --base)        BASE=$2; shift 2 ;;
+    --mode)        MODE=$2; shift 2 ;;
+    --allow-dirty) ALLOW_DIRTY=true; shift ;;  # in-place: carry tracked changes onto the new branch
+    *) die "unknown arg: $1" ;;
+  esac
+done
+[ -n "$ID" ] && [ -n "$SLUG" ] && [ -n "$PREFIX" ] || die "need --id --slug --prefix"
+case "$MODE" in default|worktree|inplace) ;; *) die "bad --mode: $MODE (default|worktree|inplace)" ;; esac
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not-in-git-repo"
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+GIT_DIR=$(cd "$(git rev-parse --git-dir)" && pwd -P)
+GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
+IN_LINKED_WT=false
+if [ "$GIT_DIR" != "$GIT_COMMON" ] && [ -z "$(git rev-parse --show-superproject-working-tree 2>/dev/null)" ]; then
+  IN_LINKED_WT=true
+fi
+
+# ---- config -----------------------------------------------------------------
+CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
+cfg_scalar() { # $1 = key ; echoes value or nothing
+  [ -f "$CFG" ] || return 0
+  sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"?([A-Za-z0-9._/-]+)\"?.*/\1/p" "$CFG" | head -1
+}
+cfg_list() { # $1 = key ; echoes space-separated items
+  [ -f "$CFG" ] || return 0
+  sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\[(.*)\].*/\1/p" "$CFG" | head -1 | tr -d '"' | tr ',' ' '
+}
+WT_MODE_CFG=$(cfg_scalar worktree);            WT_MODE_CFG=${WT_MODE_CFG:-auto}
+WT_DIR=$(cfg_scalar worktree_dir);             WT_DIR=${WT_DIR:-.worktrees}
+WT_CLONE=$(cfg_list worktree_clone);           WT_CLONE=${WT_CLONE:-node_modules vendor}
+WT_LINK=$(cfg_list worktree_link);             WT_LINK=${WT_LINK:-.env}
+[ -f "$REPO_ROOT/artisan" ] && case " $WT_CLONE " in *" storage "*) ;; *) WT_CLONE="$WT_CLONE storage" ;; esac
+
+# ---- base branch ----------------------------------------------------------
+if [ -z "$BASE" ]; then
+  BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+  [ -z "$BASE" ] && git show-ref --verify -q refs/remotes/origin/main && BASE=main
+  [ -z "$BASE" ] && git show-ref --verify -q refs/remotes/origin/master && BASE=master
+  [ -z "$BASE" ] && die "cannot-resolve-base"
+fi
+
+BRANCH="$PREFIX/$ID-$SLUG"
+WT_PATH="$REPO_ROOT/$WT_DIR/$ID-$SLUG"
+
+# ---- resume: existing workspace for this issue ---------------------------
+EX_WT=$(git worktree list --porcelain | awk -v id="$ID-" '
+  /^worktree /{p=substr($0,10)}
+  /^branch /{b=$2; if (index(p, "/'"$WT_DIR"'/"id) || index(b, "/"id)) {print p; exit}}')
+if [ -n "$EX_WT" ]; then
+  EX_BR=$(git -C "$EX_WT" branch --show-current)
+  echo "MODE=existing-worktree"
+  echo "BRANCH=$EX_BR"
+  echo "DIR=$EX_WT"
+  echo "NEXT_CD=$EX_WT"
+  exit 0
+fi
+EX_LOCAL=$(git branch --format='%(refname:short)' --list "*$ID-*" | head -1)
+if [ -n "$EX_LOCAL" ]; then
+  echo "MODE=existing-branch"
+  echo "BRANCH=$EX_LOCAL"
+  echo "NOTE=branch exists but is not checked out; caller decides switch vs 'git worktree add $WT_PATH $EX_LOCAL'"
+  exit 0
+fi
+
+# ---- decide worktree vs in-place --------------------------------------------
+# "dirty" = tracked changes only; stray untracked files carry over a switch fine
+DIRTY=false; [ -n "$(git status --porcelain --untracked-files=no)" ] && DIRTY=true
+CUR_BRANCH=$(git branch --show-current)
+ON_DEFAULT=false; [ "$CUR_BRANCH" = "$BASE" ] && ON_DEFAULT=true
+ANY_PLUGIN_WT=false
+git worktree list --porcelain | grep -q "/$WT_DIR/" && ANY_PLUGIN_WT=true
+
+want_worktree() {
+  [ "$MODE" = worktree ] && return 0
+  [ "$MODE" = inplace  ] && return 1
+  case "$WT_MODE_CFG" in
+    always) return 0 ;;
+    off)    return 1 ;;
+    *)      if $DIRTY || ! $ON_DEFAULT || $ANY_PLUGIN_WT; then return 0; else return 1; fi ;;
+  esac
+}
+
+if $IN_LINKED_WT; then
+  # already isolated — never nest
+  { $DIRTY && ! $ALLOW_DIRTY; } && die "dirty-tree"
+  git switch -c "$BRANCH" "origin/$BASE" 2>/dev/null || git switch -c "$BRANCH"
+  echo "MODE=inplace"; echo "BRANCH=$BRANCH"; echo "BASE=$BASE"
+  echo "DIR=$REPO_ROOT"; echo "NEXT_CD=$REPO_ROOT"
+  echo "NOTE=already inside a linked worktree; branched in place, no nesting"
+  exit 0
+fi
+
+git fetch --quiet origin "$BASE" 2>/dev/null || echo "NOTE=git fetch origin $BASE failed; using local ref"
+
+if ! want_worktree; then
+  { $DIRTY && ! $ALLOW_DIRTY; } && die "dirty-tree"
+  if git show-ref --verify -q "refs/heads/$BRANCH"; then
+    git switch "$BRANCH"
+  else
+    git switch -c "$BRANCH" "origin/$BASE" 2>/dev/null || git switch -c "$BRANCH"
+  fi
+  echo "MODE=inplace"; echo "BRANCH=$BRANCH"; echo "BASE=$BASE"
+  echo "DIR=$REPO_ROOT"; echo "NEXT_CD=$REPO_ROOT"
+  exit 0
+fi
+
+# ---- worktree ----------------------------------------------------------------
+# ignore guard via .git/info/exclude (never a .gitignore commit)
+if ! git check-ignore -q "$WT_DIR" 2>/dev/null; then
+  EXCL="$GIT_COMMON/info/exclude"
+  grep -qxF "/$WT_DIR/" "$EXCL" 2>/dev/null || echo "/$WT_DIR/" >> "$EXCL"
+fi
+[ -e "$WT_PATH" ] && die "worktree-path-exists: $WT_PATH"
+
+add_wt() { git worktree add "$WT_PATH" -b "$BRANCH" "origin/$BASE" 2>/dev/null \
+           || git worktree add "$WT_PATH" -b "$BRANCH"; }
+if ! add_wt; then
+  sleep 2
+  add_wt || die "git-worktree-add-failed (index.lock? another op running)"
+fi
+
+MAIN="$REPO_ROOT"
+CLONED= LINKED=
+for d in $WT_CLONE; do
+  [ -e "$MAIN/$d" ] || continue
+  mkdir -p "$(dirname "$WT_PATH/$d")"
+  if cp -c -R "$MAIN/$d" "$WT_PATH/$d" 2>/dev/null || cp -R "$MAIN/$d" "$WT_PATH/$d" 2>/dev/null; then
+    CLONED="$CLONED $d"
+  else
+    echo "NOTE=could not copy $d into the worktree — run its install (npm ci / composer install) there"
+  fi
+done
+for p in $WT_LINK; do
+  [ -e "$MAIN/$p" ] || continue
+  mkdir -p "$(dirname "$WT_PATH/$p")"
+  ln -s "$MAIN/$p" "$WT_PATH/$p" 2>/dev/null && LINKED="$LINKED $p"
+done
+
+HOOK=absent
+HOOK_SH="$REPO_ROOT/.claude/youtrack-worktree-setup.sh"
+if [ -f "$HOOK_SH" ]; then
+  if WORKTREE_PATH="$WT_PATH" MAIN_PATH="$MAIN" BRANCH="$BRANCH" ISSUE_ID="$ID" \
+     bash "$HOOK_SH" >&2; then HOOK=ran; else HOOK=failed; fi
+fi
+
+echo "MODE=worktree"
+echo "BRANCH=$BRANCH"
+echo "BASE=$BASE"
+echo "DIR=$WT_PATH"
+echo "NEXT_CD=$WT_PATH"
+echo "CLONED=${CLONED# }"
+echo "LINKED=${LINKED# }"
+echo "HOOK=$HOOK"

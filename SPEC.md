@@ -34,12 +34,15 @@ youtrack-task/
 ├── skills/
 │   └── youtrack-task/
 │       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
+│       ├── scripts/
+│       │   ├── setup-workspace   # step 4: worktree-vs-in-place decision + create + bootstrap
+│       │   └── sweep-worktrees   # pr / done / prune: remove finished worktrees safely
 │       └── reference/
 │           ├── branching.md      # branch-name + type→prefix rules
 │           ├── writeback.md      # state-transition + comment rules
 │           ├── issue-template.md # structure for `new` free-text generation
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
-│           └── worktrees.md      # isolated-worktree pickup + bootstrap + cleanup
+│           └── worktrees.md      # contract for the two scripts
 ├── config.example.toml      # documents every optional override, dummy values only
 ├── README.md                # setup: 2 env vars + token, then /plugin install
 ├── LICENSE                  # MIT
@@ -158,20 +161,34 @@ their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
 
 ### Worktrees (parallel tasks)
 
-`reference/worktrees.md`. `worktree = always` (or `--worktree`) for genuinely
-parallel work — every pickup goes into `<repo>/<worktree_dir>/<ID>-<slug>` (own
-branch; dir ignored via `.git/info/exclude`, no commit). Default `auto` only
-makes a worktree when the checkout is already busy (dirty / non-default branch)
-or a plugin worktree exists, so the first pickup in a clean repo stays in place.
-Bootstrap: CoW-clone (`cp -c` on APFS) the isolated dirs (`worktree_clone`, `+
-storage` for Laravel), symlink the shared ones (`worktree_link`), run
-`.claude/youtrack-worktree-setup.sh` if present; no blind `npm ci`. Racing
-`git worktree add` retries once on `index.lock`. `comment` / `log` / `pr` /
-`testing` / `done` work unchanged from inside a worktree (issue ID from the
-branch name). Cleanup: `done` offers removal once the PR is merged (dirty ones
-reported, never removed, no prompt); `worktree prune` sweeps clean Done worktrees
-and their merged branches (`git branch -d`). Never `--force`, never `git branch
--D`, never remove a dirty worktree.
+Contract: `reference/worktrees.md`; implementation:
+`skills/youtrack-task/scripts/setup-workspace` (step 4) and `sweep-worktrees`
+(`pr` step 8, `done`, `worktree prune`). The skill **runs the scripts** rather
+than following prose — this is the durable fix for the model skipping the
+worktree decision or a `git switch -c` sneaking in.
+
+`setup-workspace` reads config `worktree` (`auto` default / `off` / `always`),
+detects dirty (tracked changes only) / current branch / existing plugin worktree
+/ existing branch for this issue, then either resumes an existing
+worktree/branch, switches in place, or creates
+`<repo>/<worktree_dir>/<ID>-<slug>` (dir ignored via `.git/info/exclude` — no
+commit; `git worktree add` retried once on `index.lock`) and bootstraps it
+(`cp -c` CoW-clone `worktree_clone` `+ storage` for Laravel, symlink
+`worktree_link`, run `.claude/youtrack-worktree-setup.sh`). It prints
+`MODE=inplace|worktree|existing-worktree|existing-branch` + `BRANCH` / `BASE` /
+`DIR` / `NEXT_CD` / `CLONED` / `LINKED` / `NOTE`, or `ERROR=dirty-tree` (exit 2)
+for the caller to resolve stash-or-carry.
+
+`worktree = always` (or `--worktree`) for genuinely parallel work; under `auto`
+the first pickup in a clean, on-default repo stays in place. `comment` / `log` /
+`pr` / `testing` / `done` work unchanged from inside a worktree (issue ID from
+the branch name).
+
+`sweep-worktrees [--exclude <branch>]` removes every `<worktree_dir>` worktree
+that is **clean** and whose PR (`gh pr view`) is MERGED or CLOSED — `git worktree
+remove` then `git branch -d` then `git worktree prune`. Dirty ones and open PRs
+are listed, not touched. `pr` runs it excluding the just-opened branch; `done`
+and `worktree prune` run it plain. Never `--force`, never `git branch -D`.
 
 ### `new` — create an issue
 
@@ -217,14 +234,6 @@ pickup (`/youtrack-task <new-ID>`), no auto-chain.
 `get_issue` + `get_issue_comments`. Present a 3–6 line summary: ID, title, type,
 priority, state, subsystem if present, and the gist of the description.
 
-### 3b. Resume check
-
-If the issue is already `In Progress` or later it was picked up before. Look for
-existing work first: a worktree whose branch/dir contains `<ID>-` → enter it, skip
-steps 4–5; a local branch `*<ID>-*` → switch or `git worktree add` it; nothing →
-run step 4 **in full** (worktree decision included) and skip only step 5's state
-change. A resume never bypasses the worktree-vs-in-place decision. An existing
-plan comment is reused, not re-generated or re-posted.
 
 ### 3. Repo sanity check
 
@@ -235,30 +244,24 @@ plan comment is reused, not re-generated or re-posted.
   `admin-dashboard-vue` — continue anyway?"). Never hard-block; the user may have
   a legitimate reason.
 
-### 4. Create the branch (or worktree)
+### 4. Set up the workspace
 
-Runs on a fresh pickup and whenever step 3b found no existing branch. The
-worktree-vs-in-place decision applies every time a branch is created.
+Compute `<prefix>` / `<slug>` per `reference/branching.md` (English, type word
+stripped, 40-char cap), show the branch name for accept/rename, then **run
+`scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> [--base …]
+[--mode worktree|inplace]`** and act on its `KEY=VALUE` output (see the Worktrees
+section and `reference/worktrees.md`):
 
-- Base: `--base` if given, else `git symbolic-ref refs/remotes/origin/HEAD`
-  (fallback `main`, then `master`). `git fetch origin <base>`.
-- Name: `<prefix>/<ID>-<slug>` per `reference/branching.md` — prefix from Type
-  (Bug→`fix`, Feature→`feat`, Task→`chore`, Epic→`feat`, Cosmetics→`style`;
-  default `chore`; config `type_prefix`); `<slug>` = English rendering of the
-  summary, leading type word stripped, 40-char cap; full name ≤ 60. Shown for
-  accept/rename.
-- Never commit on the base branch — a dirty tree is stash-or-carry only.
-- **Worktree vs in-place** (`reference/worktrees.md`): flags `--worktree` /
-  `--no-worktree`, else config `worktree` (`auto` default → worktree when the
-  checkout is dirty or on a non-default branch; `off` / `always`). Already inside
-  a linked worktree → in-place, no nesting.
-  - in-place: existing branch → `git switch`; else `git switch -c <branch> origin/<base>`.
-  - worktree: ignore `<worktree_dir>/` via `.git/info/exclude` (never a
-    `.gitignore` commit) → `git worktree add <repo>/<worktree_dir>/<ID>-<slug> -b
-    <branch> origin/<base>` (retry once on an `index.lock` race) → bootstrap
-    (CoW-clone `worktree_clone`, symlink `worktree_link`, run
-    `.claude/youtrack-worktree-setup.sh` if present) → enter it (`EnterWorktree`
-    if available, else cd + absolute paths). Steps 5–8 run there.
+| `MODE=` | caller action |
+| --- | --- |
+| `inplace` | on `BRANCH` in the repo root; report `BRANCH` / `BASE` |
+| `worktree` | `cd` to `NEXT_CD` (or `EnterWorktree`); report `BRANCH` `BASE` `DIR` `CLONED` `LINKED` `NOTE`; steps 5–8 run there |
+| `existing-worktree` | resume: enter `NEXT_CD`, **skip step 5**, reuse the existing plan comment |
+| `existing-branch` | branch exists but isn't checked out → ask the user `git switch` vs `git worktree add`; skip step 5 |
+
+`ERROR=dirty-tree` (exit 2) → resolve stash-or-carry per `reference/branching.md`,
+re-run. Never commit on the base branch. The script owns base resolution,
+`git fetch`, the ignore guard, `index.lock` retry, and bootstrap.
 
 ### 5. Write-back on pickup (default on)
 
