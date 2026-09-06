@@ -1,6 +1,6 @@
 # youtrack-task — Design Spec
 
-Status: **approved 2026-09-06 — in implementation**
+Status: **shipped — v0.4.0** (this doc tracks the design; see git tags for what landed when)
 Date: 2026-09-06
 
 ## Purpose
@@ -175,12 +175,13 @@ pickup (`/youtrack-task <new-ID>`), no auto-chain.
 
 ### 1. Resolve the issue ID
 
-- Arg matches `^[A-Z][A-Z0-9_]+-\d+$` → use it.
-- Else read `git branch --show-current`; if it contains `[A-Z]+-\d+`, extract and
-  ask the user to confirm ("Continue on INFRA-42 from branch `feat/INFRA-42-…`?").
-- Else `search_issues` with `for: me #Unresolved State: {In Progress}, {Open}
-  sort by: updated desc` (query overridable via config `list_query`), show a
-  numbered list (ID — summary — state), user picks one.
+- Arg is a full ID (`^[A-Z][A-Z0-9_]+-\d+$`) → use it.
+- Arg is a bare number `N` → qualify with the current repo's project key →
+  `<PROJECT>-N`, echo it, proceed on yes.
+- No arg → `git branch --show-current`; a `[A-Z]+-\d+` in it → extract, confirm.
+- Still nothing → `search_issues` with `list_query` (config-overridable), list
+  candidates as `<ID> — <summary> — <state>` (no row numbers). Reply is an issue
+  ID; a bare number there is `<PROJECT>-N`, never a list position.
 - Nothing found / ambiguous → stop and ask.
 
 ### 2. Fetch context
@@ -202,15 +203,15 @@ priority, state, subsystem if present, and the gist of the description.
 - Base: `--base` if given, else the repo default branch resolved via
   `git symbolic-ref refs/remotes/origin/HEAD` (fallback `main`, then `master`).
 - `git fetch origin <base>` then branch from `origin/<base>`.
-- Name: `<prefix>/<ID>-<slug>`
-  - `<prefix>` from the issue Type via `reference/branching.md`
-    (Bug→`fix`, Feature→`feat`, Task→`chore`, Epic→`feat`, Cosmetics→`style`;
-    default `chore`; overridable in config `type_prefix`).
-  - `<slug>` = summary → lowercase, non-alphanumeric to `-`, collapsed, trimmed,
-    max 50 chars.
-  - Full name capped at 60 chars.
-- Guards: refuse if working tree is dirty (ask to stash/commit first); if the
-  target branch already exists, offer to switch to it instead of recreating.
+- Name: `<prefix>/<ID>-<slug>` per `reference/branching.md`
+  - `<prefix>` from the issue Type (Bug→`fix`, Feature→`feat`, Task→`chore`,
+    Epic→`feat`, Cosmetics→`style`; default `chore`; config `type_prefix`).
+  - `<slug>` = summary with a leading type word stripped ("Bugfix:",
+    "Feature/Refactoring:"), lowercased, non-alphanumeric → `-`, 40-char cap.
+  - Full name capped at 60 chars. The computed name is shown for accept/rename.
+- Guards: never commit on the base branch — a dirty tree is stash-or-carry only
+  (`reference/branching.md`); if the target branch exists, offer `git switch`
+  instead of recreating.
 - `git switch -c <branch> origin/<base>`.
 
 ### 5. Write-back on pickup (default on)

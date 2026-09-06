@@ -1,9 +1,15 @@
 # youtrack-task
 
-A Claude Code plugin. From inside any project repo, run one command to pick up a
-[JetBrains YouTrack](https://www.jetbrains.com/youtrack/) issue: Claude fetches
-it, creates a correctly named git branch, moves the issue to **In Progress**,
-plans the work with you, and writes the plan back to the issue as a comment.
+A Claude Code plugin for working [JetBrains YouTrack](https://www.jetbrains.com/youtrack/)
+issues from inside any project repo:
+
+- **`/youtrack-task new "<free text>"`** — capture an issue; Claude turns your
+  text into a titled, structured issue.
+- **`/youtrack-task <ID>`** — pick one up: fetch it, branch, move it to
+  **In Progress**, plan the work (through the [`superpowers`](https://github.com/obra/superpowers)
+  plugin when present), write the plan back as a comment, and optionally implement it.
+- **`/youtrack-task pr` / `testing` / `done`** — open the PR (and link it on the
+  issue), then walk the state ladder as the work lands.
 
 No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP
 server.
@@ -50,7 +56,7 @@ Open a new shell so they're loaded, then start Claude Code from there.
 
 ```
 /plugin marketplace add JtheGunner/youtrack-task
-/plugin install youtrack-task
+/plugin install youtrack-task@youtrack-task
 ```
 
 Restart Claude Code. Verify the MCP server connected: you should see `youtrack`
@@ -61,8 +67,8 @@ tools available (`/mcp` lists them).
 Only if your workflow differs from the defaults. Copy
 [`config.example.toml`](./config.example.toml) to
 `~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
-names, a different issue-list query, branch-prefix mapping, or where the plan
-copy goes.
+names, a different issue-list query, branch-prefix mapping, where the plan copy
+goes, or the `use_superpowers` / `review_before_pr` toggles.
 
 ---
 
@@ -112,6 +118,8 @@ Flags:
 | `--no-move` | don't change the issue state; still add the pickup comment |
 | `--no-writeback` | don't change state and don't add the pickup comment |
 | `--base ‹branch›` | branch from `‹branch›` instead of the detected default |
+| `--checkpoints` | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
+| `--review` / `--no-review` | force / skip the automatic code review in the implement step (default: review only when a written plan was executed) |
 
 ### Create an issue
 
@@ -177,7 +185,7 @@ last — it means "merged and accepted", so run it after the PR lands, not befor
 | YouTrack URL | `YOUTRACK_MCP_URL` env var | no |
 | API token | `YOUTRACK_TOKEN` env var | no |
 | Which project an issue is in | encoded in the issue ID (`INFRA-42`) | no |
-| State names, list query, prefix map | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | defaults only |
+| State names, list query, prefix map, superpowers / review toggles | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | defaults only |
 | The skill logic | `skills/youtrack-task/` | yes |
 
 ## Troubleshooting
