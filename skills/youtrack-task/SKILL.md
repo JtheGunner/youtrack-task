@@ -217,9 +217,12 @@ or **architectural**; step 8 depends on it.
 Only after the user approves the plan:
 - `mcp__youtrack__add_issue_comment` with the plan rendered as Markdown, using the
   plan template from `reference/writeback.md`.
-- `local_plan_copy`:
-  - `auto` (default): if the repo already has a `docs/` directory, also write
-    `docs/plans/<ID>.md` with the same content. No `docs/` → skip, don't create it.
+- **Local copy.** If step 6's superpowers path already wrote a plan / design
+  document locally (the architectural case — `docs/superpowers/specs/…` or
+  `docs/plans/<ID>-plan.md`), that file **is** the local copy: do not write a
+  second one; just name its path. Otherwise apply `local_plan_copy`:
+  - `auto` (default): if the repo already has a `docs/` directory, write
+    `docs/plans/<ID>.md`. No `docs/` → skip, don't create it.
   - `always`: always write `docs/plans/<ID>.md` (create `docs/plans/` if needed).
   - `never`: never write a local file.
 
@@ -362,7 +365,8 @@ ask.
 
 Show the assembled issue — project, title, full description, Type, Priority
 (or "project default") — and get **one confirmation**. In free-text mode the
-user may edit any field here before confirming.
+user may edit any field here before confirming; editing one field does not
+regenerate the others (an edited title leaves the generated description as-is).
 
 Then `mcp__youtrack__create_issue` with project, summary (= title), description,
 and the Type/Priority custom fields. If the create call can't set a custom field,

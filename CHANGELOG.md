@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.1 — 2026-09-06
+
+- Fix: on the superpowers architectural path, `writing-plans` already writes a
+  local plan document — step 7's `local_plan_copy` no longer writes a second
+  overlapping `docs/plans/<ID>.md`; it names the existing file instead.
+- Docs: `new` confirm step spells out that editing one field doesn't regenerate
+  the others; test row 8i narrowed to the bounded case.
+
 ## 0.6.0 — 2026-09-06
 
 - Isolated **git worktrees** for parallel tasks. `worktree = auto` (default): a

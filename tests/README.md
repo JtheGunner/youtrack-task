@@ -13,7 +13,7 @@ Use a throwaway or low-stakes issue.
 | 6 | Run with a dirty working tree | refused before branching; offers `git stash push -u` |
 | 7 | Run against an issue whose project ≠ current repo | mismatch warning; can override |
 | 8 | Approve a plan | 📝 plan comment on the issue; `docs/plans/‹ID›.md` created only if repo has `docs/` |
-| 8i | pickup with `superpowers` installed, non-Bug issue | step 6 runs `superpowers:brainstorming` seeded from the description sections; step 8 (on go) uses TDD + `verification-before-completion` against the acceptance criteria |
+| 8i | pickup with `superpowers` installed, non-Bug issue that brainstorming rates **bounded** | step 6 runs `superpowers:brainstorming` seeded from the description sections; step 8 (on go) uses TDD + `verification-before-completion` against the acceptance criteria; no plan doc, no auto code review |
 | 8j | pickup a Bug-type issue with `superpowers` | step 6 starts with `superpowers:systematic-debugging` |
 | 8k | architectural plan, then implement | plan doc written (prefers `docs/superpowers/specs/`); executed via `subagent-driven-development`; auto `requesting-code-review` runs; `--checkpoints` switches to `executing-plans` |
 | 8l | `use_superpowers = "never"` in config | plain plan mode, no superpowers skills invoked |

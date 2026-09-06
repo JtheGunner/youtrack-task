@@ -57,8 +57,10 @@ step 8.
 
 ## Step 7 — write-back
 
-Unchanged: post the design or the plan-document contents as the plan comment
-(`reference/writeback.md`). If a plan file was written, name its path too.
+Post the design or the plan-document contents as the plan comment
+(`reference/writeback.md`). If `writing-plans` wrote a plan file here, that file
+is the local copy — name its path, and do **not** let SKILL.md step 7's
+`local_plan_copy` write a second `docs/plans/<ID>.md`.
 
 ## Step 8 — implement
 
