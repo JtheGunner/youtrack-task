@@ -29,15 +29,27 @@ as YouTrack reports it).
 ## Slug rules
 
 1. Take the issue summary.
-2. Lowercase.
-3. Replace every run of non-`[a-z0-9]` characters with a single `-`.
-4. Trim leading/trailing `-`.
-5. Truncate to 50 characters, then trim a trailing `-` again.
+2. Strip a leading type label — it is already in the prefix. Remove a
+   case-insensitive match of
+   `^\s*(bug ?fix|hot ?fix|fix|feature|feat|refactoring|refactor|task|epic|chore|cosmetics?|change|docs?)(\s*/\s*(refactoring|refactor|feature|fix|task))*\s*[:\-–]\s*`
+   from the front. E.g. `"Bugfix: Hover-Effekt …"` → `"Hover-Effekt …"`,
+   `"Feature/Refactoring: Tabs …"` → `"Tabs …"`.
+3. Lowercase.
+4. Replace every run of non-`[a-z0-9]` characters with a single `-`.
+5. Trim leading/trailing `-`.
+6. Truncate to 40 characters; if the cut lands inside a word, back up to the last
+   `-`; then trim a trailing `-`.
 
 ## Full-name cap
 
-If `<prefix>/<ID>-<slug>` exceeds 60 characters, shorten the slug further until it
-fits. Never shorten the prefix or the ID.
+If `<prefix>/<ID>-<slug>` still exceeds 60 characters, shorten the slug further
+until it fits. Never shorten the prefix or the ID.
+
+## Confirm the name
+
+Show the computed branch name and let the user accept it or supply their own
+(e.g. a tighter English name like `fix/ADMIN-6-row-tint-hover`). Proceed with the
+computed name only after the user has seen it.
 
 ## Base branch
 
@@ -52,7 +64,15 @@ new branch starts from the current remote tip, not a stale local ref.
 
 ## Guards
 
-- Working tree must be clean. If `git status --porcelain` is non-empty, stop and
-  offer `git stash push -u`.
+- **Never commit anything to the default branch.** If `git status --porcelain` is
+  non-empty before branching, the only options are:
+  1. `git stash push -u`, create the branch, then ask whether to `git stash pop`
+     onto it or leave the stash for the user; or
+  2. if the user confirms the pending changes belong with this issue, create the
+     branch from the current dirty state and carry them over (no commit on the
+     base branch).
+  Do not offer "commit it on `<base>` first" — that is out of bounds.
 - If the target branch already exists (`git rev-parse --verify <branch>`), do not
   recreate it — offer `git switch <branch>` instead.
+- Never `git commit --no-verify` and never amend or rewrite existing commits. If a
+  pre-commit hook fails or misbehaves, stop and report it; let the user decide.

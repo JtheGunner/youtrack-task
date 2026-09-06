@@ -22,6 +22,30 @@ If they do **not** exist, stop and print:
 
 Do not attempt REST calls or `curl` as a fallback.
 
+## Guardrails
+
+This skill sets up work and drives planning; once a plan is approved it may go on
+to implement, following the normal development workflow. Throughout, these are
+hard limits — never cross them without the user explicitly approving that
+specific action:
+
+- **Never commit to the repository's default branch.** Pre-existing uncommitted
+  changes are handled per `reference/branching.md` (stash or carry onto the
+  feature branch) — never by committing them on the base branch.
+- **Never bypass or fight git hooks.** No `git commit --no-verify`; no amending or
+  rewriting existing commits. If a hook fails, stop and report it.
+- **Never mutate application state for testing** — no writes to databases, seed
+  data, fixtures, user records, passwords, or auth tokens, even to enable visual
+  QA. If QA needs a particular data state, ask the user to set it up or point at
+  it, otherwise describe what could not be verified.
+- **Never start servers, daemons, or watchers without asking**, and stop any you
+  were told to start.
+- **No `git push`, no PR, no force-push.** Pushing and shipping are the user's
+  call (`/ship` or by hand). Say the branch is ready and stop there.
+- The only YouTrack writes are: the pickup state change + comment, the plan
+  comment, an optional one-line completion comment, and the explicit
+  `comment` / `log` / `testing` / `done` sub-commands.
+
 ## Config
 
 Optional file `~/.config/youtrack-task/config.toml`. Read it if present; every key
@@ -99,9 +123,11 @@ issue has one), and a 2–4 sentence gist of the description + any decisive comm
 
 Follow `reference/branching.md` exactly:
 - resolve base branch, `git fetch origin <base>`
-- compute `<prefix>/<ID>-<slug>`
-- guard on dirty tree (offer `git stash push -u`) and on an existing branch
-  (offer `git switch` instead of recreating)
+- compute `<prefix>/<ID>-<slug>` (leading type word stripped, 40-char slug cap),
+  show it, let the user accept or rename
+- dirty tree → stash or carry onto the feature branch per `branching.md`; **never
+  commit on the base branch**
+- existing branch → `git switch` instead of recreating
 - `git switch -c <branch> origin/<base>`
 
 Report the branch created and the base it started from.
@@ -138,6 +164,15 @@ Only after the user approves the plan:
 
 Then summarise what landed where (branch, YouTrack state, comment URL if the MCP
 result includes one, local file if written).
+
+### 8. Implement (optional)
+
+If the user wants to proceed with the implementation now, continue in the normal
+development workflow (TDD where it applies) — bound by the **Guardrails** above.
+When the implementation is done, post one short completion comment to the issue
+(`add_issue_comment`, template in `reference/writeback.md`) listing the branch and
+the files touched. Do not push, open a PR, or move the issue — tell the user the
+branch is ready and that `/youtrack-task testing` / `/ship` are the next steps.
 
 ---
 

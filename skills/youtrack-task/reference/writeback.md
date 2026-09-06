@@ -43,6 +43,7 @@ Use `add_issue_comment`. Markdown body. One comment per event.
 | --- | --- |
 | pickup | `📌 Picked up in Claude Code\n\nBranch `<branch>` off `<base>`.` |
 | plan | `## 📝 Implementation plan (Claude Code)\n\n_Generated <ISO-date>_\n\n<plan markdown>` |
+| completion | `## ✅ Implemented (Claude Code)\n\nBranch `<branch>`. Files touched:\n<bullet list>\n\nNot pushed; no PR.` — one comment, only when step 8 actually implemented something |
 | `log` | handled by `log_work`; add a comment only if the user passed a description |
 | `testing` | `🧪 Moved to Testing by Claude Code.` + optional user note |
 | `done` | `✅ Moved to Done by Claude Code.` + optional user note |

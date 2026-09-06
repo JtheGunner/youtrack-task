@@ -242,6 +242,21 @@ Manual, against the user's real YouTrack (no mock server in v1):
 
 A short `tests/README.md` records this checklist for re-runs after changes.
 
+## Guardrails (added 2026-09-06 after first live run)
+
+The skill drives setup + planning and may continue into implementation once the
+plan is approved, but never crosses these without explicit per-action approval:
+
+- No commits on the repo's default branch (pre-existing dirty changes → stash or
+  carry onto the feature branch).
+- No `git commit --no-verify`, no amend / history rewrite. A failing hook stops
+  the flow and is reported.
+- No writes to databases / seed data / fixtures / credentials — including for QA.
+- No servers/daemons started without asking.
+- No `git push`, no PR, no force-push — that is `/ship` or the user's call.
+- Branch slug: leading type word stripped ("Bugfix:", "Feature/Refactoring:"),
+  40-char cap, name shown for accept/rename before use.
+
 ## Resolved decisions (2026-09-06)
 
 1. State ladder is `Open → In Progress → Testing → Done`. `/youtrack-task testing`
