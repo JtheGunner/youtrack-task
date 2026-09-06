@@ -1,6 +1,6 @@
 # youtrack-task — Design Spec
 
-Status: **draft, awaiting review**
+Status: **approved 2026-09-06 — in implementation**
 Date: 2026-09-06
 
 ## Purpose
@@ -112,17 +112,19 @@ Primary:
 /youtrack-task [ISSUE-ID] [--no-move] [--no-writeback] [--base <branch>]
 ```
 
-Sub-commands (same skill, dispatched on first arg):
+Sub-commands (same skill, dispatched on first arg). All ship in v1.
 
 ```
-/youtrack-task log <ISSUE-ID?> <duration> [description]   # log_work; issue from branch if omitted
-/youtrack-task done [ISSUE-ID?]                            # move state → Testing (configurable target)
-/youtrack-task comment <text>                              # add_issue_comment to the branch's issue
+/youtrack-task comment <text>                           # add_issue_comment to the current branch's issue
+/youtrack-task log [ISSUE-ID] <duration> [description]  # log_work; issue inferred from branch if omitted
+/youtrack-task testing [ISSUE-ID]                       # move state → Testing
+/youtrack-task done [ISSUE-ID]                          # move state → Done
 ```
 
-Flags/behavior are documented in `SKILL.md`; sub-commands past the primary flow
-are listed here so the extension surface is fixed, but only the primary flow plus
-`comment` ship in v1. `log` and `done` are stubs marked "v1.1" in `SKILL.md`.
+State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
+Progress` automatically; `testing` and `done` are explicit steps the user runs.
+When `ISSUE-ID` is omitted for `comment` / `log` / `testing` / `done`, it is
+extracted from the current git branch name; if that fails, the skill asks.
 
 ## Primary flow
 
@@ -196,9 +198,10 @@ priority, state, subsystem if present, and the gist of the description.
 `~/.config/youtrack-task/config.toml`, all keys optional:
 
 ```toml
-# list_query    = "for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc"
-# in_progress_state = "In Progress"   # override if your workflow names it differently
-# done_target_state = "Testing"       # where `/youtrack-task done` moves issues
+# list_query        = "for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc"
+# in_progress_state = "In Progress"   # state name used on pickup
+# testing_state     = "Testing"       # target of `/youtrack-task testing`
+# done_state        = "Done"          # target of `/youtrack-task done`
 # local_plan_copy   = "auto"          # auto | always | never
 #
 # [type_prefix]
@@ -239,12 +242,14 @@ Manual, against the user's real YouTrack (no mock server in v1):
 
 A short `tests/README.md` records this checklist for re-runs after changes.
 
-## Open questions for review
+## Resolved decisions (2026-09-06)
 
-1. `done` target — default *Testing* (matches the user's Open→In Progress→Testing
-   →Done bundle). OK, or should `done` go straight to *Done*?
-2. Ship `log` and `done` in v1, or v1 = primary flow + `comment` only?
-3. Pickup comment wording — keep the robot emoji, or plain text?
+1. State ladder is `Open → In Progress → Testing → Done`. `/youtrack-task testing`
+   and `/youtrack-task done` are both provided; `done` moves to *Done*.
+2. v1 ships the full surface: primary flow + `comment` + `log` + `testing` + `done`.
+3. Emoji in write-back comments is fine (📌 pickup, 📝 plan, ⏱️ log, ✅ done).
+4. After implementation: a written "how it works" walkthrough, then a joint test
+   run against real YouTrack issues.
 
 ---
 

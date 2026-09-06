@@ -1,0 +1,32 @@
+# youtrack-task — optional configuration
+#
+# Copy to  ~/.config/youtrack-task/config.toml  and uncomment what you want to
+# override. Every key is optional; the defaults below are what the skill uses if
+# this file is absent.
+#
+# The YouTrack URL and API token are NOT configured here — they are environment
+# variables (YOUTRACK_MCP_URL, YOUTRACK_TOKEN) read by the bundled MCP server.
+
+# Query used to list candidate issues when you run `/youtrack-task` with no ID.
+# YouTrack search syntax.
+# list_query = "for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc"
+
+# State names on your workflow's ladder: Open -> In Progress -> Testing -> Done.
+# in_progress_state = "In Progress"   # set on pickup
+# testing_state     = "Testing"       # target of `/youtrack-task testing`
+# done_state        = "Done"          # target of `/youtrack-task done`
+
+# Local copy of the plan:
+#   auto   -> write docs/plans/<ID>.md only if the repo already has a docs/ dir
+#   always -> always write it (creating docs/plans/ if needed)
+#   never  -> never write a local file; plan lives only as a YouTrack comment
+# local_plan_copy = "auto"
+
+# Branch prefix per YouTrack issue Type. Keys are Type names exactly as YouTrack
+# reports them (case-sensitive). Unlisted types fall back to "chore".
+# [type_prefix]
+# Bug       = "fix"
+# Feature   = "feat"
+# Task      = "chore"
+# Epic      = "feat"
+# Cosmetics = "style"

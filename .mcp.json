@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "youtrack": {
+      "url": "${YOUTRACK_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${YOUTRACK_TOKEN}"
+      }
+    }
+  }
+}

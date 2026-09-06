@@ -1,0 +1,18 @@
+{
+  "name": "youtrack-task",
+  "description": "Single-plugin marketplace for youtrack-task.",
+  "owner": {
+    "name": "Jeffry Wuermli"
+  },
+  "plugins": [
+    {
+      "name": "youtrack-task",
+      "description": "Pick up a JetBrains YouTrack issue from any repo: fetch it, branch, move it to In Progress, plan it, and write the plan back as a comment.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Jeffry Wuermli"
+      }
+    }
+  ]
+}
