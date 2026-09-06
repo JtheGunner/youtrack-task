@@ -20,6 +20,9 @@ server.
 - `git` on your `PATH`.
 - The [`gh` CLI](https://cli.github.com/) on your `PATH` if you want to use
   `/youtrack-task pr`. Not needed for anything else.
+- *(optional)* the [`superpowers`](https://github.com/obra/superpowers) plugin —
+  when present, planning and implementation run through its skills. Everything
+  works without it.
 
 ## Setup (one time)
 
@@ -86,11 +89,21 @@ What happens:
    already exists.
 4. **In Progress** — moves the issue to *In Progress* (unless it's already there
    or further) and adds a comment: *📌 Picked up in Claude Code — branch `…`*.
-5. **Plan** — Claude explores the repo and drafts an implementation plan. You
+5. **Plan** — Claude explores the repo and drafts an implementation plan. If the
+   [`superpowers`](https://github.com/obra/superpowers) plugin is installed,
+   planning runs through it (`brainstorming`, or `systematic-debugging` for bugs,
+   then `writing-plans` for larger work); otherwise a plain plan-mode pass. You
    review and iterate until it's right.
 6. **Write back the plan** — once you approve, the plan is posted to the issue as
    a Markdown comment (*📝 Implementation plan (Claude Code)*). If the repo has a
    `docs/` directory, a copy is also saved to `docs/plans/‹ID›.md`.
+7. **Implement** *(optional, if you say go)* — with `superpowers` present:
+   `test-driven-development` throughout, `subagent-driven-development` (or
+   `executing-plans` with `--checkpoints`) for a written plan, an automatic
+   `requesting-code-review` on larger work, and `verification-before-completion`
+   against the issue's acceptance criteria before the completion comment. Without
+   it: the normal dev workflow. Either way it stops before push — `/youtrack-task
+   pr` is next.
 
 Flags:
 

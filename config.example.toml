@@ -26,6 +26,18 @@
 # from the title + description. Unset -> the skill just asks you to pick.
 # default_new_type = "Task"
 
+# Run planning + implementation through the `superpowers` plugin when it's present.
+#   auto   -> use it if its skills are available, else plain plan mode
+#   always -> require it; stop with a hint to install it if missing
+#   never  -> always plain plan mode + normal dev workflow
+# use_superpowers = "auto"
+
+# Automatic `superpowers:requesting-code-review` in the implement step.
+#   auto   -> review only when an architectural plan was executed
+#   always -> review after every implementation
+#   never  -> never auto-review (you still have --review to force it)
+# review_before_pr = "auto"
+
 # Branch prefix per YouTrack issue Type. Keys are Type names exactly as YouTrack
 # reports them (case-sensitive). Unlisted types fall back to "chore".
 # [type_prefix]

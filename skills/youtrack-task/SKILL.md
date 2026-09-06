@@ -61,6 +61,8 @@ is optional. Defaults:
 | `done_state` | `Done` |
 | `local_plan_copy` | `auto` |
 | `default_new_type` | *(unset)* — fallback Type for `new` when inference is uncertain |
+| `use_superpowers` | `auto` — `auto` \| `always` \| `never` (see `reference/superpowers.md`) |
+| `review_before_pr` | `auto` — `auto` (review on the architectural path) \| `always` \| `never` |
 | `[type_prefix]` table | see `reference/branching.md` |
 
 ## Dispatch on the first argument
@@ -83,6 +85,20 @@ from `git branch --show-current`, else ask the user.
 ---
 
 ## Primary flow
+
+```
+/youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
+               [--checkpoints] [--review | --no-review]
+```
+
+- `--no-move` — don't change the issue state on pickup (keep the pickup comment).
+- `--no-writeback` — no pickup state change and no pickup comment.
+- `--base <branch>` — branch from `<branch>` instead of the detected default.
+- `--checkpoints` — step 8 executes an architectural plan with
+  `superpowers:executing-plans` (review stop after each phase) instead of
+  `subagent-driven-development`.
+- `--review` / `--no-review` — force / skip the automatic code review in step 8
+  (default: review on the architectural path only; see `config` `review_before_pr`).
 
 ### 1. Resolve the issue ID
 
@@ -152,10 +168,17 @@ Follow `reference/writeback.md`:
 
 ### 6. Plan the work
 
-Hand the issue (title + description + relevant comments) into the normal planning
-workflow — invoke `superpowers:brainstorming` if available, otherwise enter plan
-mode. Explore the current repo for the files the change touches. Produce a plan
-and present it to the user for review. Iterate until they approve it.
+If the `superpowers` plugin is available (and `use_superpowers` isn't `never`),
+run planning **and** step 8 through it — see `reference/superpowers.md` for the
+full routing (Type → process skill, which description section feeds which skill,
+where the plan document goes, bounded vs architectural). In short: Bug →
+`superpowers:systematic-debugging` then design; else `superpowers:brainstorming`;
+architectural work also goes through `superpowers:writing-plans`.
+
+Otherwise (fallback): hand the issue into plain plan mode. Either way — explore
+the current repo for the files the change touches, produce a plan, present it for
+review, iterate until the user approves it. Note whether the result is **bounded**
+or **architectural**; step 8 depends on it.
 
 ### 7. Write-back the plan
 
@@ -173,13 +196,25 @@ result includes one, local file if written).
 
 ### 8. Implement (optional)
 
-If the user wants to proceed with the implementation now, continue in the normal
-development workflow (TDD where it applies) — bound by the **Guardrails** above.
-When the implementation is done, post one short completion comment to the issue
-(`add_issue_comment`, template in `reference/writeback.md`) listing the branch and
-the files touched. Do not push, open a PR, or move the issue here — tell the user
-the branch is ready and that `/youtrack-task pr` (push + PR + link + move to
-Testing) or their own `/ship` is the next step.
+Only if the user wants to proceed now. Bound by the **Guardrails** above.
+
+**superpowers path** — follow `reference/superpowers.md` step 8:
+- bounded → implement directly with `superpowers:test-driven-development`.
+- architectural → execute the plan with `superpowers:subagent-driven-development`
+  (or `superpowers:executing-plans` when `--checkpoints` is passed), TDD inside
+  each task, then `superpowers:requesting-code-review` against the acceptance
+  criteria automatically (`--no-review` skips; `--review` forces it on the
+  bounded path too; config `review_before_pr` is the standing setting).
+- both → `superpowers:verification-before-completion` with the acceptance
+  criteria as the checklist before finishing.
+
+**Fallback path** — the normal development workflow (TDD where it applies) plus a
+manual verification pass against the acceptance criteria.
+
+Then post one short completion comment (`add_issue_comment`, template in
+`reference/writeback.md`) listing the branch and the files touched. Do not push,
+open a PR, or move the issue here — tell the user the branch is ready and that
+`/youtrack-task pr` or their own `/ship` is the next step.
 
 ---
 

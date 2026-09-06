@@ -37,7 +37,8 @@ youtrack-task/
 │       └── reference/
 │           ├── branching.md      # branch-name + type→prefix rules
 │           ├── writeback.md      # state-transition + comment rules
-│           └── issue-template.md # structure for `new` free-text generation
+│           ├── issue-template.md # structure for `new` free-text generation
+│           └── superpowers.md    # routing for the superpowers plan/impl path
 ├── config.example.toml      # documents every optional override, dummy values only
 ├── README.md                # setup: 2 env vars + token, then /plugin install
 ├── LICENSE                  # MIT
@@ -112,8 +113,13 @@ different field setups.
 Primary:
 
 ```
-/youtrack-task [ISSUE-ID] [--no-move] [--no-writeback] [--base <branch>]
+/youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
+               [--checkpoints] [--review | --no-review]
 ```
+
+`--checkpoints` runs an architectural plan's execution with review stops
+(`superpowers:executing-plans`). `--review` / `--no-review` force / skip the
+automatic code review in the implement step.
 
 Sub-commands (same skill, dispatched on first arg). All ship in v1.
 
@@ -218,10 +224,15 @@ priority, state, subsystem if present, and the gist of the description.
 
 ### 6. Build the plan
 
-- Hand the issue (title + description + relevant comments) to the normal planning
-  workflow (`superpowers:brainstorming` / plan mode), exploring the current repo
-  for affected files.
-- Output: a plan the user reviews in chat.
+- If `superpowers` is available and `use_superpowers` ≠ `never`, route planning
+  through it (`reference/superpowers.md`): Bug → `systematic-debugging` then
+  design; else `brainstorming`; architectural → also `writing-plans`. The issue
+  description's fixed sections map directly onto each skill's inputs (Summary +
+  Context + Goal = problem; Acceptance criteria = success criteria; Scope = YAGNI
+  boundary; Technical notes = constraints; Open questions = clarifying questions).
+- Else: plain plan mode.
+- Explore the repo for affected files. Output: a plan the user reviews. Record
+  **bounded** vs **architectural** — it decides step 8.
 
 ### 7. Write-back the plan (on user confirmation)
 
@@ -230,13 +241,28 @@ priority, state, subsystem if present, and the gist of the description.
 - If — and only if — the repo already contains a `docs/` directory, also write
   `docs/plans/<ID>.md` with the same content. No `docs/` → no local file, no
   directory creation. Controlled by config `local_plan_copy` (`auto` default /
-  `always` / `never`).
+  `always` / `never`). superpowers architectural plans prefer an existing
+  `docs/superpowers/specs/` convention when the repo has one.
+
+### 8. Implement (optional, on user go)
+
+Bound by the Guardrails. superpowers path (`reference/superpowers.md`):
+bounded → `test-driven-development` directly; architectural → execute the plan
+with `subagent-driven-development` (or `executing-plans` under `--checkpoints`),
+TDD per task, then automatic `requesting-code-review` against the acceptance
+criteria (`--no-review` skips, `--review` forces, config `review_before_pr`).
+Both paths → `verification-before-completion` on the acceptance criteria before
+the completion comment. No superpowers → the normal dev workflow + a manual
+verification pass. Never pushes / PRs / moves state — that's `pr` / the user.
 
 ## Configuration file
 
 `~/.config/youtrack-task/config.toml`, all keys optional:
 
 ```toml
+# use_superpowers   = "auto"          # auto | always | never
+# review_before_pr  = "auto"          # auto (architectural only) | always | never
+# default_new_type  = "Task"          # fallback Type for `new` when inference is unsure
 # list_query        = "for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc"
 # in_progress_state = "In Progress"   # state name used on pickup
 # testing_state     = "Testing"       # target of `/youtrack-task testing`
