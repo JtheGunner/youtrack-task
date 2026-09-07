@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# worktree-detach — remove the plugin worktree that holds a given issue's branch,
+# so the branch becomes checkout-able elsewhere. Optionally switch to it here.
+# Safe: refuses a dirty worktree, never --force, never deletes the branch.
+#
+# Usage: worktree-detach --id ADMIN-9 [--switch] [--dir <worktree>]
+#   --switch   after removing, `git switch <branch>` in the current repo
+#   --dir      target a worktree path directly instead of matching by --id
+#
+# Output (KEY=VALUE):
+#   REMOVED=<path>            worktree unregistered (branch kept)
+#   BRANCH=<branch>
+#   SWITCHED=<branch>         only with --switch, on success
+#   NOTE=<text>              0+ advisory lines
+#   ERROR=no-worktree|dirty|... (exit 2)
+set -uo pipefail
+die() { echo "ERROR=$*"; exit 2; }
+
+ID= SWITCH=false WT=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --id)     ID=$2; shift 2 ;;
+    --switch) SWITCH=true; shift ;;
+    --dir)    WT=$2; shift 2 ;;
+    *) die "unknown arg: $1" ;;
+  esac
+done
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not-in-git-repo"
+[ -n "$ID" ] || [ -n "$WT" ] || die "need --id or --dir"
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
+WT_DIR=$( [ -f "$CFG" ] && sed -nE 's/^[[:space:]]*worktree_dir[[:space:]]*=[[:space:]]*"?([A-Za-z0-9._/-]+)"?.*/\1/p' "$CFG" | head -1 )
+WT_DIR=${WT_DIR:-.worktrees}
+
+# resolve the worktree + its branch
+BR=
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*) cur=${line#worktree } ;;
+    "branch "*)
+      b=${line#branch }; b=${b#refs/heads/}
+      if [ -n "$WT" ]; then
+        [ "$cur" = "$WT" ] && { WT=$cur; BR=$b; break; }
+      elif { [ -n "$ID" ] && { case "$cur" in "$REPO_ROOT/$WT_DIR/"*"$ID-"*) true;; *) case "$b" in *"$ID-"*) true;; *) false;; esac;; esac; }; }; then
+        WT=$cur; BR=$b; break
+      fi ;;
+  esac
+done < <(git worktree list --porcelain)
+
+[ -n "$WT" ] && [ -n "$BR" ] || die "no-worktree${ID:+ for $ID}"
+[ "$WT" = "$REPO_ROOT" ] && die "that-is-the-main-checkout"
+case "$WT" in "$REPO_ROOT/$WT_DIR/"*) ;; *) echo "NOTE=worktree $WT is outside $WT_DIR; removing it anyway" ;; esac
+
+if [ -n "$(git -C "$WT" status --porcelain 2>/dev/null)" ]; then
+  echo "BRANCH=$BR"
+  die "dirty: $WT has uncommitted changes — commit or stash them there first"
+fi
+
+git worktree remove "$WT" || die "git-worktree-remove-failed: $WT"
+git worktree prune >/dev/null 2>&1 || true
+echo "REMOVED=$WT"
+echo "BRANCH=$BR"
+
+if $SWITCH; then
+  if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)" ]; then
+    echo "NOTE=not switching: current checkout has tracked changes — 'git switch $BR' when ready"
+  elif [ "$(git -C "$REPO_ROOT" branch --show-current)" = "$BR" ]; then
+    echo "NOTE=already on $BR"
+  else
+    git -C "$REPO_ROOT" switch "$BR" && echo "SWITCHED=$BR"
+  fi
+fi

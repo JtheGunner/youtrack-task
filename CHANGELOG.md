@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.0 — 2026-09-07
+
+- `/youtrack-task worktree take <ID>` and `worktree remove <ID>`: free an issue's
+  branch that's still checked out in a worktree. `take` removes that worktree
+  (branch kept) and `git switch`es to the branch in your current checkout;
+  `remove` just drops the worktree. Refuses a dirty worktree; skips the switch if
+  the current checkout has tracked changes. New `scripts/worktree-detach`.
+
 ## 0.7.0 — 2026-09-07
 
 - **Root fix for "no worktree was used" and "worktrees never cleaned up":** the

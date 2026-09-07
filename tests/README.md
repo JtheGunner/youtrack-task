@@ -33,6 +33,10 @@ Use a throwaway or low-stakes issue.
 | 8y | step 4 always runs `scripts/setup-workspace` (never a hand-rolled `git switch -c`); the model acts on `MODE=` | verify against a transcript: the tool call is the script, and `MODE=worktree` ⇒ the model `cd`s / `EnterWorktree`s into `NEXT_CD` before implementing |
 | 8z | `setup-workspace` returns `ERROR=dirty-tree`, user picks "carry" | model re-runs with `--allow-dirty`; branch created, changes carried; no base-branch commit |
 | 8aa | `/youtrack-task pr` finishes | step 8 runs `scripts/sweep-worktrees --exclude <this-branch>`; already-merged *other* worktrees removed, **this** one kept (open PR) |
+| 8ab | `/youtrack-task worktree take ADMIN-9` while that branch is checked out in a clean worktree and the main checkout is clean | `worktree-detach --id ADMIN-9 --switch` → worktree removed, branch kept, main checkout now on `feat/ADMIN-9-…` (`SWITCHED=`) |
+| 8ac | `worktree take` where the worktree is dirty | `ERROR=dirty`, nothing removed, told to commit/stash in that worktree first |
+| 8ad | `worktree take` where the current checkout has tracked changes | worktree removed, but switch skipped with a `NOTE=`; branch left for a manual `git switch` |
+| 8ae | `worktree remove ADMIN-9` | worktree gone, branch preserved, no switch |
 | 8b | `/youtrack-task new` (bare) inside a repo | asks free-text-or-fields; field path → prompts project (repo default offered), title, description; infers Type + confirm; one confirm → created; reports ID + URL; offers pickup |
 | 8c | `/youtrack-task new --project ADMIN --title "X" --description "Y" --priority Major --type Bug` | no prompts except the final confirm; issue created with Bug + Major |
 | 8d | `/youtrack-task new --title "Fix broken login redirect" --description "..."` (no --type) | Type inferred as Bug/Fix with a rationale line, asked to confirm |

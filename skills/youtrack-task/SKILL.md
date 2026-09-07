@@ -57,14 +57,16 @@ specific action:
 
 ## Scripts
 
-This skill bundles two helpers in its `scripts/` directory — run them, don't
+This skill bundles helpers in its `scripts/` directory — run them, don't
 reimplement their logic:
 - `setup-workspace` — step 4: the worktree-vs-in-place decision, branch / worktree
   creation, resume detection, and worktree bootstrap. Reads the config below.
 - `sweep-worktrees` — `pr` step 8, `done`, and `worktree prune`: removes finished
   worktrees (clean + PR merged/closed) safely.
+- `worktree-detach` — `worktree take` / `worktree remove`: drop the worktree
+  holding one issue's branch (branch kept), optionally `git switch` to it here.
 
-Both echo `KEY=VALUE` lines; the contract is in `reference/worktrees.md`.
+All echo `KEY=VALUE` lines; the contract is in `reference/worktrees.md`.
 
 ## Config
 
@@ -99,7 +101,7 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `link` | attach an existing PR URL to the issue as a comment — see "link" below |
 | `testing` | move the issue to `testing_state` — see "state sub-commands" |
 | `done` | move the issue to `done_state` — see "state sub-commands" |
-| `worktree` | `list` / `prune` this plugin's worktrees — see "worktree" below |
+| `worktree` | `list` / `prune` / `take` / `remove` this plugin's worktrees — see "worktree" below |
 
 For `comment` / `log` / `pr` / `link` / `testing` / `done`, resolve the issue ID
 from an explicit leading `ISSUE-ID` argument if given, else extract `[A-Z]+-\d+`
@@ -465,7 +467,7 @@ Does not push and does not change state.
 
 ## worktree
 
-`/youtrack-task worktree list|prune`  (see `reference/worktrees.md`)
+`/youtrack-task worktree list|prune|take|remove`  (see `reference/worktrees.md`)
 
 - **`list`** — `git worktree list` filtered to worktrees under `worktree_dir`
   whose name looks like `<ID>-<slug>`; for each, show the branch and the issue's
@@ -474,6 +476,14 @@ Does not push and does not change state.
   and report every line. It removes clean worktrees whose PR is merged/closed and
   `git branch -d`s the merged branch, then `git worktree prune`; dirty ones and
   still-open PRs are listed, not touched. Never `--force`, never `git branch -D`.
+- **`take <ISSUE-ID>`** — you want that issue's branch in your *current* checkout
+  but a worktree still holds it. Run `scripts/worktree-detach --id <ID> --switch`:
+  it removes that worktree (branch kept) and `git switch`es to the branch here.
+  A dirty worktree is refused (`ERROR=dirty` — commit/stash in it first); the
+  switch is skipped if the current checkout has tracked changes. Report `REMOVED`
+  / `SWITCHED` / any `NOTE`.
+- **`remove <ISSUE-ID>`** — just drop the worktree, don't switch:
+  `scripts/worktree-detach --id <ID>`. Same safety; the branch survives.
 
 ## Notes
 

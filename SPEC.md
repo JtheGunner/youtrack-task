@@ -36,7 +36,8 @@ youtrack-task/
 │       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
 │       ├── scripts/
 │       │   ├── setup-workspace   # step 4: worktree-vs-in-place decision + create + bootstrap
-│       │   └── sweep-worktrees   # pr / done / prune: remove finished worktrees safely
+│       │   ├── sweep-worktrees   # pr / done / prune: remove finished worktrees safely
+│       │   └── worktree-detach   # worktree take|remove: free one issue's branch
 │       └── reference/
 │           ├── branching.md      # branch-name + type→prefix rules
 │           ├── writeback.md      # state-transition + comment rules
@@ -144,7 +145,7 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 /youtrack-task link [ISSUE-ID] <pr-url>                 # attach an existing PR URL as a comment
 /youtrack-task testing [ISSUE-ID]                       # move state → Testing
 /youtrack-task done [ISSUE-ID]                          # move state → Done
-/youtrack-task worktree list|prune                      # manage this plugin's worktrees
+/youtrack-task worktree list|prune|take <ID>|remove <ID>  # manage this plugin's worktrees
 ```
 
 State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
@@ -189,6 +190,12 @@ that is **clean** and whose PR (`gh pr view`) is MERGED or CLOSED — `git workt
 remove` then `git branch -d` then `git worktree prune`. Dirty ones and open PRs
 are listed, not touched. `pr` runs it excluding the just-opened branch; `done`
 and `worktree prune` run it plain. Never `--force`, never `git branch -D`.
+
+`worktree-detach --id <ID> [--switch]` (behind `worktree take` / `worktree
+remove`) removes the single worktree holding that issue's branch so the branch is
+checkout-able elsewhere — **branch kept**, refuses a dirty worktree, `--switch`
+also `git switch`es to it in the current checkout (skipped if that checkout has
+tracked changes).
 
 ### `new` — create an issue
 

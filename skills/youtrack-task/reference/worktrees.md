@@ -129,11 +129,17 @@ or gone:
 `/youtrack-task worktree` sub-command:
 - `list` — `git worktree list` filtered to this plugin's worktrees, each with its
   issue's current YouTrack state.
-- `prune` — for every plugin worktree whose issue is `done_state` (or whose PR is
-  merged / gone) **and clean**: `git worktree remove "<path>"` then
-  `git branch -d "<branch>"` (the merged branch; `-d` refuses if unmerged, which
-  is the safe outcome), then a final `git worktree prune`. Dirty ones are skipped
-  and listed.
+- `prune` — `scripts/sweep-worktrees`. For every plugin worktree whose PR is
+  merged / closed **and** clean: `git worktree remove` → `git branch -d` (`-d`
+  refuses an unmerged branch, the safe outcome) → `git worktree prune`. Dirty
+  ones and open PRs are listed, not touched.
+- `take <ID>` — `scripts/worktree-detach --id <ID> --switch`. The branch is
+  checked out in a worktree and you want it in your current checkout: remove that
+  worktree (**branch kept**), then `git switch <branch>` here (skipped if the
+  current checkout has tracked changes). `ERROR=dirty` if the worktree isn't
+  clean — commit / stash in it first.
+- `remove <ID>` — `scripts/worktree-detach --id <ID>`. Same, without the switch.
 
 Never `git worktree remove --force`, never `git branch -D`, never remove a
-worktree that has uncommitted changes.
+worktree that has uncommitted changes. `take` / `remove` keep the branch — only
+`prune` (merged branches) deletes one, and only with `-d`.
