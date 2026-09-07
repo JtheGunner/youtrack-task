@@ -10,6 +10,8 @@ issues from inside any project repo:
   plugin when present), write the plan back as a comment, and optionally implement it.
 - **`/youtrack-task pr` / `testing` / `done`** — open the PR (and link it on the
   issue), then walk the state ladder as the work lands.
+- **`/youtrack-task worktree …`** — run several tasks at once, each in its own
+  isolated git worktree; `list` / `prune` / `take` / `remove` to manage them.
 
 No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP
 server.
@@ -68,7 +70,8 @@ Only if your workflow differs from the defaults. Copy
 [`config.example.toml`](./config.example.toml) to
 `~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
 names, a different issue-list query, branch-prefix mapping, where the plan copy
-goes, or the `use_superpowers` / `review_before_pr` toggles.
+goes, the `use_superpowers` / `review_before_pr` toggles, or the worktree
+settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`).
 
 ---
 
@@ -87,12 +90,16 @@ What happens:
    state, subsystem) and its comments, and shows you a short brief.
 2. **Sanity check** — verifies you're in a git repo and that the repo roughly
    matches the issue's YouTrack project (warns, never blocks).
-3. **Branch** — creates `‹prefix›/‹ID›-‹slug›` from the current tip of your
-   default branch. Prefix comes from the issue Type: `Bug→fix`, `Feature→feat`,
-   `Task→chore`, `Epic→feat`, `Cosmetics→style`, else `chore`.
-   Example: `chore/INFRA-42-rotate-vault-unseal-keys`.
-   Refuses on a dirty tree (offers to stash); switches to the branch if it
-   already exists. The slug is always English even when the issue isn't.
+3. **Workspace** — a bundled script (`scripts/setup-workspace`) makes the
+   worktree-vs-in-place decision, then creates the branch `‹prefix›/‹ID›-‹slug›`
+   from the current tip of your default branch — either in place or in an
+   isolated worktree (see *Working several tasks in parallel* below). Prefix
+   comes from the issue Type: `Bug→fix`, `Feature→feat`, `Task→chore`,
+   `Epic→feat`, `Cosmetics→style`, else `chore`. Example:
+   `chore/INFRA-42-rotate-vault-unseal-keys`. On a dirty tree it asks whether to
+   stash or carry the changes onto the branch; resumes an existing branch /
+   worktree instead of recreating. The slug is always English even when the issue
+   isn't.
 4. **In Progress** — moves the issue to *In Progress* (unless it's already there
    or further) and adds a comment: *📌 Picked up in Claude Code — branch `…`*.
 5. **Plan** — Claude explores the repo and drafts an implementation plan. If the
@@ -163,15 +170,27 @@ Each worktree gets its own `node_modules` / `vendor` (copy-on-write clone on
 APFS — instant, no extra disk until changed) and a symlinked `.env`. Drop a
 `.claude/youtrack-worktree-setup.sh` in the repo for anything project-specific
 (per-worktree DB, asset build). The worktree dir is ignored via
-`.git/info/exclude` — no commit on your branch. `/youtrack-task done` offers to
-remove a worktree once its PR is merged (dirty ones are left alone);
-`/youtrack-task worktree list|prune` manages them.
+`.git/info/exclude` — no commit on your branch.
+
+Cleanup is automatic where it's safe: **`/youtrack-task pr` sweeps every worktree
+whose PR has already merged/closed** (the one you just opened a PR for stays —
+review fixes go there). `/youtrack-task done` removes the current issue's worktree
+once its PR is merged. Dirty worktrees are always left alone.
+
+Managing worktrees by hand:
+
+| Command | Does |
+| --- | --- |
+| `/youtrack-task worktree list` | list this plugin's worktrees + each issue's YouTrack state |
+| `/youtrack-task worktree prune` | remove every worktree whose PR is merged/closed (clean only) |
+| `/youtrack-task worktree take <ID>` | free `<ID>`'s branch from its worktree and `git switch` to it **here** |
+| `/youtrack-task worktree remove <ID>` | just drop `<ID>`'s worktree (branch kept, no switch) |
 
 The default, `worktree = "auto"`, only makes a worktree when the current checkout
 is already busy (dirty or on a task branch) or another worktree exists — so the
 *first* pickup in a clean repo stays in place. That's fine for one-at-a-time
-work; use `always` for parallel. `worktree = "off"` = pre-0.6 behaviour (switch
-the current checkout).
+work; use `always` for parallel. `worktree = "off"` switches the current checkout
+in place, always.
 
 ### During and after the work
 
@@ -183,7 +202,7 @@ the current checkout).
 /youtrack-task link <pr-url>            # attach an already-open PR to the issue
 /youtrack-task testing                  # move the issue to Testing
 /youtrack-task done                     # move the issue to Done
-/youtrack-task worktree list|prune      # manage the plugin's worktrees
+/youtrack-task worktree list|prune|take <ID>|remove <ID>   # manage worktrees (see above)
 ```
 
 `comment` / `log` / `pr` / `link` / `testing` / `done` figure out the issue ID
@@ -219,8 +238,8 @@ last — it means "merged and accepted", so run it after the PR lands, not befor
 | YouTrack URL | `YOUTRACK_MCP_URL` env var | no |
 | API token | `YOUTRACK_TOKEN` env var | no |
 | Which project an issue is in | encoded in the issue ID (`INFRA-42`) | no |
-| State names, list query, prefix map, superpowers / review toggles | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | defaults only |
-| The skill logic | `skills/youtrack-task/` | yes |
+| State names, list query, prefix map, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | defaults only |
+| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach) | `skills/youtrack-task/` | yes |
 
 ## Troubleshooting
 
@@ -230,6 +249,8 @@ last — it means "merged and accepted", so run it after the PR lands, not befor
 | MCP connects but writes fail with 403 | The token's user lacks permission on that project, or the token scope is wrong. |
 | State change skipped with a warning | The skill couldn't identify the state field from the project schema. Set `in_progress_state` / `testing_state` / `done_state` in the config to match your project's field values. |
 | Branch name too long | Slugs are capped; if it's still awkward, rename with `git branch -m`. |
+| "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree. |
+| Worktrees piling up | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand. |
 
 ## MCP tools used
 

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.1 — 2026-09-07
+
+- Docs: README brought up to date with everything since 0.6.0 — the `scripts/`
+  helpers, `pr` auto-sweeping merged worktrees, `worktree take` / `remove`, the
+  worktree config keys, and two new troubleshooting rows. Added a repo `CLAUDE.md`
+  with a change checklist so README updates stop getting missed.
+
 ## 0.8.0 — 2026-09-07
 
 - `/youtrack-task worktree take <ID>` and `worktree remove <ID>`: free an issue's
