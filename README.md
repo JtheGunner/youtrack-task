@@ -151,6 +151,7 @@ Flags:
 /youtrack-task new "hover on tinted rows loses the colour, needs a same-hue hover instead"
 /youtrack-task new                     # interactive: free text, or field by field
 /youtrack-task new --project ADMIN --title "..." --description "..." --priority Major --type Bug
+/youtrack-task new "..." --assignee max.muster   # assign someone else (login or email)
 ```
 
 **Free-text mode** (first form): give one blob of text and Claude generates the
@@ -165,6 +166,13 @@ YouTrack project matching the current repo. `--priority` is optional (project
 default otherwise; only proposed automatically if the text says "blocker" /
 "asap" / etc.). `--type` is inferred from the content and shown for confirmation
 when you don't pass it. After creating, Claude offers to pick the issue up.
+
+**Assignee:** every new issue is assigned to the owner of your API token by
+default. `--assignee <login|email>` — or an explicit "assign to …" / "für …" in
+the free text — assigns someone else instead. If that user doesn't exist, the
+issue falls back to you and the confirmation step flags it
+(`⚠ max.musterr not found → API-key owner`), so you can still correct it before
+anything is created.
 
 ### Working several tasks in parallel
 
@@ -272,14 +280,17 @@ the PR lands, not before.
 | Branch name too long                                                 | Slugs are capped; if it's still awkward, rename with `git branch -m`.                                                                                                                               |
 | "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree.                                                               |
 | Worktrees piling up                                                  | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand.                                                                                             |
+| New issue assigned to you instead of the requested user              | The `--assignee` login / email wasn't found in YouTrack, so `new` fell back to the token's owner (flagged at the confirm step). Check the exact login under YouTrack → Users.                          |
+| New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |
 
 ---
 
 ## 🔌 MCP tools used
 
-`get_current_user`, `find_projects`, `get_project`, `search_issues`, `get_issue`,
-`get_issue_fields_schema`, `get_issue_comments`, `create_issue`, `update_issue`,
-`add_issue_comment`, `log_work` — all from YouTrack's predefined MCP tool set.
+`get_current_user`, `find_user`, `find_projects`, `get_project`, `search_issues`,
+`get_issue`, `get_issue_fields_schema`, `get_issue_comments`, `create_issue`,
+`update_issue`, `change_issue_assignee`, `add_issue_comment`, `log_work` — all
+from YouTrack's predefined MCP tool set.
 
 ## 🤝 Contributing
 
