@@ -1,4 +1,4 @@
-<div style="text-align:center">
+<div align="center">
 
 # 🎯 youtrack-task
 
@@ -298,6 +298,6 @@ each release is also a git tag (`vMAJOR.MINOR.PATCH`).
 
 MIT — see [LICENSE](./LICENSE).
 
-<div style="text-align:center">
+<div align="center">
 <sub>Issues live in YouTrack, work happens in your editor — without the context-switch tax.</sub>
 </div>
