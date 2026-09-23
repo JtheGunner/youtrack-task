@@ -1,24 +1,37 @@
-# youtrack-task
+<div style="text-align:center">
+
+# 🎯 youtrack-task
+
+**Work JetBrains YouTrack issues without leaving your repo.**
+Capture, pick up, branch, plan, open the PR, and walk the state ladder — all from inside Claude Code.
+
+<code>📥 capture</code> &nbsp;→&nbsp; <code>🌿 branch + plan</code> &nbsp;→&nbsp; <code>🚀 PR</code> &nbsp;→&nbsp; <code>✅ done</code>
+
+![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)
+![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-8b5cf6?style=flat-square)
+![YouTrack](https://img.shields.io/badge/YouTrack-2025.3%2B-0ea5e9?style=flat-square)
+![Transport](https://img.shields.io/badge/transport-MCP-3776ab?style=flat-square)
+![Versioning](https://img.shields.io/badge/versioning-SemVer-f59e0b?style=flat-square)
+
+</div>
+
+---
 
 A Claude Code plugin for working [JetBrains YouTrack](https://www.jetbrains.com/youtrack/)
 issues from inside any project repo:
 
-- **`/youtrack-task new "<free text>"`** — capture an issue; Claude turns your
-  text into a titled, structured issue.
-- **`/youtrack-task <ID>`** — pick one up: fetch it, branch, move it to
-  **In Progress**, plan the work (through the [`superpowers`](https://github.com/obra/superpowers)
-  plugin when present), write the plan back as a comment, and optionally implement it.
-- **`/youtrack-task pr` / `testing` / `done`** — open the PR (and link it on the
-  issue), then walk the state ladder as the work lands.
-- **`/youtrack-task worktree …`** — run several tasks at once, each in its own
-  isolated git worktree; `list` / `prune` / `take` / `remove` to manage them.
+|    | Command                                      | What it does                                                                                                                                                                                                                   |
+|:--:|----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 📝 | **`/youtrack-task new "<free text>"`**       | capture an issue; Claude turns your text into a titled, structured issue                                                                                                                                                       |
+| 🌿 | **`/youtrack-task <ID>`**                    | pick one up: fetch it, branch, move it to **In Progress**, plan the work (through the [`superpowers`](https://github.com/obra/superpowers) plugin when present), write the plan back as a comment, and optionally implement it |
+| 🚀 | **`/youtrack-task pr` / `testing` / `done`** | open the PR (and link it on the issue), then walk the state ladder as the work lands                                                                                                                                           |
+| 🌲 | **`/youtrack-task worktree …`**              | run several tasks at once, each in its own isolated git worktree; `list` / `prune` / `take` / `remove` to manage them                                                                                                          |
 
-No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP
-server.
+No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP server.
 
 ---
 
-## Requirements
+## 📋 Requirements
 
 - Claude Code with plugin support.
 - YouTrack **2025.3 or newer** (Cloud or Server) with the remote MCP server
@@ -32,7 +45,9 @@ server.
   when present, planning and implementation run through its skills. Everything
   works without it.
 
-## Setup (one time)
+---
+
+## ⚙️ Setup (one time)
 
 ### 1. Create a YouTrack API token
 
@@ -50,6 +65,7 @@ export YOUTRACK_TOKEN="perm:xxxxxxxxxxxxxxxxxxxx"
 
 Open a new shell so they're loaded, then start Claude Code from there.
 
+> [!NOTE]
 > The plugin's bundled MCP definition (`.mcp.json`) references these two
 > variables — `${YOUTRACK_MCP_URL}` and `${YOUTRACK_TOKEN}`. Nothing
 > instance-specific is stored in this repo.
@@ -75,7 +91,7 @@ settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`).
 
 ---
 
-## Usage
+## 🚀 Usage
 
 ### Pick up an issue
 
@@ -120,14 +136,14 @@ What happens:
 
 Flags:
 
-| Flag | Effect |
-| --- | --- |
-| `--no-move` | don't change the issue state; still add the pickup comment |
-| `--no-writeback` | don't change state and don't add the pickup comment |
-| `--base ‹branch›` | branch from `‹branch›` instead of the detected default |
-| `--worktree` / `--no-worktree` | force / skip an isolated git worktree for this pickup (default: `worktree` config, itself `auto`) |
-| `--checkpoints` | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
-| `--review` / `--no-review` | force / skip the automatic code review in the implement step (default: review only when a written plan was executed) |
+| Flag                           | Effect                                                                                                                         |
+|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `--no-move`                    | don't change the issue state; still add the pickup comment                                                                     |
+| `--no-writeback`               | don't change state and don't add the pickup comment                                                                            |
+| `--base ‹branch›`              | branch from `‹branch›` instead of the detected default                                                                         |
+| `--worktree` / `--no-worktree` | force / skip an isolated git worktree for this pickup (default: `worktree` config, itself `auto`)                              |
+| `--checkpoints`                | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
+| `--review` / `--no-review`     | force / skip the automatic code review in the implement step (default: review only when a written plan was executed)           |
 
 ### Create an issue
 
@@ -179,12 +195,12 @@ once its PR is merged. Dirty worktrees are always left alone.
 
 Managing worktrees by hand:
 
-| Command | Does |
-| --- | --- |
-| `/youtrack-task worktree list` | list this plugin's worktrees + each issue's YouTrack state |
-| `/youtrack-task worktree prune` | remove every worktree whose PR is merged/closed (clean only) |
-| `/youtrack-task worktree take <ID>` | free `<ID>`'s branch from its worktree and `git switch` to it **here** |
-| `/youtrack-task worktree remove <ID>` | just drop `<ID>`'s worktree (branch kept, no switch) |
+| Command                               | Does                                                                   |
+|---------------------------------------|------------------------------------------------------------------------|
+| `/youtrack-task worktree list`        | list this plugin's worktrees + each issue's YouTrack state             |
+| `/youtrack-task worktree prune`       | remove every worktree whose PR is merged/closed (clean only)           |
+| `/youtrack-task worktree take <ID>`   | free `<ID>`'s branch from its worktree and `git switch` to it **here** |
+| `/youtrack-task worktree remove <ID>` | just drop `<ID>`'s worktree (branch kept, no switch)                   |
 
 The default, `worktree = "auto"`, only makes a worktree when the current checkout
 is already busy (dirty or on a task branch) or another worktree exists — so the
@@ -220,55 +236,68 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 /youtrack-task done      →  → Done
 ```
 
-`pr` is the only command that pushes, and it asks first (shows the commits and
-diffstat). It needs the [`gh` CLI](https://cli.github.com/). It never
-force-pushes, merges, or deletes anything. Branch names, commit messages and the
-PR title/body are always English — even for a German (or other non-English)
-issue; only the YouTrack comments follow the issue's language. If you'd rather run your own richer
-ship flow (tests, version bump, changelog), do that instead and then
-`/youtrack-task link <pr-url>` to record the PR on the issue. `done` is always
-last — it means "merged and accepted", so run it after the PR lands, not before.
+> [!IMPORTANT]
+> `pr` is the only command that pushes, and it asks first (shows the commits and
+> diffstat). It needs the [`gh` CLI](https://cli.github.com/). It never
+> force-pushes, merges, or deletes anything. Branch names, commit messages and the
+> PR title/body are always English — even for a German (or other non-English)
+> issue; only the YouTrack comments follow the issue's language.
+
+If you'd rather run your own richer ship flow (tests, version bump, changelog), do
+that instead and then `/youtrack-task link <pr-url>` to record the PR on the
+issue. `done` is always last — it means "merged and accepted", so run it after
+the PR lands, not before.
 
 ---
 
-## What lives where
+## 🗂️ What lives where
 
-| Thing | Location | In this public repo? |
-| --- | --- | --- |
-| YouTrack URL | `YOUTRACK_MCP_URL` env var | no |
-| API token | `YOUTRACK_TOKEN` env var | no |
-| Which project an issue is in | encoded in the issue ID (`INFRA-42`) | no |
-| State names, list query, prefix map, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | defaults only |
-| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach) | `skills/youtrack-task/` | yes |
+| Thing                                                                         | Location                                                                  | In this public repo? |
+|-------------------------------------------------------------------------------|---------------------------------------------------------------------------|:--------------------:|
+| YouTrack URL                                                                  | `YOUTRACK_MCP_URL` env var                                                |          🚫          |
+| API token                                                                     | `YOUTRACK_TOKEN` env var                                                  |          🚫          |
+| Which project an issue is in                                                  | encoded in the issue ID (`INFRA-42`)                                      |          🚫          |
+| State names, list query, prefix map, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
+| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach)   | `skills/youtrack-task/`                                                   |          ✅          |
 
-## Troubleshooting
+---
 
-| Symptom | Fix |
-| --- | --- |
-| "YouTrack MCP server isn't connected" | `YOUTRACK_MCP_URL` / `YOUTRACK_TOKEN` not set in the shell that launched Claude Code, or `/mcp` blocked by your proxy. Check `curl -H "Authorization: Bearer $YOUTRACK_TOKEN" "$YOUTRACK_MCP_URL"`. |
-| MCP connects but writes fail with 403 | The token's user lacks permission on that project, or the token scope is wrong. |
-| State change skipped with a warning | The skill couldn't identify the state field from the project schema. Set `in_progress_state` / `testing_state` / `done_state` in the config to match your project's field values. |
-| Branch name too long | Slugs are capped; if it's still awkward, rename with `git branch -m`. |
-| "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree. |
-| Worktrees piling up | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand. |
+## 🩺 Troubleshooting
 
-## MCP tools used
+| Symptom                                                              | Fix                                                                                                                                                                                                 |
+|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| "YouTrack MCP server isn't connected"                                | `YOUTRACK_MCP_URL` / `YOUTRACK_TOKEN` not set in the shell that launched Claude Code, or `/mcp` blocked by your proxy. Check `curl -H "Authorization: Bearer $YOUTRACK_TOKEN" "$YOUTRACK_MCP_URL"`. |
+| MCP connects but writes fail with 403                                | The token's user lacks permission on that project, or the token scope is wrong.                                                                                                                     |
+| State change skipped with a warning                                  | The skill couldn't identify the state field from the project schema. Set `in_progress_state` / `testing_state` / `done_state` in the config to match your project's field values.                   |
+| Branch name too long                                                 | Slugs are capped; if it's still awkward, rename with `git branch -m`.                                                                                                                               |
+| "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree.                                                               |
+| Worktrees piling up                                                  | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand.                                                                                             |
+
+---
+
+## 🔌 MCP tools used
 
 `get_current_user`, `find_projects`, `get_project`, `search_issues`, `get_issue`,
 `get_issue_fields_schema`, `get_issue_comments`, `create_issue`, `update_issue`,
 `add_issue_comment`, `log_work` — all from YouTrack's predefined MCP tool set.
 
-## Contributing
+## 🤝 Contributing
 
 Issues and pull requests are welcome. Every behaviour change also updates the
 README, changelog, spec, config example and manual test checklist — see
 [CONTRIBUTING.md](./CONTRIBUTING.md) for the full checklist.
 
-## Changelog
+## 📜 Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md). Versioning follows [SemVer](https://semver.org/);
 each release is also a git tag (`vMAJOR.MINOR.PATCH`).
 
-## License
+---
+
+## 📄 License
 
 MIT — see [LICENSE](./LICENSE).
+
+<div style="text-align:center">
+<sub>Issues live in YouTrack, work happens in your editor — without the context-switch tax.</sub>
+</div>

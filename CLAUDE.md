@@ -32,8 +32,6 @@ SKILL.md dispatch table + sections, README, and SPEC.
 
 ## Conventions
 
-- Commits/PR titles/branch names: English, Conventional Commits. No attribution
-  trailers.
 - Scripts: `bash`, no extension, `chmod +x`, emit `KEY=VALUE` lines, safe by
   construction (never `git … --force`, never `git branch -D`, never touch a dirty
   worktree). `reference/worktrees.md` is their contract — change both together.
