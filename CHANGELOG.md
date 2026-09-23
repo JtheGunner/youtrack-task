@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.0 — 2026-09-23
+
+- `/youtrack-task new` now always sets an **Assignee**: the owner of the API
+  token by default (`get_current_user`). New `--assignee <login|email>` — or an
+  explicit "assign to …" / "für …" in the free text — assigns someone else. A
+  user that doesn't exist (`find_user`) falls back to the token owner, flagged
+  at the confirm step instead of stopping. If `create_issue` doesn't set the
+  field, `change_issue_assignee` follows up; a project without an `Assignee`
+  field gets an unassigned issue and a note in the report.
+
 ## 0.8.1 — 2026-09-07
 
 - Docs: README brought up to date with everything since 0.6.0 — the `scripts/`

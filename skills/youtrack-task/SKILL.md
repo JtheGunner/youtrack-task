@@ -49,7 +49,8 @@ specific action:
   uncommitted changes is left alone and reported, not removed.
 - The only YouTrack writes are: the pickup state change + comment, the plan
   comment, an optional one-line completion comment, and the explicit
-  `comment` / `log` / `pr` / `link` / `testing` / `done` sub-commands.
+  `new` (create + its Type / Priority / Assignee fields) / `comment` / `log` /
+  `pr` / `link` / `testing` / `done` sub-commands.
 - **All git artifacts are in English** — branch names, commit messages, PR
   titles and PR bodies — regardless of the issue's language. Translate the issue
   summary to English for these. YouTrack-side text (comments, the issue created
@@ -319,6 +320,7 @@ switch branches.
 ```
 /youtrack-task new "<free text describing the work>"     # free-text mode
 /youtrack-task new [--project KEY] [--title "..."] [--description "..."] [--priority NAME] [--type NAME]
+                  [--assignee LOGIN|EMAIL]
 ```
 
 Create a new YouTrack issue. Two ways to supply the content:
@@ -342,6 +344,9 @@ Follow `reference/issue-template.md`:
 - Do not invent facts — gaps go in **Open questions**.
 - `--title` / `--description` passed alongside free text override the generated
   value for that field.
+- If the text **explicitly** names an assignee (*"assign to max.muster"*,
+  *"für max.muster"*, *"@max.muster"*), take it as the requested assignee —
+  a merely mentioned name is not one. `--assignee` overrides it.
 
 Then continue with steps 1–4 using the generated values. Priority is still only
 set if the input explicitly signals urgency (then propose + ask) or `--priority`
@@ -374,33 +379,49 @@ is given.
 - `--priority NAME` → validate against the schema and use it.
 - Omitted → leave unset; YouTrack applies the project default. Do not infer.
 
+**assignee** — always set; defaults to the API-key owner.
+- `mcp__youtrack__get_current_user` → the token's owner (the **key owner**).
+- No assignee requested (`--assignee` / free text) → the key owner.
+- Requested → `mcp__youtrack__find_user` with the given login or email.
+  Found → that user's login. Not found → **fall back to the key owner** and flag
+  it in step 3: *"Assignee: `<owner>` (⚠ `<requested>` not found → API-key
+  owner)"*. Don't stop to ask — the step-3 confirmation is where it's corrected.
+
 ### 2. Read the schema
 
 `mcp__youtrack__get_issue_fields_schema` for the project → exact field names and
 allowed value spellings for Type and Priority. Match user/inferred values to the
 schema's spelling (case-insensitive); if no match, show the allowed values and
-ask.
+ask. If the schema has no `Assignee` field, drop the assignee and say so in
+step 3 (*"no Assignee field in `<PROJECT>` — created unassigned"*).
 
 ### 3. Confirm, then create
 
 Show the assembled issue — project, title, full description, Type, Priority
-(or "project default") — and get **one confirmation**. In free-text mode the
-user may edit any field here before confirming; editing one field does not
-regenerate the others (an edited title leaves the generated description as-is).
+(or "project default"), Assignee (with the ⚠ fallback note if step 1 fell back)
+— and get **one confirmation**. The user may edit any field here before
+confirming, including changing or clearing the Assignee; a new assignee login is
+checked with `find_user` again. Editing one field does not regenerate the others
+(an edited title leaves the generated description as-is).
 
 Then `mcp__youtrack__create_issue` with project, summary (= title), description,
-and the Type/Priority custom fields. If the create call can't set a custom field,
-follow up with `mcp__youtrack__update_issue` on the new issue.
+and the Type / Priority / Assignee custom fields (Assignee = the login). If the
+create call can't set a custom field (listed in `failedToUpdateFields`, or
+absent from `updatedFields`), follow up on the new issue —
+`mcp__youtrack__change_issue_assignee` for Assignee, `mcp__youtrack__update_issue`
+for the rest.
 
 ### 4. Report and offer pickup
 
-Report the new issue ID, its URL, project, Type, Priority, title. Then offer:
+Report the new issue ID, its URL, project, Type, Priority, Assignee (or why it's
+unassigned), title. Then offer:
 *"Pick it up now? → `/youtrack-task <new-ID>`"* (branch + In Progress + plan).
 Don't chain automatically.
 
 Creating is one MCP write; on failure report what failed and stop (nothing half-
-created to clean up unless `update_issue` failed after `create_issue` — then say
-the issue exists but a field didn't stick).
+created to clean up unless a follow-up `update_issue` / `change_issue_assignee`
+failed after `create_issue` — then say the issue exists but that field didn't
+stick).
 
 ## pr
 
