@@ -17,6 +17,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   touches) and `examples/` (pickup, new, pr).
 - `tools/package-agensi` builds a marketplace-ready ZIP (one top-level folder,
   text files only, no symlinks) into `dist/agensi/`.
+- Project logo (`assets/logo.png`) in the README header.
 
 ## 0.9.0 — 2026-09-23
 

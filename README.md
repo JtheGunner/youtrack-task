@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./assets/logo.png" alt="youtrack-task logo" width="96" height="96">
+
 # 🎯 youtrack-task
 
 **Work JetBrains YouTrack issues without leaving your repo.**
