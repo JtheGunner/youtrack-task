@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0 — 2026-10-13
+
+- **Portable skill.** `SKILL.md` no longer assumes Claude Code: YouTrack MCP tools
+  are matched by base name (`get_issue`, …) with the `mcp__youtrack__` prefix
+  documented as the Claude Code spelling, and the "not connected" message covers
+  other agents (Cursor, Copilot).
+- **Degraded mode without `scripts/`.** If the agent loads the skill without
+  writing the bundled scripts to disk, it falls back to plain in-place git — no
+  worktrees, nothing forced.
+- Skill-level `README.md` (requirements, per-agent MCP setup, what each script
+  touches) and `examples/` (pickup, new, pr).
+- `tools/package-agensi` builds a marketplace-ready ZIP (one top-level folder,
+  text files only, no symlinks) into `dist/agensi/`.
+
 ## 0.9.0 — 2026-09-23
 
 - `/youtrack-task new` now always sets an **Assignee**: the owner of the API
