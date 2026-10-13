@@ -34,6 +34,8 @@ youtrack-task/
 ├── skills/
 │   └── youtrack-task/
 │       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
+│       ├── README.md        # skill-level readme: requirements, per-agent MCP setup, script ops
+│       ├── examples/        # sample runs: pickup.md, new.md, pr.md
 │       ├── scripts/
 │       │   ├── setup-workspace   # step 4: worktree-vs-in-place decision + create + bootstrap
 │       │   ├── sweep-worktrees   # pr / done / prune: remove finished worktrees safely
@@ -44,11 +46,27 @@ youtrack-task/
 │           ├── issue-template.md # structure for `new` free-text generation
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
 │           └── worktrees.md      # contract for the two scripts
+├── tools/
+│   └── package-agensi       # builds dist/agensi/youtrack-task.zip (marketplace upload)
 ├── config.example.toml      # documents every optional override, dummy values only
 ├── README.md                # setup: 2 env vars + token, then /plugin install
 ├── LICENSE                  # MIT
 └── SPEC.md                  # this file
 ```
+
+### Portability (other agents, marketplace)
+
+`skills/youtrack-task/` is a self-contained `SKILL.md` skill and is also
+distributed outside Claude Code (Agensi.io, Cursor, Copilot). Contract:
+
+- YouTrack MCP tools are referred to by base name (`get_issue`, …); the
+  `mcp__youtrack__` prefix is only the Claude Code spelling.
+- The plugin's `.mcp.json` is Claude Code only; other agents configure the same
+  HTTP server and `Authorization: Bearer` header in their own MCP settings.
+- `scripts/` are an optimisation, not a requirement: without them on disk the
+  skill degrades to plain in-place git (no worktrees, nothing forced).
+- The ZIP is one top-level `youtrack-task/` folder, text files only, no symlinks,
+  no OS metadata (`tools/package-agensi` enforces this).
 
 ### Language
 

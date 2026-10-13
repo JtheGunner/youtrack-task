@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./assets/logo.png" alt="youtrack-task logo" width="96" height="96">
+
 # 🎯 youtrack-task
 
 **Work JetBrains YouTrack issues without leaving your repo.**
@@ -258,6 +260,27 @@ the PR lands, not before.
 
 ---
 
+## 🧩 Use it in other agents
+
+The skill folder `skills/youtrack-task/` is a self-contained `SKILL.md` skill, so
+it also runs outside Claude Code (Cursor, GitHub Copilot, Codex CLI, …) and is
+published on [Agensi.io](https://www.agensi.io). What changes there:
+
+1. **Add the YouTrack MCP server to the agent.** Same URL and header as above
+   (`Authorization: Bearer <token>`), configured in that agent's MCP settings —
+   for example `.cursor/mcp.json` or `.vscode/mcp.json`. The plugin's `.mcp.json`
+   only applies to Claude Code.
+2. **Tool names are matched by their base name** (`get_issue`, `update_issue`, …),
+   not by the Claude Code `mcp__youtrack__` prefix.
+3. **Bundled `scripts/` are optional.** If the agent loads the skill without
+   writing them to disk, it falls back to plain in-place git (no worktrees).
+
+Build the upload ZIP yourself with `tools/package-agensi` (output:
+`dist/agensi/youtrack-task.zip`). The skill-level readme is
+[`skills/youtrack-task/README.md`](./skills/youtrack-task/README.md).
+
+---
+
 ## 🗂️ What lives where
 
 | Thing                                                                         | Location                                                                  | In this public repo? |
@@ -267,6 +290,7 @@ the PR lands, not before.
 | Which project an issue is in                                                  | encoded in the issue ID (`INFRA-42`)                                      |          🚫          |
 | State names, list query, prefix map, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
 | The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach)   | `skills/youtrack-task/`                                                   |          ✅          |
+| Marketplace upload ZIP (built, not committed)                                 | `dist/agensi/youtrack-task.zip` via `tools/package-agensi`                |          🚫          |
 
 ---
 
@@ -280,6 +304,7 @@ the PR lands, not before.
 | Branch name too long                                                 | Slugs are capped; if it's still awkward, rename with `git branch -m`.                                                                                                                               |
 | "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree.                                                               |
 | Worktrees piling up                                                  | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand.                                                                                             |
+| Skill runs in Cursor / Copilot but no YouTrack tools are found       | Add the YouTrack MCP server to that agent's MCP settings (see *Use it in other agents*); the skill matches tool names by base name, so any prefix works.                                           |
 | New issue assigned to you instead of the requested user              | The `--assignee` login / email wasn't found in YouTrack, so `new` fell back to the token's owner (flagged at the confirm step). Check the exact login under YouTrack → Users.                          |
 | New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |
 

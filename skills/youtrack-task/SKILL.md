@@ -10,15 +10,25 @@ with state and comments written back to YouTrack.
 
 ## Preconditions
 
-Before doing anything, confirm the YouTrack MCP server is available: the tools
-`mcp__youtrack__get_issue`, `mcp__youtrack__search_issues`, etc. must exist.
+Before doing anything, confirm the YouTrack MCP server is available: tools such as
+`get_issue`, `search_issues`, `add_issue_comment` and `update_issue` of a YouTrack
+MCP server must exist.
 
-If they do **not** exist, stop and print:
+**Tool names.** This document writes them as they appear in Claude Code
+(`mcp__youtrack__get_issue`). Other agents prefix or namespace MCP tools
+differently (for example `youtrack_get_issue` or `youtrack.get_issue`); use
+whichever tool of the connected YouTrack MCP server has the matching base name
+(`get_issue`, `create_issue`, …).
 
-> The YouTrack MCP server isn't connected. Set these in your shell env and restart Claude Code:
-> - `export YOUTRACK_MCP_URL="https://<your-youtrack-host>/mcp"`
-> - `export YOUTRACK_TOKEN="<permanent token from YouTrack → Profile → Account Security>"`
-> Then reinstall/enable the plugin. See the plugin README.
+If no such tools exist, stop and print:
+
+> The YouTrack MCP server isn't connected. Add a YouTrack MCP server to your agent
+> (URL `https://<your-youtrack-host>/mcp`, header `Authorization: Bearer <permanent
+> token from YouTrack → Profile → Account Security>`).
+> - Claude Code plugin: `export YOUTRACK_MCP_URL=…` and `export YOUTRACK_TOKEN=…`,
+>   restart, reinstall/enable the plugin.
+> - Other agents (Cursor, Copilot, …): add an HTTP MCP server with the same URL and
+>   header in that agent's MCP settings. See the README.
 
 Do not attempt REST calls or `curl` as a fallback.
 
@@ -68,6 +78,15 @@ reimplement their logic:
   holding one issue's branch (branch kept), optionally `git switch` to it here.
 
 All echo `KEY=VALUE` lines; the contract is in `reference/worktrees.md`.
+
+**If `scripts/` isn't on disk** (the skill was loaded through a connection that
+doesn't materialise bundled files), do not write the scripts out yourself. Degrade
+to plain git, in place, never forcing anything:
+- `setup-workspace` → `git switch -c <prefix>/<ID>-<slug> <base>` from a clean tree
+  (ask before stashing); report `MODE=inplace`. No worktree.
+- `sweep-worktrees` / `worktree prune` → skip and say so.
+- `worktree take` / `worktree remove` → print the `git worktree remove <path>` /
+  `git switch <branch>` commands for the user to run.
 
 ## Config
 

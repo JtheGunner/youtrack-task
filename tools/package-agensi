@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# package-agensi — build the upload ZIP for a skill marketplace from
+# skills/youtrack-task/. One top-level folder, SKILL.md at its root, text files
+# only, no symlinks, no OS metadata.
+#
+# Usage: tools/package-agensi [--out <dir>]     (default: dist/agensi)
+#
+# Output: <out>/youtrack-task.zip containing youtrack-task/SKILL.md, scripts/, ...
+set -euo pipefail
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+OUT=dist/agensi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out) OUT=$2; shift 2 ;;
+    *) die "unknown arg: $1" ;;
+  esac
+done
+
+command -v zip >/dev/null 2>&1 || die "zip not found"
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+SRC="$ROOT/skills/youtrack-task"
+NAME=youtrack-task
+[ -f "$SRC/SKILL.md" ] || die "missing $SRC/SKILL.md"
+
+# Frontmatter must carry name and description.
+head -n 1 "$SRC/SKILL.md" | grep -qx -- '---' || die "SKILL.md has no frontmatter"
+FM=$(awk 'NR==1{next} /^---$/{exit} {print}' "$SRC/SKILL.md")
+echo "$FM" | grep -q '^name: '        || die "frontmatter: name missing"
+echo "$FM" | grep -q '^description: ' || die "frontmatter: description missing"
+
+# No symlinks, no binary files.
+[ -z "$(find "$SRC" -type l)" ] || die "symlinks found under $SRC"
+while IFS= read -r f; do
+  grep -qI . "$f" || [ ! -s "$f" ] || die "binary file: $f"
+done < <(find "$SRC" -type f ! -name .DS_Store)
+
+# Stage a clean copy so the archive has exactly one top-level folder.
+STAGE=$(mktemp -d)
+trap 'rm -rf "$STAGE"' EXIT
+mkdir -p "$STAGE/$NAME"
+cp -R "$SRC/." "$STAGE/$NAME/"
+find "$STAGE" -name .DS_Store -delete
+
+mkdir -p "$ROOT/$OUT"
+ZIP="$ROOT/$OUT/$NAME.zip"
+rm -f "$ZIP"
+(cd "$STAGE" && zip -r -X -q "$ZIP" "$NAME" -x '*.DS_Store')
+
+echo "ZIP=$ZIP"
+unzip -Z1 "$ZIP" | sed 's/^/  /'
