@@ -72,9 +72,9 @@ distributed outside Claude Code (Agensi.io, Cursor, Copilot). Contract:
 
 Git artifacts — branch names, commit messages, PR titles and bodies, locally
 written plan / design docs — are **always English**, whatever language the issue
-is in (the skill translates the summary). YouTrack-side text follows the issue's
-language: comments mirror it, and `/youtrack-task new` writes the issue in the
-input's language.
+is in (the skill translates the title for these). YouTrack-side text follows the
+issue's language: comments mirror it, and `/youtrack-task new` writes both the
+title and the description in the input's language (a given `--title` is verbatim).
 
 ### Nothing instance-specific in the repo
 
@@ -225,7 +225,8 @@ Required: `project`, `title`, `description`. Two input modes:
 - **Free-text**: `/youtrack-task new "<blob>"` (or `--from-text`). The skill
   generates `title` + a structured `description` per `reference/issue-template.md`
   — fixed sections Summary / Context / Goal / Acceptance criteria / Scope /
-  Technical notes? / Open questions?, in the input's language, no invented facts
+  Technical notes? / Open questions?, title and description in the input's
+  language, no invented facts
   (gaps → Open questions). This is the same structure `/youtrack-task <id>` reads
   back when planning, so capture → work loses nothing.
 - **Field**: `--title` / `--description` etc.; missing required fields prompted

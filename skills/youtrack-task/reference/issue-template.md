@@ -7,15 +7,20 @@ guesswork — the section headings are parse anchors.
 
 ## Title
 
+- Written in the **language of the user's input** — the same language as the
+  description. German input → German title, English input → English title. Never
+  translate the title to English; English is only for git artifacts, which are
+  derived separately (`reference/branching.md`).
 - One line, imperative mood, ≤ 70 characters.
 - No leading type word (`Bug:`, `Feature:`) — the Type field carries that.
 - Names the outcome, not the activity
-  (`Cart total ignores per-item discount`, not `Look into cart bug`).
+  (`Cart total ignores per-item discount`, not `Look into cart bug`;
+  `Warenkorb-Summe ignoriert Rabatt pro Artikel`, not `Warenkorb prüfen`).
 
 ## Description — fixed sections, in this order
 
-Write the prose in the **language of the user's input**. Keep the headings
-verbatim as below. Omit an *optional* section only when there is genuinely
+Write the prose in the **language of the user's input** (same language as the
+title). Keep the headings verbatim as below. Omit an *optional* section only when there is genuinely
 nothing to put in it; never omit a required one.
 
 ### Summary  *(required)*
@@ -48,7 +53,8 @@ Unknowns to resolve during planning.
 
 ## Generator rules
 
-- Derive the title per the rules above.
+- Derive the title per the rules above. A `--title` passed explicitly is used
+  verbatim — never translated, shortened, or normalised.
 - Fill every required section from the input. **Never invent facts** — if the
   input doesn't say, put the gap in **Open questions**, don't guess.
 - Keep the user's own wording where it's already precise; tighten, don't

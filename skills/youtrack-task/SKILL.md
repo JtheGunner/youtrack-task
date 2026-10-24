@@ -63,8 +63,9 @@ specific action:
   `pr` / `link` / `testing` / `done` sub-commands.
 - **All git artifacts are in English** — branch names, commit messages, PR
   titles and PR bodies — regardless of the issue's language. Translate the issue
-  summary to English for these. YouTrack-side text (comments, the issue created
-  by `new`) instead follows the issue's / the user's language.
+  title to English for these, and only for these. YouTrack-side text (comments,
+  and the title and description of an issue created by `new`) instead follows the
+  issue's / the user's language and is never translated to English.
 
 ## Scripts
 
@@ -356,13 +357,14 @@ the fields one by one?"*
 ### 0. Free-text mode: generate title + description
 
 Follow `reference/issue-template.md`:
-- Produce a `title` (one imperative line, ≤ 70 chars, no type word).
+- Produce a `title` (one imperative line, ≤ 70 chars, no type word) in the
+  language of the input — never translated to English.
 - Produce a `description` in the fixed sections
   (Summary / Context / Goal / Acceptance criteria / Scope / Technical notes? /
   Open questions?), in the language of the input.
 - Do not invent facts — gaps go in **Open questions**.
 - `--title` / `--description` passed alongside free text override the generated
-  value for that field.
+  value for that field; a given `--title` is used verbatim (no translation).
 - If the text **explicitly** names an assignee (*"assign to max.muster"*,
   *"für max.muster"*, *"@max.muster"*), take it as the requested assignee —
   a merely mentioned name is not one. `--assignee` overrides it.
@@ -467,7 +469,7 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
      URL — don't create a second one.
    - Else `gh pr create --base <base> --head <branch> --title "<ID>: <clean-summary>"
      --body "<body>"` (`--draft` if the flag was passed). `<clean-summary>` is the
-     issue summary **in English** (translate if the issue isn't), with the
+     issue title **in English** (translate if the issue isn't), with the
      leading type word stripped — same as the slug rule in `reference/branching.md`
      (`"Bugfix: Hover-Effekt bei markierten Zeilen"` → `"Keep row tint visible on hover"`).
      If the repo has `.github/pull_request_template.md` or
