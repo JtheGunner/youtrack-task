@@ -160,8 +160,10 @@ Flags:
 title and a **structured description** — Summary / Context / Goal / Acceptance
 criteria / Scope / Technical notes / Open questions. That structure is the same
 one a later `/youtrack-task <id>` reads back to build its plan, so nothing is
-lost between capturing the task and working it. You review and edit the
-generated issue before it's created.
+lost between capturing the task and working it. Title and description are
+written in the language of your text (German in → German title and description;
+English in → English), and an explicit `--title` is used as given. You review
+and edit the generated issue before it's created.
 
 Required either way: project, title, description. `--project` defaults to the
 YouTrack project matching the current repo. `--priority` is optional (project
@@ -251,7 +253,8 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 > diffstat). It needs the [`gh` CLI](https://cli.github.com/). It never
 > force-pushes, merges, or deletes anything. Branch names, commit messages and the
 > PR title/body are always English — even for a German (or other non-English)
-> issue; only the YouTrack comments follow the issue's language.
+> issue; the YouTrack comments and the title/description of issues created by
+> `new` follow the issue's language.
 
 If you'd rather run your own richer ship flow (tests, version bump, changelog), do
 that instead and then `/youtrack-task link <pr-url>` to record the PR on the
