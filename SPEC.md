@@ -31,6 +31,9 @@ youtrack-task/
 │   ├── plugin.json          # name, version, metadata
 │   └── marketplace.json     # so `/plugin marketplace add JtheGunner/youtrack-task` works
 ├── .mcp.json                # YouTrack HTTP MCP server, values from env vars
+├── hooks/
+│   ├── hooks.json           # PreToolUse on YouTrack `create_issue`
+│   └── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
 ├── skills/
 │   └── youtrack-task/
 │       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
@@ -75,6 +78,10 @@ written plan / design docs — are **always English**, whatever language the iss
 is in (the skill translates the title for these). YouTrack-side text follows the
 issue's language: comments mirror it, and `/youtrack-task new` writes both the
 title and the description in the input's language (a given `--title` is verbatim).
+The language is resolved explicitly (user instruction → input → issue text →
+session language), is shown as a `Language:` line in the `new` confirmation, is
+re-checked before every YouTrack write, and global "English everywhere" rules do
+not apply to YouTrack text (SKILL.md "Language" is the contract).
 
 ### Nothing instance-specific in the repo
 
@@ -244,6 +251,15 @@ Field resolution:
   (`get_current_user`) with a ⚠ note at the confirm step. Nothing requested →
   the API-key owner. No `Assignee` field in the project schema → unassigned,
   reported. No config key.
+
+  **Direct creation (no `new`).** The same default holds for any `create_issue`
+  call made in conversation without the skill — that is how issues ended up
+  unassigned (and in the wrong language). A plugin `PreToolUse` hook
+  (`hooks/require-assignee`, matcher `mcp__.*youtrack.*__create_issue`) rejects a
+  call whose `customFields` has no `Assignee` (exit 2 + reason on stderr); the
+  model retries with `get_current_user`'s login, or `Unassigned` when the user
+  asked for that. It fails open without `jq`. The skill description also lists
+  create/file/log triggers (incl. German) so the skill loads for such requests.
 
 Flow: resolve/generate fields → `get_issue_fields_schema` for exact spellings →
 show the assembled issue, editable, one confirmation → `create_issue` (Type /

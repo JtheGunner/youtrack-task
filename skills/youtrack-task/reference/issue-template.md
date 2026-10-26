@@ -5,6 +5,12 @@ a **description** in the fixed structure below. The structure exists so a later
 `/youtrack-task <id>` can parse the issue straight back into a plan with no
 guesswork — the section headings are parse anchors.
 
+## Language
+
+Title and description share one language, resolved per SKILL.md "Language"
+(explicit instruction → input language → session language). The confirm step
+names it, so the user can correct it before anything is created.
+
 ## Title
 
 - Written in the **language of the user's input** — the same language as the

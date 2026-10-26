@@ -1,0 +1,16 @@
+{
+  "description": "Guards direct YouTrack create_issue calls: an Assignee must always be set, and the text must be in the user's language.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__.*youtrack.*__create_issue",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/require-assignee\""
+          }
+        ]
+      }
+    ]
+  }
+}

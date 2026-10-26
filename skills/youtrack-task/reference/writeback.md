@@ -3,10 +3,13 @@
 All writes go through the YouTrack MCP server (`mcp__youtrack__*`). Never call the
 REST API directly.
 
-**Language:** YouTrack comments follow the issue's language (a German issue gets
-German comments). Git artifacts — branch names, commit messages, PR title/body —
-are always English (see `reference/branching.md` and the Guardrails). Don't mix
-the two up.
+**Language:** every comment (pickup, plan, completion, state changes) is written
+in the language resolved by SKILL.md "Language" — a German issue gets German
+comments, and never silently English because a global rule says "English
+everywhere". Template headings and emoji stay as written below; the text after
+them is the resolved language. Git artifacts — branch names, commit messages,
+PR title/body — are always English (see `reference/branching.md`). Don't mix the
+two up.
 
 ## Finding the state field (do this before any state change)
 

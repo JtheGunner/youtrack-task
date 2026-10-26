@@ -1,6 +1,6 @@
 ---
 name: youtrack-task
-description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch (optionally an isolated worktree for parallel tasks), moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done|worktree.
+description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create / file / log a JetBrains YouTrack issue, ticket or bug ("leg ein Ticket an", "erfasse den Fehler als Issue", "create an issue for this"). Fetches the issue over the YouTrack MCP server, creates a git branch (optionally an isolated worktree for parallel tasks), moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done|worktree.
 ---
 
 # youtrack-task
@@ -61,11 +61,46 @@ specific action:
   comment, an optional one-line completion comment, and the explicit
   `new` (create + its Type / Priority / Assignee fields) / `comment` / `log` /
   `pr` / `link` / `testing` / `done` sub-commands.
-- **All git artifacts are in English** — branch names, commit messages, PR
-  titles and PR bodies — regardless of the issue's language. Translate the issue
-  title to English for these, and only for these. YouTrack-side text (comments,
-  and the title and description of an issue created by `new`) instead follows the
-  issue's / the user's language and is never translated to English.
+- **Language** — git artifacts are always English, YouTrack-side text always
+  follows the user's / the issue's language. See "Language" below; it is a hard
+  rule, not a style preference.
+
+- **Assignee** — an issue is never created unassigned. The assignee is the
+  issue's creator (the API-key owner, `get_current_user`) unless the user named
+  someone else. This holds for **every** `create_issue` call, including ones made
+  directly in conversation ("leg die Issues an", a bug found while testing)
+  without running `new`: pass `Assignee` in `customFields`, and follow the
+  Language rules below for the text. (The plugin's `create_issue` hook rejects a
+  call without an Assignee.)
+
+## Language
+
+Two outputs, two rules. Never mix them up, and never let a global or project rule
+("English everywhere", "code and docs in English") bleed from one into the other.
+
+| Output | Language |
+| --- | --- |
+| **Git artifacts** — branch names, commit messages, PR titles and bodies, locally written plan / design docs | **Always English.** Translate the issue title for these, and only for these. |
+| **YouTrack-side text** — issue title and description (`new`), plan / pickup / completion / state comments, anything written with `add_issue_comment`, `create_issue`, `update_issue` | **The user's language** (below). Never silently English. |
+
+**Which language is "the user's language"?** First match wins:
+1. An explicit instruction from the user (*"write it in English"*, *"auf Englisch"*).
+2. For `new`: the language of the user's input text (free text, or the
+   `--title` / `--description` they typed).
+3. For an existing issue: the language of its title + description.
+4. Mixed or unclear: the language the user is writing to you in this session.
+
+English is the answer only if one of these says English. Text in YouTrack is
+read by people, so the "developer-facing text is English" rules in a user's
+global instructions or a repo's `CLAUDE.md` do **not** apply to it — those cover
+code, comments, docs and git, not issue-tracker prose.
+
+**Before every YouTrack write** (`create_issue`, `update_issue` with text,
+`add_issue_comment`) check that the title / body you are about to send is in the
+resolved language. If it is not, rewrite it first. Fixed template headings and
+emoji (`📌 Picked up in Claude Code`, `## 📝 Implementation plan`) stay as
+written; everything after them is the resolved language. A `comment` sub-command
+text is sent verbatim, as the user wrote it.
 
 ## Scripts
 
@@ -363,6 +398,8 @@ Follow `reference/issue-template.md`:
   (Summary / Context / Goal / Acceptance criteria / Scope / Technical notes? /
   Open questions?), in the language of the input.
 - Do not invent facts — gaps go in **Open questions**.
+- Field mode counts too: if only one of `--title` / `--description` is given, the
+  field you generate or ask for follows the language of the one that was given.
 - `--title` / `--description` passed alongside free text override the generated
   value for that field; a given `--title` is used verbatim (no translation).
 - If the text **explicitly** names an assignee (*"assign to max.muster"*,
@@ -419,11 +456,15 @@ step 3 (*"no Assignee field in `<PROJECT>` — created unassigned"*).
 ### 3. Confirm, then create
 
 Show the assembled issue — project, title, full description, Type, Priority
-(or "project default"), Assignee (with the ⚠ fallback note if step 1 fell back)
-— and get **one confirmation**. The user may edit any field here before
-confirming, including changing or clearing the Assignee; a new assignee login is
+(or "project default"), Assignee (with the ⚠ fallback note if step 1 fell back),
+and a **Language** line (*"Language: German (from your input) — say so if it
+should be English"*) — and get **one confirmation**. If the title and the
+description are not in the language named on that line, fix that before showing
+anything. The user may edit any field here before
+confirming, including the Language and changing or clearing the Assignee; a new assignee login is
 checked with `find_user` again. Editing one field does not regenerate the others
-(an edited title leaves the generated description as-is).
+(an edited title leaves the generated description as-is) — except the Language:
+changing it regenerates title and description in the new language.
 
 Then `mcp__youtrack__create_issue` with project, summary (= title), description,
 and the Type / Priority / Assignee custom fields (Assignee = the login). If the
