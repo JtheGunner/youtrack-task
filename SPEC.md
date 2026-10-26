@@ -75,6 +75,10 @@ written plan / design docs — are **always English**, whatever language the iss
 is in (the skill translates the title for these). YouTrack-side text follows the
 issue's language: comments mirror it, and `/youtrack-task new` writes both the
 title and the description in the input's language (a given `--title` is verbatim).
+The language is resolved explicitly (user instruction → input → issue text →
+session language), is shown as a `Language:` line in the `new` confirmation, is
+re-checked before every YouTrack write, and global "English everywhere" rules do
+not apply to YouTrack text (SKILL.md "Language" is the contract).
 
 ### Nothing instance-specific in the repo
 

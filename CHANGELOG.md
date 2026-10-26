@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.0 — 2026-10-26
+
+- **Language rule is now one explicit contract.** New "Language" section in
+  `SKILL.md`: git artifacts are always English; YouTrack text (title, description,
+  every comment) follows the user's language, resolved as explicit instruction →
+  input language → existing issue text → session language. Global or project
+  "English everywhere" rules no longer leak into YouTrack text.
+- `new` confirmation shows a `Language:` line; changing it regenerates title and
+  description. Field mode generates the missing field in the language of the one
+  given. Every YouTrack write is re-checked against the resolved language.
+- README troubleshooting: stale plugin (no marketplace auto-update) as the usual
+  reason for English output, and how to update.
+
 ## 0.10.1 — 2026-10-24
 
 - **Fix: `new` free-text mode now writes the issue title in the input's language**
