@@ -1,6 +1,6 @@
 ---
 name: youtrack-task
-description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create a JetBrains YouTrack issue. Fetches the issue over the YouTrack MCP server, creates a git branch (optionally an isolated worktree for parallel tasks), moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done|worktree.
+description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create / file / log a JetBrains YouTrack issue, ticket or bug ("leg ein Ticket an", "erfasse den Fehler als Issue", "create an issue for this"). Fetches the issue over the YouTrack MCP server, creates a git branch (optionally an isolated worktree for parallel tasks), moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done|worktree.
 ---
 
 # youtrack-task
@@ -64,6 +64,14 @@ specific action:
 - **Language** — git artifacts are always English, YouTrack-side text always
   follows the user's / the issue's language. See "Language" below; it is a hard
   rule, not a style preference.
+
+- **Assignee** — an issue is never created unassigned. The assignee is the
+  issue's creator (the API-key owner, `get_current_user`) unless the user named
+  someone else. This holds for **every** `create_issue` call, including ones made
+  directly in conversation ("leg die Issues an", a bug found while testing)
+  without running `new`: pass `Assignee` in `customFields`, and follow the
+  Language rules below for the text. (The plugin's `create_issue` hook rejects a
+  call without an Assignee.)
 
 ## Language
 

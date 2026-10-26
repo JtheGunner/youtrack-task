@@ -43,6 +43,8 @@ No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP s
 - `git` on your `PATH`.
 - The [`gh` CLI](https://cli.github.com/) on your `PATH` if you want to use
   `/youtrack-task pr`. Not needed for anything else.
+- *(optional)* `jq` on your `PATH` — used by the plugin hook that stops
+  `create_issue` calls without an assignee (it does nothing if `jq` is missing).
 - *(optional)* the [`superpowers`](https://github.com/obra/superpowers) plugin —
   when present, planning and implementation run through its skills. Everything
   works without it.
@@ -313,6 +315,7 @@ Build the upload ZIP yourself with `tools/package-agensi` (output:
 | Skill runs in Cursor / Copilot but no YouTrack tools are found       | Add the YouTrack MCP server to that agent's MCP settings (see *Use it in other agents*); the skill matches tool names by base name, so any prefix works.                                           |
 | New issue assigned to you instead of the requested user              | The `--assignee` login / email wasn't found in YouTrack, so `new` fell back to the token's owner (flagged at the confirm step). Check the exact login under YouTrack → Users.                          |
 | Issues still come out in English although you write German            | Almost always a stale plugin: third-party marketplaces don't auto-update. Run `/plugin marketplace update youtrack-task` then `/plugin update youtrack-task@youtrack-task`, restart Claude Code, and check the version under `/plugin`. Enable *Auto-update* for the marketplace in `/plugin` → Marketplaces to stop it recurring. If it persists, name the language in your input ("auf Deutsch") — an explicit instruction always wins. |
+| Issue created in conversation (not via `new`) ended up unassigned or English | The plugin's `create_issue` hook now rejects a call without an Assignee and tells Claude to retry with you as assignee (needs `jq` on your `PATH`; Claude Code only). Update the plugin and restart if you still see it. |
 | New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |
 
 ---

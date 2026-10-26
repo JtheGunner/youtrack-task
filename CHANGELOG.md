@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.0 — 2026-10-26
+
+- **No more unassigned issues, even without `/youtrack-task new`.** Issues created
+  directly in conversation ("leg die Issues an") never loaded the skill, so no
+  Assignee was set. A plugin `PreToolUse` hook (`hooks/require-assignee`) now
+  rejects a YouTrack `create_issue` without an Assignee; Claude retries with the
+  token owner (or `Unassigned` if the user asked for that). The rejection also
+  reminds Claude to write title and description in the user's language.
+- `SKILL.md`: Assignee guardrail ("creator unless told otherwise") for every
+  `create_issue`, and a broader skill description (create / file / log, German
+  phrasing) so the skill loads for such requests.
+
 ## 0.11.0 — 2026-10-26
 
 - **Language rule is now one explicit contract.** New "Language" section in

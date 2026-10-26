@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# PreToolUse hook for the YouTrack MCP `create_issue` tool.
+#
+# Rejects a create_issue call that carries no Assignee, so an issue created
+# directly in conversation (without /youtrack-task new) can't end up unassigned.
+# The rejection text goes to stderr (exit 2) and is shown to the model, which
+# then retries with the token owner as assignee.
+#
+# Fails open: without jq, or on input it can't parse, the call goes through.
+set -u
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+input=$(cat)
+
+# customFields arrives either as an object or as a JSON-encoded string.
+has_assignee=$(printf '%s' "$input" | jq -r '
+  .tool_input as $in
+  | ($in.customFields // {}) as $raw
+  | (if ($raw | type) == "string" then ($raw | try fromjson catch {}) else $raw end) as $cf
+  | [ ($cf | to_entries[]? | select(.key | ascii_downcase == "assignee") | .value),
+      ($in.assignee // empty) ]
+  | map(select(. != null and . != "")) | length > 0
+' 2>/dev/null) || exit 0
+
+[ "$has_assignee" = "true" ] && exit 0
+
+cat >&2 <<'MSG'
+create_issue blocked: no Assignee was set.
+
+Every issue needs an assignee. Unless the user named someone else, assign the
+issue to its creator: call get_current_user, then retry create_issue with
+customFields {"Assignee": "<login>"}. If the user explicitly asked for an
+unassigned issue, pass {"Assignee": "Unassigned"}.
+
+While retrying, also check that the title and description are written in the
+user's language (the language they are writing to you in), not English by
+default. Git artifacts are the only English text.
+MSG
+exit 2
