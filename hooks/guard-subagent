@@ -59,12 +59,11 @@ normalized=$(printf '%s' "$cmd" | sed -E 's/git +-C +[^ ;&|]+/git/g')
 stripped=$(printf '%s' "$normalized" | sed -E 's#2>&1##g; s#[0-9]?>+ *(/dev/null)##g')
 
 reviewer_allows() {
-  local s=$1
-  # Quoting inside an option token could hide a blocked option.
-  printf '%s' "$s" | grep -Eq "(^| )-[^ ]*['\"\\\\]" && return 1
+  # Quotes and backslashes are removed first so they cannot hide an option.
+  local s
+  s=${1//\'/}; s=${s//\"/}; s=${s//\\/}
   # Per-tool argument limits for commands that can write or execute. Options
   # may be attached (-oFILE), clustered (-no) or abbreviated (--outp).
-  printf '%s' "$s" | grep -Eq '^(sort|tree)( .*)? (-[a-zA-Z]*o|--o)' && return 1
   printf '%s' "$s" | grep -Eq '^git (diff|log|show|diff-tree|shortlog|blame|cat-file)( .*)? --ou' && return 1
   printf '%s' "$s" | grep -Eq '^git grep( .*)? (-[a-zA-Z]*O|--o)' && return 1
   printf '%s' "$s" | grep -Eq '^(rg|grep)( .*)? --pre' && return 1
@@ -72,7 +71,7 @@ reviewer_allows() {
   printf '%s' "$s" | grep -Eq '^find( .*)? -(f(ls|print[0-9a-z]*)|exec(dir)?|ok(dir)?|delete)( |$)' && return 1
   printf '%s' "$s" | grep -Eq '^git +(status|diff|log|show|rev-parse|rev-list|ls-files|ls-tree|blame|cat-file|merge-base|describe|grep|shortlog|diff-tree|name-rev|remote +-v|branch +(--list|-a|-r|--show-current|-vv))( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^gh +(pr +(view|diff|checks|list|status)|issue +view|run +(list|view))( |$)' && return 0
-  printf '%s' "$s" | grep -Eq '^(cd|ls|cat|head|tail|wc|grep|rg|diff|jq|echo|pwd|stat|file|tree|sort|uniq|cut|tr|find|true|test|\[)( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^(cd|ls|cat|head|tail|wc|grep|rg|diff|jq|echo|pwd|stat|file|uniq|cut|tr|find|true|test|\[)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^(npm|pnpm|yarn|bun) +(test|run +(test|lint|typecheck|check)[a-z:-]*)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^(pytest|python3? +-m +pytest|phpunit|pest|phpstan|vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|php +artisan +test|composer +(test|run +(test|lint|analyse|check)[a-z:-]*)|go +(test|vet)|cargo +(test|clippy|check)|make +(test|check|lint)|ctest|mvn +test|gradle +test|\./gradlew +test|dotnet +test|bats|shellcheck|bash +-n)( |$)' && return 0
   return 1
