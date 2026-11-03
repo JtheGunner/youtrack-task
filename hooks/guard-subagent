@@ -60,9 +60,11 @@ stripped=$(printf '%s' "$normalized" | sed -E 's#2>&1##g; s#[0-9]?>+ *(/dev/null
 
 reviewer_allows() {
   local s=$1
+  # Quoting inside an option token could hide a blocked option.
+  printf '%s' "$s" | grep -Eq "(^| )-[^ ]*['\"\\\\]" && return 1
   # Per-tool argument limits for commands that can write or execute. Options
   # may be attached (-oFILE), clustered (-no) or abbreviated (--outp).
-  printf '%s' "$s" | grep -Eq '^(sort|tree)( .*)? -[a-zA-Z]*o' && return 1
+  printf '%s' "$s" | grep -Eq '^(sort|tree)( .*)? (-[a-zA-Z]*o|--o)' && return 1
   printf '%s' "$s" | grep -Eq '^git (diff|log|show|diff-tree|shortlog|blame|cat-file)( .*)? --ou' && return 1
   printf '%s' "$s" | grep -Eq '^git grep( .*)? (-[a-zA-Z]*O|--o)' && return 1
   printf '%s' "$s" | grep -Eq '^(rg|grep)( .*)? --pre' && return 1
@@ -82,7 +84,7 @@ while IFS= read -r segment; do
   [ -n "$segment" ] || continue
 
   # Shell keywords and quoted/escaped command words may hide the real command.
-  printf '%s' "$segment" | grep -Eq '^(if|then|else|elif|fi|do|done|while|until|case|esac|for|select|coproc|function|\{|\}) ' \
+  printf '%s' "$segment" | grep -Eq '^(if|then|else|elif|fi|do|done|while|until|case|esac|for|select|coproc|function|time)([ ()<>]|$)|^[^ ]*[(){}]' \
     && deny "no shell keywords or compound statements; run plain commands."
   printf '%s' "$segment" | grep -Eq "^[^ ]*['\"\\\\]|^(git|gh) +[^ ]*['\"\\\\]|^gh +[^ ]+ +[^ ]*['\"\\\\]" \
     && deny "no quotes or backslashes inside the command or subcommand name."
