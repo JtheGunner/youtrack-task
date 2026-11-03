@@ -101,6 +101,21 @@ END-OF" "heredoc"
 treason $W "foo () { git push --force origin main; }; foo" "parentheses"
 treason $W "foo() { git push --force origin main; }; foo" "no shell keywords"
 treason $W "function foo { git push; }; foo" "no shell keywords"
+treason $W "cat <<\"EOF'
+x
+EOF" "heredoc"
+treason $W "cat <<'EOF\"
+git push --force origin main
+EOF" "heredoc"
+treason $W "cat <<EOF \${X:-\"}
+git push --force origin main
+EOF" "heredoc"
+t 0 $W "cat > f.txt <<'EOF'
+plain body
+EOF"
+t 0 $W "cat <<\"EOF\" | grep x
+plain body
+EOF"
 t 0 $W "cat <<< 'here string'"
 t 0 $W "cp file{,.bak}"
 t 0 $W "git commit -m \"feat(x): {y} (z)\""

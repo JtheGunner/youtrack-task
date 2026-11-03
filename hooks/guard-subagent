@@ -73,14 +73,12 @@ skip { t = $0; sub(/^[\t ]+/, "", t); if (t == word) skip = 0; next }
           # The delimiter must be a whole word; anything glued to it (EOF"x", END-OF) is read
           # differently by bash, and so is a quote still open at the end of this line.
           if (after != "" && substr(after, 1, 1) !~ /[ \t;|&<>)]/) { print "@@BAD@@"; break }
-          qq = ""; m = length(after)
-          for (k = 1; k <= m; k++) {
-            d = substr(after, k, 1)
-            if (qq == "") { if (d == "'" || d == "\"") qq = d; else if (d == "\\") k++ }
-            else if (d == qq) qq = ""
-            else if (qq == "\"" && d == "\\") k++
-          }
-          if (qq != "") { print "@@BAD@@"; break }
+          # Opening and closing quote of the delimiter must be the same character (or both absent).
+          oq = substr(rest, RSTART, RLENGTH); sub(/^-?[ \t]*/, "", oq)
+          fq = substr(oq, 1, 1); lq = substr(oq, length(oq), 1)
+          if ((fq == "'" || fq == "\"") != (lq == "'" || lq == "\"") || (fq ~ /["']/ && fq != lq)) { print "@@BAD@@"; break }
+          # Anything on the operator line we cannot model (quotes, expansions, comments): fail closed.
+          if (after ~ /[$`#'"\\]/) { print "@@BAD@@"; break }
           word = w; skip = 1; break
         } else { print "@@BAD@@"; break }                          # a heredoc we cannot read: fail closed
       }
