@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.0 — 2026-11-03
+
+- **`/youtrack-task all` — many issues, one command.** Triage the candidates
+  (`ready` / `needs-human` / `blocked`), then work them in parallel: one
+  `ticket-worker` agent per issue in its own worktree, and a fresh
+  `ticket-reviewer` per result that sees only the issue and the diff — never the
+  worker's report. Failed reviews loop back for up to `batch_review_rounds`
+  rounds. PRs are opened after a single confirmation for the whole list.
+- **`--auto-merge`** (opt-in per run): the run may merge the PRs it opened when
+  review is `PASS`, required checks are green and the PR is mergeable — plain
+  merge, no admin bypass, no branch deletion. Without the flag nothing is merged.
+- **Pushing the issue's own branch is allowed** within `all` (never forced, never
+  another ref). Guardrails in `SKILL.md` updated accordingly.
+- New plugin agents `agents/ticket-worker.md`, `agents/ticket-reviewer.md`, a
+  `PreToolUse` Bash hook `hooks/guard-subagent` that confines them (needs `jq`),
+  and its test script `tests/guard-subagent.sh`.
+- New config keys `batch_query`, `batch_max_parallel`, `batch_skip_tags`,
+  `batch_review_rounds`; contract in `reference/batch.md`.
+
 ## 0.12.0 — 2026-10-26
 
 - **No more unassigned issues, even without `/youtrack-task new`.** Issues created

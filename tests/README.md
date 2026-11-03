@@ -76,3 +76,15 @@ Use a throwaway or low-stakes issue.
 | 21  | Same agent with **no** YouTrack MCP server configured | prints the not-connected message incl. the "other agents" MCP-settings hint; no REST/`curl` fallback |
 | 22  | Load the skill so that `scripts/` is not on disk, run a pickup on a clean checkout | falls back to `git switch -c <prefix>/<ID>-<slug> <base>` in place, `MODE=inplace` reported, no worktree, no hand-written script files |
 | 23  | `tools/package-agensi`, then `unzip -Z1 dist/agensi/youtrack-task.zip` | exactly one top-level `youtrack-task/` folder with `SKILL.md` at its root; no `.DS_Store`, no symlinks, no binaries; `unzip -tq` reports no errors |
+| 24  | `/youtrack-task all --dry-run` with a mix of ready, `manual`-tagged and criteria-less issues | one triage table with verdict + reason per issue, run settings incl. `auto-merge: off`; no worktree, no YouTrack write |
+| 25  | `/youtrack-task all ID1 ID2` (two ready issues, `worktree` irrelevant) | one confirmation; two worktrees + pickup comments; two workers in parallel; no push to the default branch; each issue gets a plan comment and a completion comment in the issue's language |
+| 26  | inspect the reviewer's briefing in `25` | contains issue text, acceptance criteria, worktree path, base — and **no** worker report, plan or commit claims |
+| 27  | a worker result with a deliberately failing acceptance criterion | reviewer returns `CHANGES_REQUESTED`; a new worker fixes; a **new** reviewer re-reviews; after `batch_review_rounds` still failing → issue reported as needs-human, no PR |
+| 28  | an issue whose description is ambiguous or architectural | worker stops with `BLOCKED` / `ESCALATE`; question posted on the issue; other issues continue |
+| 29  | two issues touching the same file | report lists the shared file as a merge-conflict warning |
+| 30  | `all` without `--auto-merge`, after PR confirmation | PRs opened, issues → Testing, nothing merged, report says PRs are ready |
+| 31  | `all --auto-merge` on a repo with a green PR and a PR with failing required checks | green + `PASS` PR merged with `--merge`; failing one left open and reported; no `--admin`, no `--delete-branch`, no branch removed |
+| 32  | `all --auto-merge` where the host refuses the merge (branch protection) | reported, PR left open, no workaround |
+| 33  | `all` in an agent without subagent support | sequential processing in the main session, review as a clean-context pass, weaker-review note |
+| 34  | `tests/guard-subagent.sh` | every case prints `ok`; exit 0 (needs `jq`): worker pushes only its issue branch, no force/`+ref`/`-fu`/`HEAD` on a non-issue branch, no `bash -c`/`$(…)`/`gh api`/absolute git path; reviewer limited to the read-only allowlist; main-session calls untouched |
+| 35  | in a plain (main) session run `git push --force` / `gh pr merge` | the guard hook does not interfere (it acts only on worker / reviewer subagents) |

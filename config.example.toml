@@ -52,6 +52,12 @@
 # A repo may also provide .claude/youtrack-worktree-setup.sh (run after creation,
 # env: WORKTREE_PATH, MAIN_PATH, BRANCH, ISSUE_ID) for project-specific bootstrap.
 
+# Batch mode: `/youtrack-task all`. See reference/batch.md.
+# batch_query         = "for: me #Unresolved State: Open sort by: updated desc"  # candidates when no IDs are given
+# batch_max_parallel  = 3          # parallel workers
+# batch_skip_tags     = ["manual"] # issues with these tags are never run unattended
+# batch_review_rounds = 2          # max worker-fix / re-review rounds per issue
+
 # Branch prefix per YouTrack issue Type. Keys are Type names exactly as YouTrack
 # reports them (case-sensitive). Unlisted types fall back to "chore".
 # [type_prefix]

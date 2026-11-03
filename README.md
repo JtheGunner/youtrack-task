@@ -28,6 +28,7 @@ issues from inside any project repo:
 | 🌿 | **`/youtrack-task <ID>`**                    | pick one up: fetch it, branch, move it to **In Progress**, plan the work (through the [`superpowers`](https://github.com/obra/superpowers) plugin when present), write the plan back as a comment, and optionally implement it |
 | 🚀 | **`/youtrack-task pr` / `testing` / `done`** | open the PR (and link it on the issue), then walk the state ladder as the work lands                                                                                                                                           |
 | 🌲 | **`/youtrack-task worktree …`**              | run several tasks at once, each in its own isolated git worktree; `list` / `prune` / `take` / `remove` to manage them                                                                                                          |
+| 🤖 | **`/youtrack-task all`**                     | work through many issues in one command: parallel workers in isolated worktrees, an independent reviewer per result, PRs, and — only if you pass `--auto-merge` — merging                                                      |
 
 No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP server.
 
@@ -91,7 +92,9 @@ Only if your workflow differs from the defaults. Copy
 `~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
 names, a different issue-list query, branch-prefix mapping, where the plan copy
 goes, the `use_superpowers` / `review_before_pr` toggles, or the worktree
-settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`).
+settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`), or the
+`all` batch settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`,
+`batch_review_rounds`).
 
 ---
 
@@ -224,6 +227,55 @@ is already busy (dirty or on a task branch) or another worktree exists — so th
 work; use `always` for parallel. `worktree = "off"` switches the current checkout
 in place, always.
 
+### Work through many issues at once (`all`)
+
+```
+/youtrack-task all [ID ...] [--max N] [--no-review] [--dry-run] [--auto-merge]
+```
+
+One command instead of briefing the agent by hand:
+
+```text
+ triage ──▶ setup ──▶ work (parallel) ──▶ review ──▶ report ──▶ PRs ──▶ merge*
+ you OK     worktree   one worker/issue    fresh      table     you OK   *only with
+ once       per issue  TDD, local commits  reviewer   + overlap          --auto-merge
+```
+
+1. **Triage** — read-only. Each candidate (the IDs you name, else the issues
+   matching `batch_query`) is sorted into *ready*, *needs-human* or *blocked* and
+   shown in one table; you confirm once. Issues tagged `manual`, without
+   acceptance criteria, with open questions, of architectural size, or touching
+   servers / network / secrets / data stores are **never** run unattended.
+   `--dry-run` stops here.
+2. **Work** — each ready issue gets its own worktree and its own `ticket-worker`
+   agent (at most `--max`, default 3, at a time). Workers use TDD, commit in
+   English, may push **only their own issue branch**, and never write to YouTrack.
+   A worker that hits ambiguity stops and reports a question instead of guessing.
+3. **Independent review** — a fresh `ticket-reviewer` per issue sees only the
+   issue, its acceptance criteria and the diff — never the worker's report or
+   reasoning — and re-runs the tests itself. `CHANGES_REQUESTED` triggers a fix
+   and a *new* reviewer, up to `batch_review_rounds` (default 2), then the issue
+   is handed back to you.
+4. **Report and PRs** — a table with verdicts, files touched and overlap warnings
+   (files changed by more than one issue, i.e. likely merge conflicts). After one
+   more confirmation covering the whole list, the PRs are opened and the issues
+   move to Testing.
+5. **Merge** — never, unless you pass `--auto-merge`. With it, the run merges the
+   PRs *it opened* whose review is `PASS`, whose required checks are green and
+   that are mergeable — one by one, re-checking each time. It never uses admin
+   bypass, never deletes branches, and leaves a PR open if the host refuses.
+
+> [!WARNING]
+> `--auto-merge` lets the agent change your default branch. Use it only on
+> repositories with branch protection (required checks / reviews) and a token
+> that cannot force-push; those server-side rules, not the plugin, are the real
+> safety net.
+
+> [!NOTE]
+> The plugin ships a `PreToolUse` hook that confines the worker and reviewer
+> agents (issue-branch pushes only, no merges, read-only reviewer). It needs `jq`
+> and is a best-effort layer on top of the agents' instructions.
+
 ### During and after the work
 
 ```
@@ -235,6 +287,7 @@ in place, always.
 /youtrack-task testing                  # move the issue to Testing
 /youtrack-task done                     # move the issue to Done
 /youtrack-task worktree list|prune|take <ID>|remove <ID>   # manage worktrees (see above)
+/youtrack-task all [ID ...] [--auto-merge]   # many issues in parallel + independent review (see above)
 ```
 
 `comment` / `log` / `pr` / `link` / `testing` / `done` figure out the issue ID
@@ -298,6 +351,8 @@ Build the upload ZIP yourself with `tools/package-agensi` (output:
 | Which project an issue is in                                                  | encoded in the issue ID (`INFRA-42`)                                      |          🚫          |
 | State names, list query, prefix map, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
 | The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach)   | `skills/youtrack-task/`                                                   |          ✅          |
+| `all` agents (`ticket-worker`, `ticket-reviewer`) and their guard hook        | `agents/`, `hooks/guard-subagent` (plugin install only)                   |          ✅          |
+| `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`, `batch_review_rounds`) | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
 | Marketplace upload ZIP (built, not committed)                                 | `dist/agensi/youtrack-task.zip` via `tools/package-agensi`                |          🚫          |
 
 ---
@@ -316,6 +371,10 @@ Build the upload ZIP yourself with `tools/package-agensi` (output:
 | New issue assigned to you instead of the requested user              | The `--assignee` login / email wasn't found in YouTrack, so `new` fell back to the token's owner (flagged at the confirm step). Check the exact login under YouTrack → Users.                          |
 | Issues still come out in English although you write German            | Almost always a stale plugin: third-party marketplaces don't auto-update. Run `/plugin marketplace update youtrack-task` then `/plugin update youtrack-task@youtrack-task`, restart Claude Code, and check the version under `/plugin`. Enable *Auto-update* for the marketplace in `/plugin` → Marketplaces to stop it recurring. If it persists, name the language in your input ("auf Deutsch") — an explicit instruction always wins. |
 | Issue created in conversation (not via `new`) ended up unassigned or English | The plugin's `create_issue` hook now rejects a call without an Assignee and tells Claude to retry with you as assignee (needs `jq` on your `PATH`; Claude Code only). Update the plugin and restart if you still see it. |
+| `all` says no issue is ready                                         | Every candidate failed triage; the table names the reason per issue (tag in `batch_skip_tags`, no acceptance criteria, open questions, architectural size, unresolved dependency). Fix the issue, drop the tag, or run `/youtrack-task <ID>` interactively. |
+| A worker reports `BLOCKED` / `ESCALATE`                              | It hit ambiguity or architectural scope and stopped on purpose; its question is posted on the issue. Answer it and re-run `all <ID>` (the existing worktree is resumed), or take the issue interactively. |
+| A worker command is rejected by the hook                             | Working as intended: workers may push only their issue branch (never forced) and never merge. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
+| `all` unavailable when installed as a skill only (e.g. the marketplace ZIP) | The `ticket-worker` / `ticket-reviewer` agents and the guard hook ship with the **plugin**. Without them `all` falls back to sequential work in the main session with a weaker, same-session review. |
 | New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |
 
 ---

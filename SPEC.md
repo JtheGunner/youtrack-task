@@ -32,8 +32,12 @@ youtrack-task/
 │   └── marketplace.json     # so `/plugin marketplace add JtheGunner/youtrack-task` works
 ├── .mcp.json                # YouTrack HTTP MCP server, values from env vars
 ├── hooks/
-│   ├── hooks.json           # PreToolUse on YouTrack `create_issue`
-│   └── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
+│   ├── hooks.json           # PreToolUse: YouTrack `create_issue`; Bash from `all` subagents
+│   ├── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
+│   └── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only)
+├── agents/
+│   ├── ticket-worker.md     # `all`: implements one issue in its worktree, headless
+│   └── ticket-reviewer.md   # `all`: read-only, independent review of one branch
 ├── skills/
 │   └── youtrack-task/
 │       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
@@ -48,6 +52,7 @@ youtrack-task/
 │           ├── writeback.md      # state-transition + comment rules
 │           ├── issue-template.md # structure for `new` free-text generation
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
+│           ├── batch.md          # contract for `all`: triage, workers, review loop, PRs, merge
 │           └── worktrees.md      # contract for the two scripts
 ├── tools/
 │   └── package-agensi       # builds dist/agensi/youtrack-task.zip (marketplace upload)
@@ -174,10 +179,12 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 /youtrack-task testing [ISSUE-ID]                       # move state → Testing
 /youtrack-task done [ISSUE-ID]                          # move state → Done
 /youtrack-task worktree list|prune|take <ID>|remove <ID>  # manage this plugin's worktrees
+/youtrack-task all [ID ...] [--max N] [--no-review] [--dry-run] [--auto-merge]
+                                                        # many issues in parallel + independent review
 ```
 
 State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
-Progress` automatically. `pr` is the only command that pushes — it needs `gh`,
+Progress` automatically. `pr` (and `all`, for the issue's own branch) is the only command that pushes — it needs `gh`,
 prompts before pushing, never force-pushes/merges/deletes, and moves the issue to
 Testing. `testing` / `done` are pure state transitions (no git). `done` is always
 last: it means "merged and accepted". When `ISSUE-ID` is omitted for any
@@ -187,6 +194,28 @@ asks.
 Lifecycle: `/youtrack-task new` (optional) → `/youtrack-task <id>` → (implement) →
 `/youtrack-task pr` → *review + merge* → `/youtrack-task done`. Users who prefer
 their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
+
+### `all` — batch with independent review
+
+Full contract: `skills/youtrack-task/reference/batch.md`. Triage (one
+confirmation) → serial setup (worktree + pickup write-back) → parallel
+`ticket-worker`s → a fresh `ticket-reviewer` per result that sees only the issue
+and the diff → report with overlap warnings → PRs after one confirmation listing
+them → merge **only** with `--auto-merge`.
+
+- Only the main session writes to YouTrack and merges (subagents cannot spawn
+  subagents; one writer keeps the language and assignee rules in one place).
+- Workers may push only the issue's own branch, never forced; reviewers are
+  read-only. `hooks/guard-subagent` enforces this via the hook input's
+  `agent_type` — a best-effort layer; branch protection and a limited token are
+  the real boundary.
+- `--auto-merge`: PR opened by this run, review `PASS`, required checks green,
+  mergeable, plain `gh pr merge --merge`, no admin bypass, no branch deletion,
+  sequential with a re-check before each.
+- Subagents have no working-directory option and a `cd` does not persist between
+  Bash calls, so workers prefix each command with `cd <worktree> &&`.
+- Without subagent support the flow degrades to sequential work in the main
+  session with a clean-context review pass.
 
 ### Worktrees (parallel tasks)
 
@@ -373,6 +402,10 @@ verification pass. Never pushes / PRs / moves state — that's `pr` / the user.
 # testing_state     = "Testing"       # target of `/youtrack-task testing`
 # done_state        = "Done"          # target of `/youtrack-task done`
 # local_plan_copy   = "auto"          # auto | always | never
+# batch_query         = "for: me #Unresolved State: Open sort by: updated desc"  # `all` candidates
+# batch_max_parallel  = 3             # parallel workers in `all`
+# batch_skip_tags     = ["manual"]    # `all` never runs issues with these tags
+# batch_review_rounds = 2             # fix + re-review rounds per issue in `all`
 #
 # [type_prefix]
 # Bug = "fix"
