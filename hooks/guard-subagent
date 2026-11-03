@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# PreToolUse hook (Bash) for the `all` sub-command's agents.
+#
+# Only acts when the call comes from a `ticket-worker` or `ticket-reviewer`
+# subagent (hook input carries `agent_type`); every other call passes untouched.
+#
+#   ticket-worker   may push its own issue branch (plain push). Denied: force
+#                   pushes, pushes of any other ref, `gh pr merge`,
+#                   `git commit --no-verify`, `git branch -D`.
+#   ticket-reviewer is read-only. Denied: anything that writes to the repo,
+#                   pushes, opens or merges PRs, deletes files, or redirects
+#                   output into a file.
+#
+# The rejection text goes to stderr (exit 2) and is shown to the model.
+# Fails open: without jq, or on input it can't parse, the call goes through.
+set -u
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+input=$(cat)
+agent=$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null) || exit 0
+cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+
+case "$agent" in
+  *ticket-worker) role=worker ;;
+  *ticket-reviewer) role=reviewer ;;
+  *) exit 0 ;;
+esac
+[ -n "$cmd" ] || exit 0
+
+# Issue branches look like <prefix>/<ID>-<slug>, e.g. fix/ABC-12-keep-row-tint.
+issue_branch_re='^[a-z]+/[A-Z][A-Z0-9_]*-[0-9]+-'
+
+deny() {
+  printf '%s blocked for the %s agent: %s\n' "Command" "$role" "$1" >&2
+  exit 2
+}
+
+# `git -C <dir> ...` -> `git ...` so the checks below see the subcommand.
+normalized=$(printf '%s' "$cmd" | sed -E 's/git +-C +[^ ]+/git/g')
+
+if [ "$role" = reviewer ]; then
+  # Strip harmless redirections, then refuse any remaining output redirect.
+  stripped=$(printf '%s' "$normalized" | sed -E 's#2>&1##g; s#[0-9]?>+ *(/dev/null)##g')
+  case "$stripped" in *'>'*) deny "the reviewer is read-only (no output redirection into files)." ;; esac
+fi
+
+while IFS= read -r segment; do
+  segment=$(printf '%s' "$segment" | sed -E 's/^ +//; s/ +$//')
+  [ -n "$segment" ] || continue
+
+  if [ "$role" = reviewer ]; then
+    if printf '%s' "$segment" | grep -Eq '^git +(push|commit|add|reset|checkout|switch|merge|rebase|stash|clean|cherry-pick|revert|tag|branch +-[dD])( |$)'; then
+      deny "the reviewer is read-only; it must not change the repository."
+    fi
+    printf '%s' "$segment" | grep -Eq '^gh +pr( |$)' && deny "the reviewer must not touch pull requests."
+    printf '%s' "$segment" | grep -Eq '^(rm|mv|cp|chmod|tee)( |$)' && deny "the reviewer must not modify files."
+    continue
+  fi
+
+  # --- worker ---
+  printf '%s' "$segment" | grep -Eq '^gh +pr +merge( |$)' && deny "merging is done by the main session only."
+  printf '%s' "$segment" | grep -Eq '^git +commit( .*)? --no-verify( |$)' && deny "never bypass git hooks."
+  printf '%s' "$segment" | grep -Eq '^git +branch +(.* )?-D( |$)' && deny "never force-delete a branch."
+
+  if printf '%s' "$segment" | grep -Eq '^git +push( |$)'; then
+    printf '%s' "$segment" | grep -Eq '(^| )(--force|-f|--force-with-lease(=[^ ]*)?|--delete|--mirror|--all)( |$)' \
+      && deny "no force pushes, deletes or bulk pushes; push only the issue branch."
+    positional=0
+    for token in ${segment#git push}; do
+      case "$token" in -*) continue ;; esac
+      positional=$((positional + 1))
+      [ "$positional" -eq 1 ] && continue # the remote name
+      case "$token" in +*) deny "no force-style refspecs (+ref); push only the issue branch." ;; esac
+      target=${token##*:}
+      [ "$target" = HEAD ] && continue
+      printf '%s' "$target" | grep -Eq "$issue_branch_re" \
+        || deny "only the issue branch (<prefix>/<ID>-<slug>) may be pushed, not '$target'."
+    done
+  fi
+done < <(printf '%s\n' "$normalized" | tr ';&|' '\n\n\n')
+
+exit 0
