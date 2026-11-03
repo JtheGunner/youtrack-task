@@ -4,18 +4,22 @@
 # Only acts when the call comes from a `ticket-worker` or `ticket-reviewer`
 # subagent (hook input carries `agent_type`); every other call passes untouched.
 #
-#   ticket-worker   may push its own issue branch (plain push). Denied: force
-#                   pushes, pushes of any other ref, `gh pr merge`, `gh api`,
-#                   `git commit --no-verify`, `git branch -D`.
+#   ticket-worker   may push its own issue branch in exactly one form:
+#                     git push [-u|--set-upstream] <remote> <issue-branch>
+#                   Everything else about pushing is denied, as are `gh pr
+#                   merge`, `gh api`, `git commit --no-verify`, `git branch -D`,
+#                   `git config` writes (aliases), global git options, and
+#                   shell wrappers.
 #   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
-#                   runners; everything else is denied.
+#                   runners with per-command argument limits; everything else
+#                   is denied.
 #
 # This is a best-effort guard layered on the agents' own instructions, not a
 # security boundary: shell syntax is too rich to police completely. The real
 # protection is server-side — branch protection on the default branch and a
-# token without merge / force-push rights. Constructs that hide the real
-# command (subshells, `bash -c`, `eval`, wrappers, absolute git paths) are
-# rejected outright instead of parsed.
+# token without merge / force-push rights. Where a construct can hide the real
+# command (substitution, wrappers, prefixes, odd git options) it is rejected
+# outright instead of parsed.
 #
 # The rejection text goes to stderr (exit 2) and is shown to the model.
 # Fails open: without jq, or on input it can't parse, the call goes through.
@@ -26,7 +30,6 @@ command -v jq >/dev/null 2>&1 || exit 0
 input=$(cat)
 agent=$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null) || exit 0
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
-session_cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null) || exit 0
 
 case "$agent" in
   *ticket-worker) role=worker ;;
@@ -36,7 +39,8 @@ esac
 [ -n "$cmd" ] || exit 0
 
 # Issue branches look like <prefix>/<ID>-<slug>, e.g. fix/ABC-12-keep-row-tint.
-issue_branch_re='^[a-z]+/[A-Z][A-Z0-9_]*-[0-9]+-'
+issue_branch='[a-z]+/[A-Z][A-Z0-9_]*-[0-9]+-[A-Za-z0-9._/-]*'
+remote_name='[A-Za-z0-9._-]+'
 
 deny() {
   printf 'Command blocked for the %s agent: %s\n' "$role" "$1" >&2
@@ -47,79 +51,33 @@ deny() {
 case "$cmd" in
   *'$('* | *'`'* | *'<('* | *'>('*) deny "no command substitution or process substitution." ;;
 esac
-printf '%s' "$cmd" | grep -Eq '(^|[;&|( ])[^ ;&|]*/(git|gh)( |$)' \
-  && deny "call git and gh by name, not by path."
-printf '%s' "$cmd" | grep -Eq '(^|[;&|( ])git +(-c|--git-dir|--work-tree|--exec-path|--namespace)[ =]' \
-  && deny "no global git options other than -C."
-printf '%s' "$cmd" | grep -Eq '(^|[;&|( ])gh +api( |$)' \
-  && deny "gh api is not allowed for this agent."
-
-# Directory a command runs in: a leading `cd <dir>`, else `git -C <dir>`, else
-# the session's cwd. Used to resolve the current branch.
-run_dir=$(printf '%s' "$cmd" | sed -nE 's/^ *cd +([^ ;&|]+).*/\1/p')
-[ -n "$run_dir" ] || run_dir=$(printf '%s' "$cmd" | sed -nE 's/.*git +-C +([^ ;&|]+).*/\1/p' | head -1)
-[ -n "$run_dir" ] || run_dir=$session_cwd
 
 # `git -C <dir> ...` -> `git ...` so the checks below see the subcommand.
 normalized=$(printf '%s' "$cmd" | sed -E 's/git +-C +[^ ;&|]+/git/g')
 
-current_branch() {
-  [ -n "$run_dir" ] && [ -d "$run_dir" ] || return 1
-  git -C "$run_dir" rev-parse --abbrev-ref HEAD 2>/dev/null
-}
+# Strip harmless redirections for the reviewer's "no file writes" check.
+stripped=$(printf '%s' "$normalized" | sed -E 's#2>&1##g; s#[0-9]?>+ *(/dev/null)##g')
 
-check_push() {
-  local segment=$1 positional=0 token target branch flag_cluster
-  # Flags: any cluster of short flags containing f or d, plus long bulk/force flags.
-  for token in ${segment#git push}; do
-    case "$token" in
-      --force | --force-with-lease* | --force-if-includes | --delete | --mirror | --all | --tags | --prune)
-        deny "no force pushes, deletes or bulk pushes; push only the issue branch." ;;
-      --*) continue ;;
-      -*) flag_cluster=${token#-}
-          case "$flag_cluster" in *f* | *d*) deny "no force or delete push flags; push only the issue branch." ;; esac
-          continue ;;
-    esac
-    positional=$((positional + 1))
-    [ "$positional" -eq 1 ] && continue # the remote name
-    case "$token" in +*) deny "no force-style refspecs (+ref); push only the issue branch." ;; esac
-    target=${token##*:}
-    if [ "$target" = HEAD ]; then
-      branch=$(current_branch) || deny "cannot resolve the current branch for 'HEAD'; name the issue branch explicitly."
-      printf '%s' "$branch" | grep -Eq "$issue_branch_re" \
-        || deny "HEAD is '$branch', not an issue branch (<prefix>/<ID>-<slug>)."
-      continue
-    fi
-    printf '%s' "$target" | grep -Eq "$issue_branch_re" \
-      || deny "only the issue branch (<prefix>/<ID>-<slug>) may be pushed, not '$target'."
-  done
-  # No refspec at all: git pushes the current branch (per push.default).
-  if [ "$positional" -le 1 ]; then
-    branch=$(current_branch) || deny "cannot resolve the current branch; name the issue branch explicitly."
-    printf '%s' "$branch" | grep -Eq "$issue_branch_re" \
-      || deny "the current branch is '$branch', not an issue branch (<prefix>/<ID>-<slug>)."
-  fi
-}
-
-# Reviewer allowlist (first command word / git subcommand / runner patterns).
 reviewer_allows() {
   local s=$1
+  # Per-command argument limits for tools that can write or execute.
+  printf '%s' "$s" | grep -Eq '(^| )(-o|--output|--output=[^ ]*|-O|--open-files-in-pager|--pre|--pre-glob|--ext-diff|--textconv|-fls|-fprint[0-9a-z]*|-exec|-execdir|-ok|-okdir|-delete)( |=|$)' && return 1
   printf '%s' "$s" | grep -Eq '^git +(status|diff|log|show|rev-parse|rev-list|ls-files|ls-tree|blame|cat-file|merge-base|describe|grep|shortlog|diff-tree|name-rev|remote +-v|branch +(--list|-a|-r|--show-current|-vv))( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^gh +(pr +(view|diff|checks|list|status)|issue +view|run +(list|view))( |$)' && return 0
-  printf '%s' "$s" | grep -Eq '^(cd|ls|cat|head|tail|wc|grep|rg|diff|jq|echo|pwd|stat|file|tree|sort|uniq|cut|tr|true|test|\[)( |$)' && return 0
-  printf '%s' "$s" | grep -Eq '^find( |$)' && ! printf '%s' "$s" | grep -Eq ' -(exec|execdir|delete|ok|fprint)' && return 0
-  printf '%s' "$s" | grep -Eq '^sed +(-n|--quiet)( |$)' && ! printf '%s' "$s" | grep -Eq ' -i|--in-place' && return 0
+  printf '%s' "$s" | grep -Eq '^(cd|ls|cat|head|tail|wc|grep|rg|diff|jq|echo|pwd|stat|file|tree|sort|uniq|cut|tr|find|true|test|\[)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^(npm|pnpm|yarn|bun) +(test|run +(test|lint|typecheck|check)[a-z:-]*)( |$)' && return 0
-  printf '%s' "$s" | grep -Eq '^(pytest|python3? +-m +pytest|phpunit|vendor/bin/[a-z-]+|php +artisan +test|composer +(test|run +(test|lint|analyse|check)[a-z:-]*)|go +(test|vet)|cargo +(test|clippy|check)|make +(test|check|lint)|ctest|mvn +test|gradle +test|\./gradlew +test|dotnet +test|bats|shellcheck|bash +-n)( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^(pytest|python3? +-m +pytest|phpunit|pest|phpstan|vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|php +artisan +test|composer +(test|run +(test|lint|analyse|check)[a-z:-]*)|go +(test|vet)|cargo +(test|clippy|check)|make +(test|check|lint)|ctest|mvn +test|gradle +test|\./gradlew +test|dotnet +test|bats|shellcheck|bash +-n)( |$)' && return 0
   return 1
 }
 
-# Strip harmless redirections, then refuse any remaining output redirect.
-stripped=$(printf '%s' "$normalized" | sed -E 's#2>&1##g; s#[0-9]?>+ *(/dev/null)##g')
-
 while IFS= read -r segment; do
-  segment=$(printf '%s' "$segment" | sed -E 's/^ +//; s/ +$//')
+  # Collapse whitespace so patterns see single spaces; trim.
+  segment=$(printf '%s' "$segment" | tr -s '[:space:]' ' ' | sed -E 's/^ +//; s/ +$//')
   [ -n "$segment" ] || continue
+
+  # A segment that starts oddly may hide the real command.
+  printf '%s' "$segment" | grep -Eq '^([({!]|[A-Za-z_][A-Za-z0-9_]*=)' \
+    && deny "start commands directly: no grouping, negation or VAR=value prefixes."
 
   if [ "$role" = reviewer ]; then
     reviewer_allows "$segment" \
@@ -128,16 +86,30 @@ while IFS= read -r segment; do
   fi
 
   # --- worker ---
-  printf '%s' "$segment" | grep -Eq '^((bash|sh|zsh|dash|ksh) +-[a-zA-Z]*c|eval|exec|env|command|builtin|xargs|nohup|sudo)( |$)' \
+  printf '%s' "$segment" | grep -Eq '^((bash|sh|zsh|dash|ksh) -[a-zA-Z]*c|eval|exec|env|command|builtin|xargs|nohup|sudo|time|nice|timeout|stdbuf|ionice|setsid)( |$)' \
     && deny "no shell -c, eval, wrapper or xargs invocations; run the command directly."
-  printf '%s' "$segment" | grep -Eq '^gh +pr +merge( |$)' && deny "merging is done by the main session only."
-  printf '%s' "$segment" | grep -Eq '^git +commit( .*)? --no-verify( |$)' && deny "never bypass git hooks."
-  printf '%s' "$segment" | grep -Eq '^git +branch +(.* )?-D( |$)' && deny "never force-delete a branch."
-  printf '%s' "$segment" | grep -Eq '^git +push( |$)' && check_push "$segment"
+  printf '%s' "$segment" | grep -Eq '^[^ ]*/(git|gh)( |$)' \
+    && deny "call git and gh by name, not by path."
+  printf '%s' "$segment" | grep -Eq '^gh api( |$)' && deny "gh api is not allowed for this agent."
+  printf '%s' "$segment" | grep -Eq '^gh pr merge( |$)' && deny "merging is done by the main session only."
+
+  if printf '%s' "$segment" | grep -Eq '^git( |$)'; then
+    printf '%s' "$segment" | grep -Eq '^git -' \
+      && deny "no git options before the subcommand (other than -C <dir>)."
+    printf '%s' "$segment" | grep -Eq '^git config( |$)' \
+      && ! printf '%s' "$segment" | grep -Eq '^git config (--get|--get-all|--list|-l)( |$)' \
+      && deny "git config is read-only for this agent (no aliases or hook paths)."
+    printf '%s' "$segment" | grep -Eq '^git commit( .*)? --no-verify( |$)' && deny "never bypass git hooks."
+    printf '%s' "$segment" | grep -Eq '^git branch( .*)? -D( |$)' && deny "never force-delete a branch."
+    if printf '%s' "$segment" | grep -Eq '^git push( |$)'; then
+      printf '%s' "$segment" | grep -Eq "^git push( (-u|--set-upstream))? ${remote_name} (HEAD:)?${issue_branch}\$" \
+        || deny "the only allowed push is: git push [-u] <remote> <issue-branch> (<prefix>/<ID>-<slug>), nothing else."
+    fi
+  fi
 done < <(printf '%s\n' "$normalized" | tr ';&|' '\n\n\n')
 
 if [ "$role" = reviewer ]; then
-  case "$(printf '%s' "$stripped")" in *'>'*) deny "the reviewer is read-only (no output redirection into files)." ;; esac
+  case "$stripped" in *'>'*) deny "the reviewer is read-only (no output redirection into files)." ;; esac
 fi
 
 exit 0

@@ -205,8 +205,9 @@ them → merge **only** with `--auto-merge`.
 
 - Only the main session writes to YouTrack and merges (subagents cannot spawn
   subagents; one writer keeps the language and assignee rules in one place).
-- Workers may push only the issue's own branch, never forced; reviewers are
-  read-only. `hooks/guard-subagent` enforces this via the hook input's
+- Workers may push only the issue's own branch, in exactly one form
+  (`git push [-u] <remote> <issue-branch>`), never forced; reviewers are
+  read-only (allowlist). `hooks/guard-subagent` enforces this via the hook input's
   `agent_type` — a best-effort layer; branch protection and a limited token are
   the real boundary.
 - `--auto-merge`: PR opened by this run, review `PASS`, required checks green,

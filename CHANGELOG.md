@@ -18,7 +18,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Pushing the issue's own branch is allowed** within `all` (never forced, never
   another ref). Guardrails in `SKILL.md` updated accordingly.
 - New plugin agents `agents/ticket-worker.md`, `agents/ticket-reviewer.md`, a
-  `PreToolUse` Bash hook `hooks/guard-subagent` that confines them (needs `jq`),
+  `PreToolUse` Bash hook `hooks/guard-subagent` that confines them (needs `jq`;
+  a worker may run exactly `git push [-u] <remote> <issue-branch>`, the reviewer
+  an allowlist of read-only commands),
   and its test script `tests/guard-subagent.sh`.
 - New config keys `batch_query`, `batch_max_parallel`, `batch_skip_tags`,
   `batch_review_rounds`; contract in `reference/batch.md`.

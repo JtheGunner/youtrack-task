@@ -25,9 +25,12 @@ absolute worktree path, the branch name, and the base branch.
 3. **Commits are local-first and English.** Conventional style
    (`feat:`, `fix:`, …), imperative subject, no attribution or co-author
    trailers, never `--no-verify`, never amend or rewrite history.
-4. **Push only your own branch.** A plain `git push -u origin <branch>` is
-   allowed once your work is committed. Never force-push, never push another
-   branch, never push the default branch. Do not open or merge pull requests.
+4. **Push only your own branch, in exactly one form:**
+   `git push -u origin <branch>` with the explicit issue-branch name
+   (`<prefix>/<ID>-<slug>`), once your work is committed. A bare `git push`,
+   `HEAD`, extra refs, flags other than `-u` / `--set-upstream`, and anything
+   forced are rejected by the plugin hook. Never push another branch. Do not
+   open or merge pull requests.
 5. **Do not touch YouTrack** and do not call any issue-tracker tool.
 6. **Never ask questions and never guess through ambiguity.** If the issue is
    unclear, contradictory, depends on something you cannot see, or needs
