@@ -52,15 +52,33 @@ esac
 
 # awk helpers (BSD/GNU compatible): drop heredoc bodies; mask or empty quotes.
 awk_heredoc=$(cat <<'AWK'
+# Quote state is tracked character by character across lines, exactly like the
+# quote masker, so a "<<" inside a (possibly multi-line) quote is never taken
+# for a heredoc operator.
+BEGIN { q = ""; skip = 0 }
 skip { t = $0; sub(/^[\t ]+/, "", t); if (t == word) skip = 0; next }
-{ print }
-match($0, /<<-?[ \t]*["']?[A-Za-z_][A-Za-z0-9_]*["']?/) {
-  pre = substr($0, 1, RSTART - 1); sq = gsub(/'/, "", pre); dq = gsub(/"/, "", pre)
-  if (sq % 2 == 1 || dq % 2 == 1) { print "@@BAD@@"; next }   # "<<" inside quotes: not a real heredoc
-  w = substr($0, RSTART, RLENGTH); sub(/^<<-?[ \t]*["']?/, "", w); sub(/["']$/, "", w)
-  word = w; skip = 1
+{
+  print
+  n = length($0)
+  for (i = 1; i <= n; i++) {
+    c = substr($0, i, 1)
+    if (q == "") {
+      if (c == "'" || c == "\"") { q = c; continue }
+      if (c == "\\") { i++; continue }
+      if (c == "<" && substr($0, i + 1, 1) == "<" && substr($0, i + 2, 1) != "<" && substr($0, i - 1, 1) != "<") {
+        rest = substr($0, i + 2)
+        if (match(rest, /^-?[ \t]*["']?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
+          w = substr(rest, RSTART, RLENGTH); sub(/^-?[ \t]*["']?/, "", w); sub(/["']$/, "", w)
+          word = w; skip = 1; break
+        } else { print "@@BAD@@"; break }                          # a heredoc we cannot read: fail closed
+      }
+    } else {
+      if (c == q) { q = ""; continue }
+      if (q == "\"" && c == "\\") { i++; continue }
+    }
+  }
 }
-END { if (skip) print "@@BAD@@" }                             # unterminated heredoc
+END { if (skip) print "@@BAD@@" }                               # unterminated heredoc
 AWK
 )
 awk_quotes=$(cat <<'AWK'
@@ -192,13 +210,13 @@ while IFS= read -r segment; do
   segment=$(strip_assignments "$segment") || exit 2
   printf '%s' "$segment" | grep -Eq '^(curl|wget|nc|ncat|ssh|scp|sftp|telnet|ftp)( |$)' \
     && deny "no network tools; the worker works locally and never talks to remote services."
-  printf '%s' "$segment" | grep -Eq '^(source|\.|alias|shopt)( |$)' \
-    && deny "no sourcing scripts, aliases or shell options."
+  printf '%s' "$segment" | grep -Eq '^(source|\.|alias|unalias|shopt|trap|hash|enable|declare -[a-zA-Z]*f|typeset -[a-zA-Z]*f|export -[a-zA-Z]*f)( |$)' \
+    && deny "no sourcing scripts, aliases, traps or shell function/option tricks."
   printf '%s' "$segment" | grep -Eq '^gh api( |$)' && deny "gh api is not allowed for this agent."
   printf '%s' "$segment" | grep -Eq '^gh pr merge( |$)' && deny "merging is done by the main session only."
   if printf '%s' "$segment" | grep -Eq '^git( |$)'; then
     printf '%s' "$segment" | grep -Eq '^git -' && deny "no git options before the subcommand (other than -C <dir>)."
-    printf '%s' "$segment" | grep -Eq '^git (send-pack|http-push|remote (add|set-url)|fetch --upload-pack)( |$)' \
+    printf '%s' "$segment" | grep -Eq '^git (send-pack|http-push|remote (add|set-url))( |$)|^git (fetch|pull|clone|ls-remote|archive)( .*)? (--upload-pack|--receive-pack|--exec)' \
       && deny "no remote-writing or remote-reconfiguring git commands."
     printf '%s' "$segment" | grep -Eq '^git push( |$)' \
       && deny "workers never push; commit locally and report. The main session pushes after review."

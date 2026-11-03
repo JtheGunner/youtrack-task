@@ -74,12 +74,26 @@ treason $W "git config alias.p '!git push --force'" "read-only"
 treason $W "git config core.hooksPath /dev/null" "read-only"
 t 0 $W "git config --get user.name"
 
-echo "# worker: parser tricks fail closed"
+echo "# worker: parser tricks fail closed (a quoted << is not a heredoc, so the hidden line is seen)"
 treason $W "echo '<<X'
 git push --force origin main
-X" "heredoc"
+X" "never push"
 treason $W "cat <<EOF
 never terminated" "heredoc"
+treason $W "echo 'abc
+x <<X'
+git push --force origin main
+X" "never push"
+treason $W "echo \"abc
+x <<X\"
+git push --force origin main
+X" "never push"
+t 0 $W "cat <<< 'here string'"
+t 0 $W "echo \"a <<b\""
+t 2 $W "trap 'git push' EXIT"
+t 2 $W "hash -p /tmp/evil git"
+t 2 $W "git fetch --upload-pack=evil origin"
+t 2 $W "git ls-remote --exec=evil origin"
 treason $W "true # it's
 git push --force origin main
 # '" "comments"
