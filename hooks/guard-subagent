@@ -55,18 +55,23 @@ awk_heredoc=$(cat <<'AWK'
 skip { t = $0; sub(/^[\t ]+/, "", t); if (t == word) skip = 0; next }
 { print }
 match($0, /<<-?[ \t]*["']?[A-Za-z_][A-Za-z0-9_]*["']?/) {
+  pre = substr($0, 1, RSTART - 1); sq = gsub(/'/, "", pre); dq = gsub(/"/, "", pre)
+  if (sq % 2 == 1 || dq % 2 == 1) { print "@@BAD@@"; next }   # "<<" inside quotes: not a real heredoc
   w = substr($0, RSTART, RLENGTH); sub(/^<<-?[ \t]*["']?/, "", w); sub(/["']$/, "", w)
   word = w; skip = 1
 }
+END { if (skip) print "@@BAD@@" }                             # unterminated heredoc
 AWK
 )
 awk_quotes=$(cat <<'AWK'
 BEGIN { RS = "\001"; ORS = "" }
 {
-  n = length($0); q = ""; out = ""
+  n = length($0); q = ""; out = ""; bad = 0
   for (i = 1; i <= n; i++) {
     c = substr($0, i, 1)
     if (q == "") {
+      if (c == "$" && (substr($0, i + 1, 1) == "'" || substr($0, i + 1, 1) == "\"")) bad = 1   # ANSI-C / locale quoting
+      if (c == "#" && (i == 1 || substr($0, i - 1, 1) ~ /[ \t\n;|&(]/)) bad = 1               # shell comment
       if (c == "'" || c == "\"") { q = c; out = out c; continue }
       if (c == "\\") { out = out c substr($0, i + 1, 1); i++; continue }
       out = out c
@@ -76,7 +81,9 @@ BEGIN { RS = "\001"; ORS = "" }
       if (mode == "mask") { if (c ~ /[;&|<>(){}$\n]/) out = out "_"; else out = out c }
     }
   }
+  if (q != "") bad = 1                                                                      # unterminated quote
   print out
+  if (bad) print "@@BAD@@"
 }
 AWK
 )
@@ -90,15 +97,18 @@ fi
 
 [ "${#body}" -le 20000 ] || deny "command is too long; split it into smaller steps."
 
+case "$body" in *'@@BAD@@'*) deny "unterminated or quoted heredoc operator; write a plain heredoc or use the Write tool." ;; esac
+
 masked=$(printf '%s\n' "$body" | awk -v mode=mask "$awk_quotes")   # structure: quotes kept, separators inside hidden
 emptied=$(printf '%s\n' "$body" | awk -v mode=empty "$awk_quotes") # content: quoted text removed
 
 # `git -C <dir> ...` -> `git ...`; drop harmless redirections.
 clean() {
-  printf '%s' "$1" | sed -E 's/git +-C +[^ ;&|]+/git/g; s#&> *(/dev/null)##g; s#[0-9]*>>? *(/dev/null)([ ;&|]|$)#\2#g; s#[0-9]*>&[0-9-]+##g'
+  printf '%s' "$1" | sed -E 's/git +-C +[^ ;&|]+/git/g; s#&> *(/dev/null)##g; s#[0-9]*>>? *(/dev/null)([ ;&|]|$)#\2#g; s#[0-9]*>&[0-9-]+([ ;\&|]|$)#\1#g'
 }
 masked=$(clean "$masked")
 emptied=$(clean "$emptied")
+case "$masked" in *'@@BAD@@'*) deny "no shell comments, \$'...' quoting or unterminated quotes; run plain commands." ;; esac
 
 segments() { printf '%s\n' "$1" | tr ';&|' '\n\n\n' | tr -s ' \t' ' ' | sed -E 's/^ +//; s/ +$//'; }
 
@@ -133,12 +143,13 @@ reviewer_allows() {
   printf '%s' "$s" | grep -Eq '^find( .*)? -(f(ls|print[0-9a-z]*)|exec(dir)?|ok(dir)?|delete)( |$)' && return 1
   printf '%s' "$s" | grep -Eq '^tail( .*)? (-[a-zA-Z]*f|--follow)' && return 1
   printf '%s' "$s" | grep -Eq '^gh( .*)? --web' && return 1
+  printf '%s' "$s" | grep -Eq '(^|[ /=])\.\.(/|$| )' && return 1   # no path traversal out of the repo
 
   printf '%s' "$s" | grep -Eq '^git (status|diff|rev-parse|rev-list|ls-files|ls-tree|blame|cat-file|merge-base|name-rev|grep|diff-tree|shortlog)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^git (remote -v|stash list|tag( -l| --list)?|branch( (--list|-a|-r|--show-current|-vv))*)$' && return 0
   printf '%s' "$s" | grep -Eq '^gh (run (list|view)|pr (diff|checks|status))( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^(cd|ls|cat|head|tail|wc|grep|rg|diff|jq|echo|pwd|stat|file|uniq|cut|tr|find|date|which|true|test|\[|\[\[)( |$)' && return 0
-  printf '%s' "$s" | grep -Eq '^sed -n [0-9$,]+p( [^ ]+)*$' && return 0
+  printf '%s' "$s" | grep -Eq '^sed -n [0-9$,]+p( [^ -][^ ]*)*$' && return 0
   printf '%s' "$s" | grep -Eq '^(npm|pnpm|yarn|bun) (test|run (test|lint|typecheck|check)[a-z:-]*)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^npx (--no-install )?(jest|vitest|tsc|eslint|playwright test)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^((php )?(\./)?vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|pytest|python3? -m pytest|ruff check|eslint|php -l|phpunit|pest|phpstan|php artisan test|composer (test|run(-script)? (test|lint|analyse|check)[a-z:-]*)|go (test|vet)|cargo (test|clippy|check)|make( -[a-zA-Z]+)* (test|check|lint)|ctest|mvn( -[a-zA-Z]+)* test|gradle test|\./gradlew test|dotnet test|bats|shellcheck|bash -n|(bash|sh) (\./)?tests?/[A-Za-z0-9._/-]+)( |$)' && return 0
@@ -181,10 +192,14 @@ while IFS= read -r segment; do
   segment=$(strip_assignments "$segment") || exit 2
   printf '%s' "$segment" | grep -Eq '^(curl|wget|nc|ncat|ssh|scp|sftp|telnet|ftp)( |$)' \
     && deny "no network tools; the worker works locally and never talks to remote services."
+  printf '%s' "$segment" | grep -Eq '^(source|\.|alias|shopt)( |$)' \
+    && deny "no sourcing scripts, aliases or shell options."
   printf '%s' "$segment" | grep -Eq '^gh api( |$)' && deny "gh api is not allowed for this agent."
   printf '%s' "$segment" | grep -Eq '^gh pr merge( |$)' && deny "merging is done by the main session only."
   if printf '%s' "$segment" | grep -Eq '^git( |$)'; then
     printf '%s' "$segment" | grep -Eq '^git -' && deny "no git options before the subcommand (other than -C <dir>)."
+    printf '%s' "$segment" | grep -Eq '^git (send-pack|http-push|remote (add|set-url)|fetch --upload-pack)( |$)' \
+      && deny "no remote-writing or remote-reconfiguring git commands."
     printf '%s' "$segment" | grep -Eq '^git push( |$)' \
       && deny "workers never push; commit locally and report. The main session pushes after review."
     printf '%s' "$segment" | grep -Eq '^git config( |$)' \

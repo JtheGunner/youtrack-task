@@ -74,6 +74,24 @@ treason $W "git config alias.p '!git push --force'" "read-only"
 treason $W "git config core.hooksPath /dev/null" "read-only"
 t 0 $W "git config --get user.name"
 
+echo "# worker: parser tricks fail closed"
+treason $W "echo '<<X'
+git push --force origin main
+X" "heredoc"
+treason $W "cat <<EOF
+never terminated" "heredoc"
+treason $W "true # it's
+git push --force origin main
+# '" "comments"
+treason $W "echo \$'a'" "comments"
+treason $W "echo 'unterminated" "comments"
+t 2 $W "source ./evil.sh"
+t 2 $W ". ./evil.sh"
+t 2 $W "alias p='git push'"
+t 2 $W "git send-pack origin main"
+t 2 $W "git remote set-url origin x"
+t 0 $W "git remote -v"
+
 echo "# worker: merging, network, hook bypass, branch deletion"
 treason $W "gh pr merge 5" "main session"
 treason $W "gh api -X PUT repos/o/r/pulls/5/merge" "gh api"
@@ -172,6 +190,11 @@ t 2 $R "git diff --outp=x main"
 t 2 $R "git diff --out'put'=x main"
 t 2 $R "rg --pre ./evil foo"
 t 2 $R "rg --pre-glob '*' foo"
+t 2 $R "echo x >&2file"
+t 2 $R "sed -n 1p -i file"
+t 2 $R "sed -n 1p -f script.sed file"
+t 2 $R "bash tests/../scripts/evil.sh"
+t 0 $R "echo x >&2"
 t 2 $R "sort in.txt"
 t 2 $R "sort --compress-program=sh in.txt"
 t 2 $R "tree -R ."
