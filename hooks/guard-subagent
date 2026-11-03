@@ -60,8 +60,14 @@ stripped=$(printf '%s' "$normalized" | sed -E 's#2>&1##g; s#[0-9]?>+ *(/dev/null
 
 reviewer_allows() {
   local s=$1
-  # Per-command argument limits for tools that can write or execute.
-  printf '%s' "$s" | grep -Eq '(^| )(-o|--output|--output=[^ ]*|-O|--open-files-in-pager|--pre|--pre-glob|--ext-diff|--textconv|-fls|-fprint[0-9a-z]*|-exec|-execdir|-ok|-okdir|-delete)( |=|$)' && return 1
+  # Per-tool argument limits for commands that can write or execute. Options
+  # may be attached (-oFILE), clustered (-no) or abbreviated (--outp).
+  printf '%s' "$s" | grep -Eq '^(sort|tree)( .*)? -[a-zA-Z]*o' && return 1
+  printf '%s' "$s" | grep -Eq '^git (diff|log|show|diff-tree|shortlog|blame|cat-file)( .*)? --ou' && return 1
+  printf '%s' "$s" | grep -Eq '^git grep( .*)? (-[a-zA-Z]*O|--o)' && return 1
+  printf '%s' "$s" | grep -Eq '^(rg|grep)( .*)? --pre' && return 1
+  printf '%s' "$s" | grep -Eq '^git( .*)? --(ext-diff|textconv)' && return 1
+  printf '%s' "$s" | grep -Eq '^find( .*)? -(f(ls|print[0-9a-z]*)|exec(dir)?|ok(dir)?|delete)( |$)' && return 1
   printf '%s' "$s" | grep -Eq '^git +(status|diff|log|show|rev-parse|rev-list|ls-files|ls-tree|blame|cat-file|merge-base|describe|grep|shortlog|diff-tree|name-rev|remote +-v|branch +(--list|-a|-r|--show-current|-vv))( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^gh +(pr +(view|diff|checks|list|status)|issue +view|run +(list|view))( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^(cd|ls|cat|head|tail|wc|grep|rg|diff|jq|echo|pwd|stat|file|tree|sort|uniq|cut|tr|find|true|test|\[)( |$)' && return 0
@@ -75,6 +81,11 @@ while IFS= read -r segment; do
   segment=$(printf '%s' "$segment" | tr -s '[:space:]' ' ' | sed -E 's/^ +//; s/ +$//')
   [ -n "$segment" ] || continue
 
+  # Shell keywords and quoted/escaped command words may hide the real command.
+  printf '%s' "$segment" | grep -Eq '^(if|then|else|elif|fi|do|done|while|until|case|esac|for|select|coproc|function|\{|\}) ' \
+    && deny "no shell keywords or compound statements; run plain commands."
+  printf '%s' "$segment" | grep -Eq "^[^ ]*['\"\\\\]|^(git|gh) +[^ ]*['\"\\\\]|^gh +[^ ]+ +[^ ]*['\"\\\\]" \
+    && deny "no quotes or backslashes inside the command or subcommand name."
   # A segment that starts oddly may hide the real command.
   printf '%s' "$segment" | grep -Eq '^([({!]|[A-Za-z_][A-Za-z0-9_]*=)' \
     && deny "start commands directly: no grouping, negation or VAR=value prefixes."
