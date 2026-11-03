@@ -184,8 +184,8 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 ```
 
 State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
-Progress` automatically. `pr` (and `all`, for the issue's own branch) is the only command that pushes — it needs `gh`,
-prompts before pushing, never force-pushes/merges/deletes, and moves the issue to
+Progress` automatically. `pr` is the only command that pushes (plus `all`, where the main session pushes reviewed branches) — it needs `gh`,
+prompts before pushing, never force-pushes/deletes, merges only under `all --auto-merge`, and moves the issue to
 Testing. `testing` / `done` are pure state transitions (no git). `done` is always
 last: it means "merged and accepted". When `ISSUE-ID` is omitted for any
 sub-command it is taken from the current branch name; if that fails, the skill
@@ -205,14 +205,18 @@ them → merge **only** with `--auto-merge`.
 
 - Only the main session writes to YouTrack and merges (subagents cannot spawn
   subagents; one writer keeps the language and assignee rules in one place).
-- Workers may push only the issue's own branch, in exactly one form
-  (`git push [-u] <remote> <issue-branch>`), never forced; reviewers are
-  read-only (allowlist). `hooks/guard-subagent` enforces this via the hook input's
-  `agent_type` — a best-effort layer; branch protection and a limited token are
-  the real boundary.
-- `--auto-merge`: PR opened by this run, review `PASS`, required checks green,
-  mergeable, plain `gh pr merge --merge`, no admin bypass, no branch deletion,
-  sequential with a re-check before each.
+- Workers commit locally and never push; the main session pushes a branch only
+  after a `PASS` and the single PR confirmation. Reviewers are read-only
+  (allowlist) and do not see commit messages or PR text.
+  `hooks/guard-subagent` enforces this via the hook input's `agent_type` — a
+  best-effort layer; branch protection and a limited token are the real
+  boundary.
+- `--auto-merge`: PR created by this run (a reused PR is never auto-merged), head
+  commit equal to the SHA the reviewer passed, at least one required check and
+  all green, `CLEAN`, no file overlap with another issue of the run, plain
+  `gh pr merge --merge --match-head-commit`, no admin bypass, no remote-branch
+  deletion, sequential with a full re-check before each. Refused with
+  `--no-review` or without subagent support.
 - Subagents have no working-directory option and a `cd` does not persist between
   Bash calls, so workers prefix each command with `cd <worktree> &&`.
 - Without subagent support the flow degrades to sequential work in the main

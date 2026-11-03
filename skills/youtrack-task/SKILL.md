@@ -52,18 +52,23 @@ specific action:
   were told to start.
 - **Pushing and opening a PR happen only in the explicit `pr` sub-command** (or
   the user's own `/ship`), after a confirmation prompt. Never as an implicit part
-  of the primary flow, `done`, or anything else. Exceptions, both within an
-  explicit `all` run: a plain push of **the issue's own branch** (never any other
-  ref), and PRs for the whole batch after **one** confirmation listing them.
-  **Never force-push**, never delete a branch.
+  of the primary flow, `done`, or anything else. Within an explicit `all` run,
+  the **main session** may push an issue's own branch (plain push, never any
+  other ref) and open PRs for the whole batch after **one** confirmation listing
+  them; workers and reviewers never push. **Never force-push.** Never delete a
+  remote branch; local deletion is only the safe `git branch -d` of a merged
+  branch by `sweep-worktrees`.
 - **Merging a PR happens only in `all --auto-merge`**, by the main session, under
-  the conditions in `reference/batch.md` (review `PASS`, required checks green,
-  mergeable, no admin bypass). Without that flag, never merge.
+  the conditions in `reference/batch.md` (review `PASS` on the exact head commit,
+  required checks green, `CLEAN`, no overlap, no admin bypass). Without that
+  flag, never merge.
 - **Worktree removal** (`done` cleanup, `worktree prune`) never uses
   `git worktree remove --force` and never `git branch -D`. A worktree with
   uncommitted changes is left alone and reported, not removed.
 - The only YouTrack writes are: the pickup state change + comment, the plan
-  comment, an optional one-line completion comment, and the explicit
+  comment, an optional one-line completion comment, in `all` the worker-plan,
+  question (`BLOCKED` / `ESCALATE`), status and per-issue completion comments
+  written by the main session, and the explicit
   `new` (create + its Type / Priority / Assignee fields) / `comment` / `log` /
   `pr` / `link` / `testing` / `done` sub-commands.
 - **Language** — git artifacts are always English, YouTrack-side text always
@@ -606,10 +611,12 @@ Flow, in short:
 4. **Review**: a fresh `ticket-reviewer` per issue that sees only the issue and
    the diff, never the worker's report; up to `batch_review_rounds` fix rounds.
 5. **Report** with overlap warnings; completion comments to YouTrack.
-6. **PRs** after one confirmation for the whole list.
+6. **PRs** after one confirmation for the whole list (the main session pushes
+   each reviewed branch).
 7. **Merge** only with `--auto-merge`.
 
-Only the main session writes to YouTrack and merges. Issues tagged with one of
+Only the main session writes to YouTrack, pushes and merges; workers commit
+locally. Issues tagged with one of
 `batch_skip_tags`, or that look like server / network / secret / data-store work,
 are never run unattended.
 

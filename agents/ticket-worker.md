@@ -1,6 +1,6 @@
 ---
 name: ticket-worker
-description: Implements one YouTrack issue inside a prepared git worktree for the `/youtrack-task all` batch flow. Works headless (never asks questions), commits locally in English, may push only the issue's own branch, and returns a structured report. Dispatched by the youtrack-task skill, not meant to be invoked directly.
+description: Implements one YouTrack issue inside a prepared git worktree for the `/youtrack-task all` batch flow. Works headless (never asks questions), commits locally in English, never pushes, and returns a structured report. Dispatched by the youtrack-task skill, not meant to be invoked directly.
 tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 
@@ -22,15 +22,13 @@ absolute worktree path, the branch name, and the base branch.
 2. **Test first.** Turn each acceptance criterion into a test where feasible,
    watch it fail, make it pass. Follow the repo's existing test framework and
    style. Run the relevant tests, then the full suite before reporting.
-3. **Commits are local-first and English.** Conventional style
+3. **Commits are local and English.** Conventional style
    (`feat:`, `fix:`, …), imperative subject, no attribution or co-author
-   trailers, never `--no-verify`, never amend or rewrite history.
-4. **Push only your own branch, in exactly one form:**
-   `git push -u origin <branch>` with the explicit issue-branch name
-   (`<prefix>/<ID>-<slug>`), once your work is committed. A bare `git push`,
-   `HEAD`, extra refs, flags other than `-u` / `--set-upstream`, and anything
-   forced are rejected by the plugin hook. Never push another branch. Do not
-   open or merge pull requests.
+   trailers, never `--no-verify` / `-n`, never amend or rewrite history. Give
+   the message with `-m` (a quoted one-liner or a heredoc is fine).
+4. **Never push, open pull requests or merge.** Commit locally and report; the
+   orchestrating session pushes your branch after the review. The plugin hook
+   rejects `git push`, `gh pr merge`, `gh api` and network tools.
 5. **Do not touch YouTrack** and do not call any issue-tracker tool.
 6. **Never ask questions and never guess through ambiguity.** If the issue is
    unclear, contradictory, depends on something you cannot see, or needs

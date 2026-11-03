@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-03-youtrack-task-all-design.md`
 
+> **Note:** this plan is the initial task breakdown. Independent review changed two decisions during implementation — workers never push (the main session pushes after review), and the guard hook is quote-aware with a reviewer allowlist. Where this plan and the spec differ, the spec and the shipped files win.
+
 ## Global Constraints
 
 - Git artifacts English; YouTrack text in the user's language (SKILL.md "Language").

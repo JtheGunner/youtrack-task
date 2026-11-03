@@ -248,8 +248,8 @@ One command instead of briefing the agent by hand:
    servers / network / secrets / data stores are **never** run unattended.
    `--dry-run` stops here.
 2. **Work** — each ready issue gets its own worktree and its own `ticket-worker`
-   agent (at most `--max`, default 3, at a time). Workers use TDD, commit in
-   English, may push **only their own issue branch**, and never write to YouTrack.
+   agent (at most `--max`, default 3, at a time). Workers use TDD, commit locally
+   in English, and never push, merge or write to YouTrack.
    A worker that hits ambiguity stops and reports a question instead of guessing.
 3. **Independent review** — a fresh `ticket-reviewer` per issue sees only the
    issue, its acceptance criteria and the diff — never the worker's report or
@@ -257,13 +257,18 @@ One command instead of briefing the agent by hand:
    and a *new* reviewer, up to `batch_review_rounds` (default 2), then the issue
    is handed back to you.
 4. **Report and PRs** — a table with verdicts, files touched and overlap warnings
-   (files changed by more than one issue, i.e. likely merge conflicts). After one
-   more confirmation covering the whole list, the PRs are opened and the issues
-   move to Testing.
-5. **Merge** — never, unless you pass `--auto-merge`. With it, the run merges the
-   PRs *it opened* whose review is `PASS`, whose required checks are green and
-   that are mergeable — one by one, re-checking each time. It never uses admin
-   bypass, never deletes branches, and leaves a PR open if the host refuses.
+   (files changed by more than one issue, i.e. likely merge conflicts). Only
+   issues that passed review qualify. After one more confirmation covering the
+   whole list, the main session pushes each reviewed branch and opens the PRs;
+   the issues move to Testing.
+5. **Merge** — never, unless you pass `--auto-merge`. With it, the run merges only
+   PRs *it created* whose head commit is exactly the one the reviewer passed,
+   with at least one required check and all of them green, `CLEAN`, and no file
+   overlap with another issue of the run — one by one, re-checking each time.
+   It never uses admin bypass, never deletes remote branches, and leaves a PR
+   open if the host refuses. `--auto-merge` is refused together with
+   `--no-review` or without subagent support, since a merge needs an
+   independent review.
 
 > [!WARNING]
 > `--auto-merge` lets the agent change your default branch. Use it only on
@@ -273,8 +278,8 @@ One command instead of briefing the agent by hand:
 
 > [!NOTE]
 > The plugin ships a `PreToolUse` hook that confines the worker and reviewer
-> agents (issue-branch pushes only, no merges, read-only reviewer). It needs `jq`
-> and is a best-effort layer on top of the agents' instructions.
+> agents (no pushes or merges, no network tools; read-only reviewer). It needs
+> `jq` and is a best-effort layer on top of the agents' instructions.
 
 ### During and after the work
 
@@ -306,9 +311,11 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 ```
 
 > [!IMPORTANT]
-> `pr` is the only command that pushes, and it asks first (shows the commits and
-> diffstat). It needs the [`gh` CLI](https://cli.github.com/). It never
-> force-pushes, merges, or deletes anything. Branch names, commit messages and the
+> `pr` is the only command that pushes — apart from `all`, whose main session
+> pushes the branches of reviewed issues after one confirmation — and it asks
+> first (shows the commits and diffstat). It needs the
+> [`gh` CLI](https://cli.github.com/). It never force-pushes and never deletes
+> remote branches, and it merges only under `all --auto-merge`. Branch names, commit messages and the
 > PR title/body are always English — even for a German (or other non-English)
 > issue; the YouTrack comments and the title/description of issues created by
 > `new` follow the issue's language — your own "English everywhere" rules for code
@@ -373,7 +380,7 @@ Build the upload ZIP yourself with `tools/package-agensi` (output:
 | Issue created in conversation (not via `new`) ended up unassigned or English | The plugin's `create_issue` hook now rejects a call without an Assignee and tells Claude to retry with you as assignee (needs `jq` on your `PATH`; Claude Code only). Update the plugin and restart if you still see it. |
 | `all` says no issue is ready                                         | Every candidate failed triage; the table names the reason per issue (tag in `batch_skip_tags`, no acceptance criteria, open questions, architectural size, unresolved dependency). Fix the issue, drop the tag, or run `/youtrack-task <ID>` interactively. |
 | A worker reports `BLOCKED` / `ESCALATE`                              | It hit ambiguity or architectural scope and stopped on purpose; its question is posted on the issue. Answer it and re-run `all <ID>` (the existing worktree is resumed), or take the issue interactively. |
-| A worker command is rejected by the hook                             | Working as intended: workers may push only their issue branch (never forced) and never merge. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
+| A worker command is rejected by the hook                             | Working as intended: workers never push or merge and use no network tools; the main session pushes after review. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
 | `all` unavailable when installed as a skill only (e.g. the marketplace ZIP) | The `ticket-worker` / `ticket-reviewer` agents and the guard hook ship with the **plugin**. Without them `all` falls back to sequential work in the main session with a weaker, same-session review. |
 | New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |
 

@@ -12,15 +12,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ticket-reviewer` per result that sees only the issue and the diff — never the
   worker's report. Failed reviews loop back for up to `batch_review_rounds`
   rounds. PRs are opened after a single confirmation for the whole list.
-- **`--auto-merge`** (opt-in per run): the run may merge the PRs it opened when
-  review is `PASS`, required checks are green and the PR is mergeable — plain
-  merge, no admin bypass, no branch deletion. Without the flag nothing is merged.
-- **Pushing the issue's own branch is allowed** within `all` (never forced, never
-  another ref). Guardrails in `SKILL.md` updated accordingly.
+- **`--auto-merge`** (opt-in per run): the run may merge the PRs it created when
+  the head commit is the one the reviewer passed, at least one required check
+  exists and is green, the PR is `CLEAN` and shares no file with another issue
+  of the run — plain `--merge --match-head-commit`, no admin bypass, no
+  remote-branch deletion. Refused with `--no-review` or without subagent
+  support. Without the flag nothing is merged.
+- **Workers never push.** They commit locally; the main session pushes a branch
+  only after an independent `PASS` and the single PR confirmation, so nothing
+  unreviewed reaches the remote. Guardrails in `SKILL.md` updated accordingly.
 - New plugin agents `agents/ticket-worker.md`, `agents/ticket-reviewer.md`, a
   `PreToolUse` Bash hook `hooks/guard-subagent` that confines them (needs `jq`;
-  a worker may run exactly `git push [-u] <remote> <issue-branch>`, the reviewer
-  an allowlist of read-only commands),
+  workers: no push / merge / network tools / hook bypass; reviewer: an allowlist
+  of read-only commands and test runners),
   and its test script `tests/guard-subagent.sh`.
 - New config keys `batch_query`, `batch_max_parallel`, `batch_skip_tags`,
   `batch_review_rounds`; contract in `reference/batch.md`.

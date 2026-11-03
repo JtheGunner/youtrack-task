@@ -54,7 +54,7 @@ unbiased reviewer, and the outcome is written back to YouTrack.
    then the normal pickup write-back. Serial avoids `index.lock` races.
 3. **Work (parallel, background).** One `ticket-worker` per issue, at most
    `--max` at a time. It works only inside its worktree, uses TDD, commits
-   locally in English, and may push its own issue branch. It never asks
+   locally in English and never pushes. It never asks
    questions: it returns `BLOCKED:<question>` or `ESCALATE:architectural`.
 4. **Review.** A fresh `ticket-reviewer` per issue. Input: issue title,
    description and acceptance criteria, and `git diff <base>...HEAD`. It does
@@ -71,22 +71,29 @@ unbiased reviewer, and the outcome is written back to YouTrack.
 
 ## Push and merge policy
 
-- Pushing **the issue's own branch** (plain push, never forced) is allowed for
-  workers and the main session. Pushing the default branch, any other branch, or
-  using `--force` is never allowed.
+- Workers and reviewers never push or merge. Workers commit locally; the main
+  session pushes an issue's own branch (plain push, never forced) only after a
+  `PASS` on that exact head commit and the single PR confirmation. Pushing the
+  default branch, any other ref, or `--force` is never allowed. (An earlier draft
+  let workers push their own branch; review showed that would put unreviewed
+  code on the remote, so pushing moved behind the review gate.)
 - Without `--auto-merge`: no merging, as today.
-- With `--auto-merge`, the main session may merge a PR only if all hold:
-  it was opened by this run, review is `PASS`, required CI checks are green,
-  the PR is mergeable without conflicts, no admin bypass is used. A merge that
-  the host blocks is reported, never worked around. Branches are not deleted.
-  Workers and reviewers never merge; only the main session does.
+- With `--auto-merge` (refused together with `--no-review` or without subagent
+  support), the main session may merge a PR only if all hold, checked fresh before
+  each merge: the PR was created by this run (a reused PR is never merged), its
+  head commit equals the SHA the reviewer passed, at least one required check
+  exists and all pass, `mergeStateStatus` is `CLEAN`, the issue shares no file
+  with another issue of the run, and the merge is a plain
+  `gh pr merge --merge --match-head-commit <sha>` without admin bypass. A merge
+  the host blocks is reported, never worked around. Remote branches are not
+  deleted. Workers and reviewers never merge.
 
 ## Roles
 
 | Role | Tools | Writes |
 | --- | --- | --- |
 | Main session (orchestrator) | all | YouTrack, PRs, merges |
-| `ticket-worker` | Read, Edit, Write, Bash, Grep, Glob | its worktree; push of its own branch |
+| `ticket-worker` | Read, Edit, Write, Bash, Grep, Glob | its worktree (local commits only) |
 | `ticket-reviewer` | Read, Grep, Glob, Bash | nothing |
 
 Subagents cannot spawn subagents, so orchestration stays in the main session.
@@ -96,9 +103,10 @@ in one place.
 ## Enforcement
 
 - `hooks/hooks.json` gets a `PreToolUse` Bash hook. Hook input carries
-  `agent_type`/`agent_id`, so it can target workers and reviewers: deny force
-  pushes, pushes to a branch other than the issue branch, `gh pr merge`, and
-  (for reviewers) any write command.
+  `agent_type`/`agent_id`, so it can target workers and reviewers: workers may
+  not push, merge, use `gh api` or network tools, or bypass hooks; reviewers are
+  limited to a read-only allowlist. It is a best-effort layer; branch protection
+  and a limited token are the real boundary.
 - Subagents have no working-directory option. Workers receive the absolute
   worktree path and must use it for every file path and prefix shell commands
   with `cd <dir> &&` or use `git -C <dir>`.
@@ -114,15 +122,16 @@ in one place.
 
 ## Guardrail changes (SKILL.md)
 
-- Push: the issue's own branch is allowed in `all`; the rule against force-push
+- Push: the main session may push an issue's own branch in `all`; the rule against force-push
   and pushing elsewhere stays.
 - Merge: allowed only under `--auto-merge` with the conditions above.
 - PR confirmation may be a single confirmation listing all PRs.
 
 ## Decided by the user
 
-- Command name `all`; push of the issue branch is allowed; `--auto-merge` flag
-  exists and is opt-in per run.
+- Command name `all`; pushing the issue's own branch is allowed (placed by me
+  after the review gate, see above); `--auto-merge` flag exists and is opt-in
+  per run.
 
 ## Decided by me (to be checked)
 
