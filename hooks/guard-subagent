@@ -68,7 +68,19 @@ skip { t = $0; sub(/^[\t ]+/, "", t); if (t == word) skip = 0; next }
       if (c == "<" && substr($0, i + 1, 1) == "<" && substr($0, i + 2, 1) != "<" && substr($0, i - 1, 1) != "<") {
         rest = substr($0, i + 2)
         if (match(rest, /^-?[ \t]*["']?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
-          w = substr(rest, RSTART, RLENGTH); sub(/^-?[ \t]*["']?/, "", w); sub(/["']$/, "", w)
+          w = substr(rest, RSTART, RLENGTH); after = substr(rest, RSTART + RLENGTH)
+          sub(/^-?[ \t]*["']?/, "", w); sub(/["']$/, "", w)
+          # The delimiter must be a whole word; anything glued to it (EOF"x", END-OF) is read
+          # differently by bash, and so is a quote still open at the end of this line.
+          if (after != "" && substr(after, 1, 1) !~ /[ \t;|&<>)]/) { print "@@BAD@@"; break }
+          qq = ""; m = length(after)
+          for (k = 1; k <= m; k++) {
+            d = substr(after, k, 1)
+            if (qq == "") { if (d == "'" || d == "\"") qq = d; else if (d == "\\") k++ }
+            else if (d == qq) qq = ""
+            else if (qq == "\"" && d == "\\") k++
+          }
+          if (qq != "") { print "@@BAD@@"; break }
           word = w; skip = 1; break
         } else { print "@@BAD@@"; break }                          # a heredoc we cannot read: fail closed
       }
@@ -181,6 +193,9 @@ while IFS= read -r segment; do
   # Shell keywords, grouping and variable expansion in the command word.
   printf '%s' "$segment" | grep -Eq '^(if|then|else|elif|fi|do|done|while|until|case|esac|for|select|coproc|function|time)([ ()<>]|$)|^[^ ]*[(){}$]|^!' \
     && deny "no shell keywords, grouping or variable expansion in the command word; run plain commands."
+  # Unquoted grouping anywhere (function definitions, subshells, brace groups).
+  printf '%s' "$segment" | grep -Eq '[()]|(^| )[{}]( |$)' \
+    && deny "no unquoted parentheses or brace groups (function definitions, subshells); run plain commands."
   # Quoted or escaped command / subcommand words may hide the real command.
   printf '%s' "$segment" | grep -Eq "^[^ ]*['\"\\\\]|^(git|gh) +[^ ]*['\"\\\\]|^gh +[^ ]+ +[^ ]*['\"\\\\]" \
     && deny "no quotes or backslashes inside the command or subcommand name."

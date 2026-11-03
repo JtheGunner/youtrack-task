@@ -88,7 +88,22 @@ treason $W "echo \"abc
 x <<X\"
 git push --force origin main
 X" "never push"
+treason $W "cat <<EOF'x
+git push --force origin main
+EOF
+'" "heredoc"
+treason $W "cat <<\"EOF\"x
+git push --force origin main
+EOFx" "heredoc"
+treason $W "cat <<END-OF
+git push --force origin main
+END-OF" "heredoc"
+treason $W "foo () { git push --force origin main; }; foo" "parentheses"
+treason $W "foo() { git push --force origin main; }; foo" "no shell keywords"
+treason $W "function foo { git push; }; foo" "no shell keywords"
 t 0 $W "cat <<< 'here string'"
+t 0 $W "cp file{,.bak}"
+t 0 $W "git commit -m \"feat(x): {y} (z)\""
 t 0 $W "echo \"a <<b\""
 t 2 $W "trap 'git push' EXIT"
 t 2 $W "hash -p /tmp/evil git"
