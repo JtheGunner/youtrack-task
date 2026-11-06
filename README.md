@@ -290,7 +290,9 @@ One command instead of briefing the agent by hand:
 > carries an issue ID) unless that exact commit has a review stamp — also when you
 > run them by hand or through `/ship`. `/youtrack-task pr --no-review` records a
 > waiver and lets the push through. Default is `off`; it needs `jq` and is best
-> effort (server-side branch protection is the real safety net).
+> effort (server-side branch protection is the real safety net). It cannot follow
+> quoted or `$`-expanded push arguments and directories, so it rejects those: write
+> the remote, refspecs and `cd` path out unquoted.
 
 ### During and after the work
 

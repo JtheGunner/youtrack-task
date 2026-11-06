@@ -59,6 +59,9 @@ t 2 "no stamp: git -C denied" "$repo" "git -C $wt push origin feat/X-1-demo" "ha
 stamp_it PASS
 t 0 "PASS on this commit: push allowed" "$wt" "git push -u origin feat/X-1-demo"
 t 0 "PASS: gh pr create allowed" "$wt" "gh pr create --title t --body b"
+t 0 "PASS: gh pr create with quoted title and body still allowed" "$wt" "gh pr create --title \"a b\" --body 'c d'"
+t 2 "PASS: quoted --head cannot be resolved -> denied" "$repo" "gh pr create --head \"feat/X-1-demo\"" "cannot resolve"
+t 0 "PASS: git push --all allowed when every issue branch is stamped" "$repo" "git push --all origin"
 t 0 "PASS: gh pr create --head from the main checkout" "$repo" "gh pr create --base main --head feat/X-1-demo --title t"
 t 0 "PASS: SHA refspec allowed" "$repo" "git -C $wt push -u origin $(git -C "$wt" rev-parse HEAD):refs/heads/feat/X-1-demo"
 
@@ -76,9 +79,25 @@ t 2 "FAILED: push denied" "$wt" "git push" "open findings"
 stamp_it SKIPPED no
 t 0 "SKIPPED waiver: push allowed" "$wt" "git push"
 
+t 0 "SKIPPED waiver: git push --all allowed" "$repo" "git push --all origin"
 git -C "$wt" commit -q --allow-empty -m "fix: more"
 t 2 "waiver is bound to its commit" "$wt" "git push" "not the one that was reviewed"
 
+# finding 1: the gate keys on the destination only
+t 2 "issue branch pushed to main (src has the ID, dst does not)" "$repo" "git push origin feat/X-1-demo:main" "not the one that was reviewed"
+t 2 "HEAD of an issue branch pushed to main" "$wt" "git push origin HEAD:main" "not the one that was reviewed"
+t 2 "refs/heads source pushed to another name" "$repo" "git push origin refs/heads/feat/X-1-demo:refs/heads/release" "not the one that was reviewed"
+# finding 2: pushing every ref
+t 2 "git push --all denied" "$repo" "git push --all origin" "not the one that was reviewed"
+t 2 "git push --mirror denied" "$repo" "git push --mirror origin" "not the one that was reviewed"
+t 2 "git push --branches denied" "$repo" "git push --branches origin" "not the one that was reviewed"
+t 0 "pure --tags push still passes" "$wt" "git push --tags origin"
+# finding 3: quoted arguments must not drop out of the parse
+t 2 "quoted refspec denied, not skipped" "$wt" "git push origin \"HEAD:main\"" "cannot resolve"
+t 2 "quoted remote denied" "$wt" "git push 'origin' feat/X-1-demo" "cannot resolve"
+t 2 "quoted -C directory denied" "$repo" "git -C \"$wt\" push origin feat/X-1-demo" "cannot tell in which directory"
+t 2 "quoted cd target denied" "$repo" "cd \"$wt\" && git push" "cannot tell in which directory"
+t 2 "variable in the directory denied" "$repo" "cd \$WT && git push" "cannot tell in which directory"
 t 0 "delete push passes" "$wt" "git push origin --delete feat/X-1-demo"
 t 0 "colon-delete passes" "$wt" "git push origin :feat/X-1-demo"
 t 0 "tags push passes" "$wt" "git push --tags"

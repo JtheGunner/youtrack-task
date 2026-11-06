@@ -32,7 +32,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   default `off`): in the main session it blocks `git push` and `gh pr create` of
   an issue branch unless the exact commit has a `PASS` (or a recorded waiver)
   stamp, so the gate also holds for a plain push or `/ship`. It only reads the
-  stamp; best effort, fails open without `jq`. Covered by
+  stamp; best effort, fails open without `jq`. It checks refspecs by source and
+  destination, `--all` / `--mirror` / `--branches` per issue branch, and denies
+  pushes whose quoted or expanded arguments it cannot resolve. Covered by
   `tests/require-review.sh`.
 - `review-stamp` gained `check --sha <SHA>` (ask about one exact commit) and the
   `SKIPPED` verdict, the recorded waiver behind `pr --no-review`.

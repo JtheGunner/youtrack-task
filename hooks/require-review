@@ -10,16 +10,21 @@
 # Checked commands (main session only; ticket-worker / ticket-reviewer are
 # handled by hooks/guard-subagent):
 #   git [-C dir] push [remote] [refspec ...]   -> the pushed commit of each issue branch
+#   git push --all | --branches | --mirror     -> every local issue branch
 #   gh pr create [--head branch]               -> the tip of the PR's head branch
-# An "issue branch" is one whose name carries an issue ID (`feat/PROJ-12-slug`);
-# every other push passes untouched, as do deletions and tag pushes.
+# An "issue branch" is one whose name carries an issue ID (`feat/PROJ-12-slug`).
+# A refspec is checked by its destination and, when the source is a branch, by its
+# source name (`feat/PROJ-12-x:main` pushes issue code to main). Every other push
+# passes untouched, as do deletions and pure tag pushes.
 # Allowed when the stamp for that exact commit is PASS or SKIPPED (a recorded,
 # user-confirmed `--no-review` waiver). Otherwise exit 2 with the next step.
 #
-# Best effort, like guard-subagent: quoted text is masked before parsing, paths
-# with spaces and exotic shell constructs are not followed. Anything it cannot
-# resolve (no repo, no issue ID, no jq, no stamp script) passes — fail open. The
-# real protection is server-side branch protection.
+# Best effort, like guard-subagent: quoted text is masked before parsing and
+# exotic shell constructs are not followed. Environmental gaps pass (no jq, no
+# stamp script, a directory that is plainly not a git repo, a branch without an
+# issue ID) — fail open. What it cannot resolve in a push or `gh pr create --head`
+# (a quoted or $-expanded argument or directory) is denied instead, with a hint to
+# write it out. The real protection is server-side branch protection.
 set -uf
 
 command -v jq >/dev/null 2>&1 || exit 0
@@ -48,8 +53,11 @@ stamp_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-t
 [ -x "$stamp_script" ] || exit 0
 
 # --- find the pushing / PR-creating segments ----------------------------------
-# Remove quoted strings (data, not commands), then split on shell separators.
-masked=$(printf '%s' "$cmd" | sed -E "s/\"([^\"\\\\]|\\\\.)*\"//g; s/'[^']*'//g")
+# Quoted strings are data, not commands: replace each by a placeholder so that
+# separators inside them do not split the command, but a quoted argument stays
+# visible as an argument that cannot be resolved.
+Q='__Q__'
+masked=$(printf '%s' "$cmd" | sed -E "s/\"([^\"\\\\]|\\\\.)*\"/$Q/g; s/'[^']*'/$Q/g")
 segments=$(printf '%s' "$masked" | tr ';&|()\n' '\n\n\n\n\n\n')
 
 deny() {
@@ -68,55 +76,95 @@ MSG
 
 issue_id() { printf '%s' "$1" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | head -1; }
 
-# check_commit <dir> <branch> <sha>: deny unless the stamp covers that commit.
+# check_commit <dir> <name> <sha>: deny unless the stamp covers that commit.
+# <name> is a branch name; without an issue ID in it nothing is checked.
 check_commit() {
-  local dir=$1 branch=$2 sha=$3 id out result
-  id=$(issue_id "$branch")
+  local dir=$1 name=$2 sha=$3 id out result
+  id=$(issue_id "$name")
   [ -n "$id" ] || return 0
   out=$(bash "$stamp_script" check --id "$id" --dir "$dir" --sha "$sha" 2>/dev/null) || return 0
   result=$(printf '%s\n' "$out" | sed -n 's/^REVIEW=//p' | head -1)
   case "$result" in
     PASS | SKIPPED) return 0 ;;
-    FAILED) deny "the last review of $id ($branch) ended with open findings on $sha." ;;
-    STALE) deny "$id ($branch): commit $sha is not the one that was reviewed (the branch moved on since the stamp)." ;;
-    MISSING) deny "$id ($branch) has no review for commit $sha." ;;
+    FAILED) deny "the last review of $id ($name) ended with open findings on $sha." ;;
+    STALE) deny "$id ($name): commit $sha is not the one that was reviewed (the branch moved on since the stamp)." ;;
+    MISSING) deny "$id ($name) has no review for commit $sha." ;;
     *) return 0 ;;
   esac
 }
 
+# unresolvable <text>: still holds a quoted or expanded part we cannot follow.
+unresolvable() { case "$1" in *"$Q"* | *'$'* | *'`'*) return 0 ;; *) return 1 ;; esac; }
+
+cwd_known=true
 while IFS= read -r seg; do
   # leading VAR=value assignments
   seg=$(printf '%s' "$seg" | sed -E 's/^[[:space:]]+//; s/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//')
   [ -n "$seg" ] || continue
 
-  # directory the segment runs in: `git -C dir`, else the hook's cwd; a preceding
-  # `cd dir` segment moves it (relative to cwd).
+  # a `cd dir` segment moves the directory of the segments after it
   case "$seg" in
-    cd\ *) t=${seg#cd }; t=${t%% *}; t=${t#\~/}; case "$t" in /*) cwd=$t ;; *) cwd="$cwd/$t" ;; esac; continue ;;
+    cd\ *)
+      t=${seg#cd }; t=${t%% *}; t=${t#\~/}
+      if unresolvable "$t"; then
+        cwd_known=false
+      else
+        cwd_known=true
+        case "$t" in /*) cwd=$t ;; *) cwd="$cwd/$t" ;; esac
+      fi
+      continue ;;
   esac
 
+  is_push=false
+  is_pr=false
+  if [[ "$seg" =~ ^git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--[a-z-]+=[^[:space:]]+))*[[:space:]]+push([[:space:]]|$) ]]; then
+    is_push=true
+  elif [[ "$seg" =~ ^gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]; then
+    is_pr=true
+  fi
+  $is_push || $is_pr || continue
+
+  # directory this segment runs in
   dir=$cwd
   if [[ "$seg" =~ ^git[[:space:]]+-C[[:space:]]+([^[:space:]]+) ]]; then
     dir=${BASH_REMATCH[1]}
-    case "$dir" in /*) ;; *) dir="$cwd/$dir" ;; esac
+    if unresolvable "$dir"; then
+      cwd_known=false
+    else
+      case "$dir" in /*) ;; *) dir="$cwd/$dir" ;; esac
+    fi
   fi
+  $cwd_known || deny "cannot tell in which directory this command runs (quoted or expanded path). Write the path out unquoted."
   git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
+  current=$(git -C "$dir" branch --show-current 2>/dev/null)
+  head_sha=$(git -C "$dir" rev-parse HEAD 2>/dev/null) || continue
 
   # ---- git push ----
-  if [[ "$seg" =~ ^git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--[a-z-]+=[^[:space:]]+))*[[:space:]]+push([[:space:]]|$) ]]; then
+  if $is_push; then
+    if unresolvable "$seg"; then
+      deny "this git push has a quoted or expanded argument the hook cannot resolve. Write the remote and refspecs out unquoted."
+    fi
     rest=${seg#*push}
-    positional=() deleting=false tags=false
+    positional=()
+    deleting=false tags=false all_refs=false
     for w in $rest; do
       case "$w" in
         --delete | -d) deleting=true ;;
-        --tags | --mirror) tags=true ;;
+        --tags) tags=true ;;
+        --all | --branches | --mirror) all_refs=true ;;
         -*) ;;
         *) positional+=("$w") ;;
       esac
     done
     $deleting && continue
-    current=$(git -C "$dir" branch --show-current 2>/dev/null)
-    head_sha=$(git -C "$dir" rev-parse HEAD 2>/dev/null) || continue
+    if $all_refs; then
+      # every local issue branch is about to be pushed
+      while IFS=' ' read -r ref_sha ref_name; do
+        [ -n "$ref_name" ] || continue
+        check_commit "$dir" "$ref_name" "$ref_sha"
+      done < <(git -C "$dir" for-each-ref --format='%(objectname) %(refname:short)' refs/heads 2>/dev/null)
+      continue
+    fi
     if [ "${#positional[@]}" -le 1 ]; then
       $tags && continue
       [ -n "$current" ] && check_commit "$dir" "$current" "$head_sha"
@@ -130,23 +178,33 @@ while IFS= read -r seg; do
       esac
       [ -n "$src" ] || continue   # ":branch" deletes
       dst=${dst#refs/heads/}
-      if [ "$src" = HEAD ]; then sha=$head_sha; else sha=$(git -C "$dir" rev-parse --verify -q "$src^{commit}" 2>/dev/null) || continue; fi
+      if [ "$src" = HEAD ]; then
+        sha=$head_sha
+        src_name=$current
+      else
+        sha=$(git -C "$dir" rev-parse --verify -q "$src^{commit}" 2>/dev/null) || continue
+        src_name=${src#refs/heads/}
+      fi
       [ "$dst" != HEAD ] || dst=$current
+      # the commit leaves under the destination name and, when the source is a
+      # branch, also came from it: an issue ID in either puts it under the gate
       check_commit "$dir" "$dst" "$sha"
+      check_commit "$dir" "$src_name" "$sha"
     done
     continue
   fi
 
   # ---- gh pr create ----
-  if [[ "$seg" =~ ^gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]; then
-    head_branch=""
-    if [[ "$seg" =~ (--head|-H)[[:space:]=]+([^[:space:]]+) ]]; then head_branch=${BASH_REMATCH[2]}; fi
-    head_branch=${head_branch#*:}
-    [ -n "$head_branch" ] || head_branch=$(git -C "$dir" branch --show-current 2>/dev/null)
-    [ -n "$head_branch" ] || continue
-    sha=$(git -C "$dir" rev-parse --verify -q "refs/heads/$head_branch" 2>/dev/null) || continue
-    check_commit "$dir" "$head_branch" "$sha"
+  head_branch=""
+  if [[ "$seg" =~ (--head|-H)[[:space:]=]+([^[:space:]]+) ]]; then head_branch=${BASH_REMATCH[2]}; fi
+  if unresolvable "$head_branch"; then
+    deny "this gh pr create has a quoted or expanded --head the hook cannot resolve. Write the branch name out unquoted."
   fi
+  head_branch=${head_branch#*:}
+  [ -n "$head_branch" ] || head_branch=$current
+  [ -n "$head_branch" ] || continue
+  sha=$(git -C "$dir" rev-parse --verify -q "refs/heads/$head_branch" 2>/dev/null) || continue
+  check_commit "$dir" "$head_branch" "$sha"
 done <<EOF
 $segments
 EOF

@@ -115,16 +115,21 @@ confirmation to proceed, and `all --auto-merge` stays disabled.
 `hooks/require-review` makes the gate harness-enforced. Off by default; enable
 with `review_gate_hook = "on"` in the config. In the main session it blocks
 
-- `git push` (any remote, any refspec) of an issue branch and
-- `gh pr create` for an issue branch
+- `git push` of an issue branch (a refspec counts by its destination **and** by its
+  source branch, so `feat/PROJ-1-x:main` is gated too),
+- `git push --all` / `--branches` / `--mirror` (every local issue branch is checked),
+- `gh pr create` for an issue branch,
 
 unless `review-stamp check --sha <the pushed commit or the PR's branch tip>`
 says `PASS` or `SKIPPED`. An issue branch is one whose name contains an issue ID.
 It also covers a plain `git push` and the user's own `/ship`. Passes untouched:
-other branches, deletions, tag pushes, `review_before_pr = never`, and subagent
-calls (those belong to `hooks/guard-subagent`). Like that hook it is best effort
-and fails open (no `jq`, unresolvable command or repo); server-side branch
-protection stays the real boundary. The hook only reads the stamp, it contains
+other branches, deletions, pure `--tags` pushes, `review_before_pr = never`, and
+subagent calls (those belong to `hooks/guard-subagent`). Like that hook it is best
+effort; server-side branch protection stays the real boundary. It fails open on
+environment gaps (no `jq`, a directory that is not a git repo) but **denies** what
+it cannot follow: a push with a quoted or `$`-expanded remote / refspec, a quoted
+`--head`, or a quoted / expanded directory (`cd "$dir"`, `git -C "$dir"`). Write
+those out unquoted. Quotes inside `gh pr create --title "..."` are fine. The hook only reads the stamp, it contains
 no review logic. A deny message names the next step (`/youtrack-task pr`, or
 `pr --no-review` to waive).
 
