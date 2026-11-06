@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# PreToolUse hook (Bash) for the `all` sub-command's agents.
+#
+# Only acts when the call comes from a `ticket-worker` or `ticket-reviewer`
+# subagent (hook input carries `agent_type`); every other call passes untouched.
+#
+#   ticket-worker   develops and commits locally. Denied: any `git push`,
+#                   `gh pr merge`, `gh api`, network tools (curl, wget, ssh, …),
+#                   hook bypass (`git commit --no-verify` / `-n`), forced branch
+#                   deletion, `git config` writes (aliases), global git options,
+#                   shell wrappers / `-c` / `eval`, command substitution.
+#   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
+#                   runners with per-command argument limits; no heredocs, no
+#                   output redirection into files.
+#
+# Quoted text is data: separators and `>` inside quotes are masked before the
+# command is split, heredoc bodies are dropped, and words inside quotes never
+# trigger a deny rule (a commit message may mention "git push").
+#
+# This is a best-effort guard layered on the agents' own instructions, not a
+# security boundary: shell syntax is too rich to police completely. The real
+# protection is server-side — branch protection on the default branch and a
+# token without merge / force-push rights. Where a construct can hide the real
+# command it is rejected outright instead of parsed.
+#
+# The rejection text goes to stderr (exit 2) and is shown to the model.
+# Fails open: without jq, or on input it can't parse, the call goes through.
+set -u
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+input=$(cat)
+agent=$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null) || exit 0
+cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+
+case "$agent" in
+  *ticket-worker) role=worker ;;
+  *ticket-reviewer) role=reviewer ;;
+  *) exit 0 ;;
+esac
+[ -n "$cmd" ] || exit 0
+
+deny() {
+  printf 'Command blocked for the %s agent: %s\n' "$role" "$1" >&2
+  exit 2
+}
+
+# --- constructs that hide the real command: refuse, don't parse -------------
+case "$cmd" in
+  *'$('* | *'`'* | *'<('* | *'>('*) deny "no command substitution or process substitution." ;;
+esac
+
+# awk helpers (BSD/GNU compatible): drop heredoc bodies; mask or empty quotes.
+awk_heredoc=$(cat <<'AWK'
+# Quote state is tracked character by character across lines, exactly like the
+# quote masker, so a "<<" inside a (possibly multi-line) quote is never taken
+# for a heredoc operator.
+BEGIN { q = ""; skip = 0 }
+skip { t = $0; sub(/^[\t ]+/, "", t); if (t == word) skip = 0; next }
+{
+  print
+  n = length($0)
+  for (i = 1; i <= n; i++) {
+    c = substr($0, i, 1)
+    if (q == "") {
+      if (c == "'" || c == "\"") { q = c; continue }
+      if (c == "\\") { i++; continue }
+      if (c == "<" && substr($0, i + 1, 1) == "<" && substr($0, i + 2, 1) != "<" && substr($0, i - 1, 1) != "<") {
+        rest = substr($0, i + 2)
+        if (match(rest, /^-?[ \t]*["']?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
+          w = substr(rest, RSTART, RLENGTH); after = substr(rest, RSTART + RLENGTH)
+          sub(/^-?[ \t]*["']?/, "", w); sub(/["']$/, "", w)
+          # The delimiter must be a whole word; anything glued to it (EOF"x", END-OF) is read
+          # differently by bash, and so is a quote still open at the end of this line.
+          if (after != "" && substr(after, 1, 1) !~ /[ \t;|&<>)]/) { print "@@BAD@@"; break }
+          # Opening and closing quote of the delimiter must be the same character (or both absent).
+          oq = substr(rest, RSTART, RLENGTH); sub(/^-?[ \t]*/, "", oq)
+          fq = substr(oq, 1, 1); lq = substr(oq, length(oq), 1)
+          if ((fq == "'" || fq == "\"") != (lq == "'" || lq == "\"") || (fq ~ /["']/ && fq != lq)) { print "@@BAD@@"; break }
+          # Anything on the operator line we cannot model (quotes, expansions, comments): fail closed.
+          if (after ~ /[$`#'"\\]/) { print "@@BAD@@"; break }
+          word = w; skip = 1; break
+        } else { print "@@BAD@@"; break }                          # a heredoc we cannot read: fail closed
+      }
+    } else {
+      if (c == q) { q = ""; continue }
+      if (q == "\"" && c == "\\") { i++; continue }
+    }
+  }
+}
+END { if (skip) print "@@BAD@@" }                               # unterminated heredoc
+AWK
+)
+awk_quotes=$(cat <<'AWK'
+BEGIN { RS = "\001"; ORS = "" }
+{
+  n = length($0); q = ""; out = ""; bad = 0
+  for (i = 1; i <= n; i++) {
+    c = substr($0, i, 1)
+    if (q == "") {
+      if (c == "$" && (substr($0, i + 1, 1) == "'" || substr($0, i + 1, 1) == "\"")) bad = 1   # ANSI-C / locale quoting
+      if (c == "#" && (i == 1 || substr($0, i - 1, 1) ~ /[ \t\n;|&(]/)) bad = 1               # shell comment
+      if (c == "'" || c == "\"") { q = c; out = out c; continue }
+      if (c == "\\") { out = out c substr($0, i + 1, 1); i++; continue }
+      out = out c
+    } else {
+      if (c == q) { q = ""; out = out c; continue }
+      if (q == "\"" && c == "\\") { if (mode == "mask") out = out "__"; i++; continue }
+      if (mode == "mask") { if (c ~ /[;&|<>(){}$\n]/) out = out "_"; else out = out c }
+    }
+  }
+  if (q != "") bad = 1                                                                      # unterminated quote
+  print out
+  if (bad) print "@@BAD@@"
+}
+AWK
+)
+
+if [ "$role" = reviewer ]; then
+  case "$cmd" in *'<<'*) deny "the reviewer is read-only (no heredocs)." ;; esac
+  body=$cmd
+else
+  body=$(printf '%s\n' "$cmd" | awk "$awk_heredoc")
+fi
+
+[ "${#body}" -le 20000 ] || deny "command is too long; split it into smaller steps."
+
+case "$body" in *'@@BAD@@'*) deny "unterminated or quoted heredoc operator; write a plain heredoc or use the Write tool." ;; esac
+
+masked=$(printf '%s\n' "$body" | awk -v mode=mask "$awk_quotes")   # structure: quotes kept, separators inside hidden
+emptied=$(printf '%s\n' "$body" | awk -v mode=empty "$awk_quotes") # content: quoted text removed
+
+# `git -C <dir> ...` -> `git ...`; drop harmless redirections.
+clean() {
+  printf '%s' "$1" | sed -E 's/git +-C +[^ ;&|]+/git/g; s#&> *(/dev/null)##g; s#[0-9]*>>? *(/dev/null)([ ;&|]|$)#\2#g; s#[0-9]*>&[0-9-]+([ ;\&|]|$)#\1#g'
+}
+masked=$(clean "$masked")
+emptied=$(clean "$emptied")
+case "$masked" in *'@@BAD@@'*) deny "no shell comments, \$'...' quoting or unterminated quotes; run plain commands." ;; esac
+
+segments() { printf '%s\n' "$1" | tr ';&|' '\n\n\n' | tr -s ' \t' ' ' | sed -E 's/^ +//; s/ +$//'; }
+
+[ "$(segments "$masked" | wc -l)" -le 80 ] || deny "too many chained commands (max 80); split the work into smaller steps."
+
+bad_env_re='^(PATH|LD_[A-Z_]*|DYLD_[A-Z_]*|GIT_[A-Z_]*|BASH_ENV|ENV|SHELL|IFS|PROMPT_COMMAND|HOME)='
+
+# Remove leading VAR=value assignments so the real command is visible; refuse
+# assignments that change how commands are found or run.
+strip_assignments() {
+  local s=$1
+  while printf '%s' "$s" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*=[^ ]*( |$)'; do
+    if printf '%s' "$s" | grep -Eq "$bad_env_re"; then
+      printf 'Command blocked for the %s agent: do not set PATH, GIT_*, LD_*, HOME or similar variables.\n' "$role" >&2
+      return 3
+    fi
+    s=$(printf '%s' "$s" | sed -E 's/^[A-Za-z_][A-Za-z0-9_]*=[^ ]* *//')
+  done
+  printf '%s' "$s"
+}
+
+reviewer_allows() {
+  # Quotes and backslashes are removed first so they cannot hide an option.
+  local s
+  s=${1//\'/}; s=${s//\"/}; s=${s//\\/}
+  # Per-tool argument limits for commands that can write or execute. Options
+  # may be attached (-oFILE), clustered (-no) or abbreviated (--outp).
+  printf '%s' "$s" | grep -Eq '^git (diff|log|show|diff-tree|shortlog|blame|cat-file)( .*)? --ou(t|tp|tpu|tput)?( |=|$)' && return 1
+  printf '%s' "$s" | grep -Eq '^git grep( .*)? (-[a-zA-Z]*O|--op[a-z-]*)' && return 1
+  printf '%s' "$s" | grep -Eq '^(rg|grep)( .*)? --pre' && return 1
+  printf '%s' "$s" | grep -Eq '^git( .*)? --(ext-diff|textconv)' && return 1
+  printf '%s' "$s" | grep -Eq '^find( .*)? -(f(ls|print[0-9a-z]*)|exec(dir)?|ok(dir)?|delete)( |$)' && return 1
+  printf '%s' "$s" | grep -Eq '^tail( .*)? (-[a-zA-Z]*f|--follow)' && return 1
+  printf '%s' "$s" | grep -Eq '^gh( .*)? --web' && return 1
+  printf '%s' "$s" | grep -Eq '(^|[ /=])\.\.(/|$| )' && return 1   # no path traversal out of the repo
+
+  printf '%s' "$s" | grep -Eq '^git (status|diff|rev-parse|rev-list|ls-files|ls-tree|blame|cat-file|merge-base|name-rev|grep|diff-tree|shortlog)( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^git (remote -v|stash list|tag( -l| --list)?|branch( (--list|-a|-r|--show-current|-vv))*)$' && return 0
+  printf '%s' "$s" | grep -Eq '^gh (run (list|view)|pr (diff|checks|status))( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^(cd|ls|cat|head|tail|wc|grep|rg|diff|jq|echo|pwd|stat|file|uniq|cut|tr|find|date|which|true|test|\[|\[\[)( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^sed -n [0-9$,]+p( [^ -][^ ]*)*$' && return 0
+  printf '%s' "$s" | grep -Eq '^(npm|pnpm|yarn|bun) (test|run (test|lint|typecheck|check)[a-z:-]*)( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^npx (--no-install )?(jest|vitest|tsc|eslint|playwright test)( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^((php )?(\./)?vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|pytest|python3? -m pytest|ruff check|eslint|php -l|phpunit|pest|phpstan|php artisan test|composer (test|run(-script)? (test|lint|analyse|check)[a-z:-]*)|go (test|vet)|cargo (test|clippy|check)|make( -[a-zA-Z]+)* (test|check|lint)|ctest|mvn( -[a-zA-Z]+)* test|gradle test|\./gradlew test|dotnet test|bats|shellcheck|bash -n|(bash|sh) (\./)?tests?/[A-Za-z0-9._/-]+)( |$)' && return 0
+  return 1
+}
+
+# ---- structure pass (quotes kept, separators inside quotes hidden) ---------
+while IFS= read -r segment; do
+  [ -n "$segment" ] || continue
+
+  # Shell keywords, grouping and variable expansion in the command word.
+  printf '%s' "$segment" | grep -Eq '^(if|then|else|elif|fi|do|done|while|until|case|esac|for|select|coproc|function|time)([ ()<>]|$)|^[^ ]*[(){}$]|^!' \
+    && deny "no shell keywords, grouping or variable expansion in the command word; run plain commands."
+  # Unquoted grouping anywhere (function definitions, subshells, brace groups).
+  printf '%s' "$segment" | grep -Eq '[()]|(^| )[{}]( |$)' \
+    && deny "no unquoted parentheses or brace groups (function definitions, subshells); run plain commands."
+  # Quoted or escaped command / subcommand words may hide the real command.
+  printf '%s' "$segment" | grep -Eq "^[^ ]*['\"\\\\]|^(git|gh) +[^ ]*['\"\\\\]|^gh +[^ ]+ +[^ ]*['\"\\\\]" \
+    && deny "no quotes or backslashes inside the command or subcommand name."
+
+  segment=$(strip_assignments "$segment") || exit 2
+  [ -n "$segment" ] || continue
+
+  if [ "$role" = reviewer ]; then
+    reviewer_allows "$segment" \
+      || deny "the reviewer is read-only; '$segment' is not on its allowlist (inspect with git diff / grep / cat, run the project's tests)."
+    continue
+  fi
+
+  printf '%s' "$segment" | grep -Eq '^((bash|sh|zsh|dash|ksh) -[a-zA-Z]*c|eval|exec|env|command|builtin|xargs|nohup|sudo|time|nice|timeout|stdbuf|ionice|setsid)( |$)' \
+    && deny "no shell -c, eval, wrapper or xargs invocations; run the command directly."
+  printf '%s' "$segment" | grep -Eq '^[^ ]*/(git|gh)( |$)' && deny "call git and gh by name, not by path."
+done < <(segments "$masked")
+
+if [ "$role" = reviewer ]; then
+  case "$masked" in *'>'*) deny "the reviewer is read-only (no output redirection into files)." ;; esac
+  exit 0
+fi
+
+# ---- content pass (worker; quoted text removed so messages are not scanned) --
+while IFS= read -r segment; do
+  [ -n "$segment" ] || continue
+  segment=$(strip_assignments "$segment") || exit 2
+  printf '%s' "$segment" | grep -Eq '^(curl|wget|nc|ncat|ssh|scp|sftp|telnet|ftp)( |$)' \
+    && deny "no network tools; the worker works locally and never talks to remote services."
+  printf '%s' "$segment" | grep -Eq '^(source|\.|alias|unalias|shopt|trap|hash|enable|declare -[a-zA-Z]*f|typeset -[a-zA-Z]*f|export -[a-zA-Z]*f)( |$)' \
+    && deny "no sourcing scripts, aliases, traps or shell function/option tricks."
+  printf '%s' "$segment" | grep -Eq '^gh api( |$)' && deny "gh api is not allowed for this agent."
+  printf '%s' "$segment" | grep -Eq '^gh pr merge( |$)' && deny "merging is done by the main session only."
+  if printf '%s' "$segment" | grep -Eq '^git( |$)'; then
+    printf '%s' "$segment" | grep -Eq '^git -' && deny "no git options before the subcommand (other than -C <dir>)."
+    printf '%s' "$segment" | grep -Eq '^git (send-pack|http-push|remote (add|set-url))( |$)|^git (fetch|pull|clone|ls-remote|archive)( .*)? (--upload-pack|--receive-pack|--exec)' \
+      && deny "no remote-writing or remote-reconfiguring git commands."
+    printf '%s' "$segment" | grep -Eq '^git push( |$)' \
+      && deny "workers never push; commit locally and report. The main session pushes after review."
+    printf '%s' "$segment" | grep -Eq '^git config( |$)' \
+      && ! printf '%s' "$segment" | grep -Eq '^git config (--get|--get-all|--list|-l)( |$)' \
+      && deny "git config is read-only for this agent (no aliases or hook paths)."
+    printf '%s' "$segment" | grep -Eq '^git (commit|merge|am|rebase|cherry-pick|revert)( .*)? (-[a-zA-Z]*n[a-zA-Z]*|--no-ver[a-z-]*)( |$)' \
+      && deny "never bypass git hooks (no --no-verify / -n)."
+    printf '%s' "$segment" | grep -Eq '^git branch( .*)? -[a-zA-Z]*D' && deny "never force-delete a branch."
+    printf '%s' "$segment" | grep -Eq '^git branch( .*)? (-[a-zA-Z]*d|--delete)( .*)? (-[a-zA-Z]*f|--force)|^git branch( .*)? (-[a-zA-Z]*f|--force)( .*)? (-[a-zA-Z]*d|--delete)' \
+      && deny "never force-delete a branch."
+  fi
+done < <(segments "$emptied")
+
+exit 0

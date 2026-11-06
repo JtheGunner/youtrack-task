@@ -1,6 +1,6 @@
 ---
 name: youtrack-task
-description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create / file / log a JetBrains YouTrack issue, ticket or bug ("leg ein Ticket an", "erfasse den Fehler als Issue", "create an issue for this"). Fetches the issue over the YouTrack MCP server, creates a git branch (optionally an isolated worktree for parallel tasks), moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done|worktree.
+description: Use when the user runs /youtrack-task, or asks to pick up / start / work on / plan / create / file / log a JetBrains YouTrack issue, ticket or bug ("leg ein Ticket an", "erfasse den Fehler als Issue", "create an issue for this"). Fetches the issue over the YouTrack MCP server, creates a git branch (optionally an isolated worktree for parallel tasks), moves the issue to In Progress, drives planning, and writes results back to the issue. Also handles /youtrack-task new|comment|log|pr|link|testing|done|worktree|all (all = work through several issues in parallel with independent review).
 ---
 
 # youtrack-task
@@ -52,13 +52,23 @@ specific action:
   were told to start.
 - **Pushing and opening a PR happen only in the explicit `pr` sub-command** (or
   the user's own `/ship`), after a confirmation prompt. Never as an implicit part
-  of the primary flow, `done`, or anything else. **Never force-push**, never
-  merge a PR, never delete a branch.
+  of the primary flow, `done`, or anything else. Within an explicit `all` run,
+  the **main session** may push an issue's own branch (plain push, never any
+  other ref) and open PRs for the whole batch after **one** confirmation listing
+  them; workers and reviewers never push. **Never force-push.** Never delete a
+  remote branch; local deletion is only the safe `git branch -d` of a merged
+  branch by `sweep-worktrees`.
+- **Merging a PR happens only in `all --auto-merge`**, by the main session, under
+  the conditions in `reference/batch.md` (review `PASS` on the exact head commit,
+  required checks green, `CLEAN`, no overlap, no admin bypass). Without that
+  flag, never merge.
 - **Worktree removal** (`done` cleanup, `worktree prune`) never uses
   `git worktree remove --force` and never `git branch -D`. A worktree with
   uncommitted changes is left alone and reported, not removed.
 - The only YouTrack writes are: the pickup state change + comment, the plan
-  comment, an optional one-line completion comment, and the explicit
+  comment, an optional one-line completion comment, in `all` the worker-plan,
+  question (`BLOCKED` / `ESCALATE`), status and per-issue completion comments
+  written by the main session, and the explicit
   `new` (create + its Type / Priority / Assignee fields) / `comment` / `log` /
   `pr` / `link` / `testing` / `done` sub-commands.
 - **Language** — git artifacts are always English, YouTrack-side text always
@@ -143,6 +153,10 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
 | `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
 | `worktree_link` | `[".env"]` — paths symlinked from the main checkout into a new worktree |
+| `batch_query` | `for: me #Unresolved State: Open sort by: updated desc` — candidates for `all` when no IDs are given |
+| `batch_max_parallel` | `3` — parallel workers for `all` |
+| `batch_skip_tags` | `["manual"]` — issues with one of these tags are never worked on by `all` |
+| `batch_review_rounds` | `2` — max worker-fix / re-review rounds per issue in `all` |
 | `[type_prefix]` table | see `reference/branching.md` |
 
 ## Dispatch on the first argument
@@ -158,6 +172,7 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `testing` | move the issue to `testing_state` — see "state sub-commands" |
 | `done` | move the issue to `done_state` — see "state sub-commands" |
 | `worktree` | `list` / `prune` / `take` / `remove` this plugin's worktrees — see "worktree" below |
+| `all` | work through several issues in parallel with independent review — see "all" below |
 
 For `comment` / `log` / `pr` / `link` / `testing` / `done`, resolve the issue ID
 from an explicit leading `ISSUE-ID` argument if given, else extract `[A-Z]+-\d+`
@@ -567,6 +582,43 @@ Does not push and does not change state.
   / `SWITCHED` / any `NOTE`.
 - **`remove <ISSUE-ID>`** — just drop the worktree, don't switch:
   `scripts/worktree-detach --id <ID>`. Same safety; the branch survives.
+
+## all
+
+```
+/youtrack-task all [ID ...] [--max N] [--no-review] [--dry-run] [--auto-merge]
+```
+
+Work through several issues in one run. The contract — triage rules, briefings,
+the review loop, PR and merge conditions — is `reference/batch.md`; follow it,
+don't improvise. Needs the plugin's `ticket-worker` and `ticket-reviewer` agents
+(without subagent support, see the fallback in `batch.md`).
+
+- `ID ...` — explicit issues; without them `batch_query` picks the candidates.
+- `--max N` — parallel workers (default `batch_max_parallel`).
+- `--no-review` — skip the independent reviewer.
+- `--dry-run` — triage table only; no workspace, no write.
+- `--auto-merge` — the run may merge the PRs it opened, when review is `PASS`,
+  required checks are green and the PR is mergeable. Off by default; never
+  implied by anything else.
+
+Flow, in short:
+
+1. **Triage** (read-only): classify issues *ready* / *needs-human* / *blocked*,
+   print one table, ask **one** confirmation (it names whether auto-merge is on).
+2. **Setup**, serial: `setup-workspace --mode worktree` + pickup write-back.
+3. **Work**, parallel and in the background: one `ticket-worker` per issue.
+4. **Review**: a fresh `ticket-reviewer` per issue that sees only the issue and
+   the diff, never the worker's report; up to `batch_review_rounds` fix rounds.
+5. **Report** with overlap warnings; completion comments to YouTrack.
+6. **PRs** after one confirmation for the whole list (the main session pushes
+   each reviewed branch).
+7. **Merge** only with `--auto-merge`.
+
+Only the main session writes to YouTrack, pushes and merges; workers commit
+locally. Issues tagged with one of
+`batch_skip_tags`, or that look like server / network / secret / data-store work,
+are never run unattended.
 
 ## Notes
 

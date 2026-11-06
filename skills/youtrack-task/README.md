@@ -63,9 +63,10 @@ back to plain in-place git (no worktrees). Nothing else changes.
 
 ## Safety
 
-The skill never commits to the default branch, never force-pushes, never merges,
-never deletes a branch with `-D`, never uses `--no-verify`, and pushes only in the
-explicit `pr` sub-command after a confirmation. The full list is in the
+The skill never commits to the default branch, never force-pushes, never deletes
+a branch with `-D`, never uses `--no-verify`, pushes only in the explicit `pr`
+sub-command (or, for reviewed issues, in `all`) after a confirmation, and merges
+only under the opt-in `all --auto-merge`. The full list is in the
 *Guardrails* section of `SKILL.md`.
 
 ## License
