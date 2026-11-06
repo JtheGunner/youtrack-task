@@ -98,6 +98,23 @@ t 2 "quoted remote denied" "$wt" "git push 'origin' feat/X-1-demo" "cannot resol
 t 2 "quoted -C directory denied" "$repo" "git -C \"$wt\" push origin feat/X-1-demo" "cannot tell in which directory"
 t 2 "quoted cd target denied" "$repo" "cd \"$wt\" && git push" "cannot tell in which directory"
 t 2 "variable in the directory denied" "$repo" "cd \$WT && git push" "cannot tell in which directory"
+# round 3: matching / wildcard refspecs, spelling by SHA, escapes, unresolvable refs
+tip=$(git -C "$wt" rev-parse HEAD)
+t 2 "bare ':' (matching refspec) is gated like --all" "$repo" "git push origin :" "not the one that was reviewed"
+t 2 "wildcard refspec denied" "$repo" "git push origin refs/heads/*:refs/heads/*" "cannot resolve"
+t 2 "quoted wildcard refspec denied" "$repo" "git push origin 'refs/heads/*:refs/heads/*'" "cannot resolve"
+t 2 "backslash-escaped refspec denied" "$wt" "git push origin feat/X-1\\-demo:main" "cannot resolve"
+t 2 "brace expansion denied" "$wt" "git push origin feat/X-1-demo{,}:main" "cannot resolve"
+t 2 "tilde revision denied" "$wt" "git push origin HEAD~0:main" "cannot resolve"
+t 2 "issue tip pushed by raw SHA to another name" "$repo" "git push origin $tip:refs/heads/release" "not the one that was reviewed"
+t 2 "unresolvable refspec source denied, not skipped" "$wt" "git push origin no-such-ref:main" "cannot resolve the refspec source"
+t 2 "gh pr create --head of an issue branch that is not local" "$repo" "gh pr create --head feat/X-9-remote-only" "does not exist locally"
+t 0 "gh pr create --head of a non-issue branch that is not local passes" "$repo" "gh pr create --head some-remote-branch"
+t 0 "pushing main is not blocked by an issue branch sitting on the same commit" "$repo" "git push origin main"
+git -C "$repo" branch feat/X-7-fresh main
+t 0 "a fresh issue branch on main's tip does not block pushing main" "$repo" "git push origin main"
+git -C "$repo" branch -q -D feat/X-7-fresh
+
 t 0 "delete push passes" "$wt" "git push origin --delete feat/X-1-demo"
 t 0 "colon-delete passes" "$wt" "git push origin :feat/X-1-demo"
 t 0 "tags push passes" "$wt" "git push --tags"

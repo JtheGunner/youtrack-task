@@ -24,7 +24,9 @@
 # stamp script, a directory that is plainly not a git repo, a branch without an
 # issue ID) — fail open. What it cannot resolve in a push or `gh pr create --head`
 # (a quoted or $-expanded argument or directory) is denied instead, with a hint to
-# write it out. The real protection is server-side branch protection.
+# write it out. Residual gap: a raw SHA that is only an ancestor of an issue branch
+# (not any branch tip) is not recognised. The real protection is server-side branch
+# protection.
 set -uf
 
 command -v jq >/dev/null 2>&1 || exit 0
@@ -93,8 +95,38 @@ check_commit() {
   esac
 }
 
-# unresolvable <text>: still holds a quoted or expanded part we cannot follow.
-unresolvable() { case "$1" in *"$Q"* | *'$'* | *'`'*) return 0 ;; *) return 1 ;; esac; }
+# unresolvable <text>: still holds a quoted, escaped, expanded or wildcard part we
+# cannot follow (placeholder for a quote, $, `, \, {, *, ?, [, ~).
+unresolvable() {
+  case "$1" in
+    *"$Q"* | *'$'* | *'`'* | *'\'* | *'{'* | *'*'* | *'?'* | *'['* | *'~'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# check_all_issue_branches <dir>: every local issue branch is about to leave.
+check_all_issue_branches() {
+  local dir=$1 ref_sha ref_name
+  while IFS=' ' read -r ref_sha ref_name; do
+    [ -n "$ref_name" ] || continue
+    check_commit "$dir" "$ref_name" "$ref_sha"
+  done < <(git -C "$dir" for-each-ref --format='%(objectname) %(refname:short)' refs/heads 2>/dev/null)
+}
+
+# check_tip_aliases <dir> <sha>: the commit may be spelled by its SHA or by a ref
+# that hides the branch name. Every local issue branch whose tip is exactly this
+# commit is gated, unless a non-issue branch (main, develop, ...) sits on it too —
+# then it is not unreviewed issue work, and a fresh branch must not block pushing
+# its base.
+check_tip_aliases() {
+  local dir=$1 sha=$2 ref_sha ref_name issue_names="" shared=false
+  while IFS=' ' read -r ref_sha ref_name; do
+    [ "$ref_sha" = "$sha" ] || continue
+    if [ -n "$(issue_id "$ref_name")" ]; then issue_names="$issue_names $ref_name"; else shared=true; fi
+  done < <(git -C "$dir" for-each-ref --format='%(objectname) %(refname:short)' refs/heads 2>/dev/null)
+  $shared && return 0
+  for ref_name in $issue_names; do check_commit "$dir" "$ref_name" "$sha"; done
+}
 
 cwd_known=true
 while IFS= read -r seg; do
@@ -158,20 +190,21 @@ while IFS= read -r seg; do
     done
     $deleting && continue
     if $all_refs; then
-      # every local issue branch is about to be pushed
-      while IFS=' ' read -r ref_sha ref_name; do
-        [ -n "$ref_name" ] || continue
-        check_commit "$dir" "$ref_name" "$ref_sha"
-      done < <(git -C "$dir" for-each-ref --format='%(objectname) %(refname:short)' refs/heads 2>/dev/null)
+      check_all_issue_branches "$dir"
       continue
     fi
     if [ "${#positional[@]}" -le 1 ]; then
       $tags && continue
       [ -n "$current" ] && check_commit "$dir" "$current" "$head_sha"
+      check_tip_aliases "$dir" "$head_sha"
       continue
     fi
     for spec in "${positional[@]:1}"; do
       spec=${spec#+}
+      if [ "$spec" = : ]; then   # matching refspec: every branch that exists on both sides
+        check_all_issue_branches "$dir"
+        continue
+      fi
       case "$spec" in
         *:*) src=${spec%%:*}; dst=${spec#*:} ;;
         *)   src=$spec; dst=$spec ;;
@@ -182,7 +215,8 @@ while IFS= read -r seg; do
         sha=$head_sha
         src_name=$current
       else
-        sha=$(git -C "$dir" rev-parse --verify -q "$src^{commit}" 2>/dev/null) || continue
+        sha=$(git -C "$dir" rev-parse --verify -q "$src^{commit}" 2>/dev/null) \
+          || deny "cannot resolve the refspec source '$src' locally, so the hook cannot tell which commit leaves."
         src_name=${src#refs/heads/}
       fi
       [ "$dst" != HEAD ] || dst=$current
@@ -190,6 +224,7 @@ while IFS= read -r seg; do
       # branch, also came from it: an issue ID in either puts it under the gate
       check_commit "$dir" "$dst" "$sha"
       check_commit "$dir" "$src_name" "$sha"
+      check_tip_aliases "$dir" "$sha"
     done
     continue
   fi
@@ -203,7 +238,10 @@ while IFS= read -r seg; do
   head_branch=${head_branch#*:}
   [ -n "$head_branch" ] || head_branch=$current
   [ -n "$head_branch" ] || continue
-  sha=$(git -C "$dir" rev-parse --verify -q "refs/heads/$head_branch" 2>/dev/null) || continue
+  if ! sha=$(git -C "$dir" rev-parse --verify -q "refs/heads/$head_branch" 2>/dev/null); then
+    [ -z "$(issue_id "$head_branch")" ] || deny "the --head branch $head_branch does not exist locally, so the hook cannot tell which commit it holds. Check it out or fetch it first."
+    continue
+  fi
   check_commit "$dir" "$head_branch" "$sha"
 done <<EOF
 $segments

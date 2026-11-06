@@ -34,7 +34,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stamp, so the gate also holds for a plain push or `/ship`. It only reads the
   stamp; best effort, fails open without `jq`. It checks refspecs by source and
   destination, `--all` / `--mirror` / `--branches` per issue branch, and denies
-  pushes whose quoted or expanded arguments it cannot resolve. Covered by
+  pushes whose quoted, escaped, expanded or wildcard arguments it cannot
+  resolve, and gates the matching refspec `:` and a commit pushed by raw SHA when
+  it is an issue branch's tip. Covered by
   `tests/require-review.sh`.
 - `review-stamp` gained `check --sha <SHA>` (ask about one exact commit) and the
   `SKIPPED` verdict, the recorded waiver behind `pr --no-review`.

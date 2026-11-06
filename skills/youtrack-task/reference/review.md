@@ -117,7 +117,9 @@ with `review_gate_hook = "on"` in the config. In the main session it blocks
 
 - `git push` of an issue branch (a refspec counts by its destination **and** by its
   source branch, so `feat/PROJ-1-x:main` is gated too),
-- `git push --all` / `--branches` / `--mirror` (every local issue branch is checked),
+- `git push --all` / `--branches` / `--mirror` and the matching refspec `:` (every
+  local issue branch is checked); a commit pushed by raw SHA or through another
+  ref name is gated when an issue branch's tip is exactly that commit,
 - `gh pr create` for an issue branch,
 
 unless `review-stamp check --sha <the pushed commit or the PR's branch tip>`
@@ -127,9 +129,12 @@ other branches, deletions, pure `--tags` pushes, `review_before_pr = never`, and
 subagent calls (those belong to `hooks/guard-subagent`). Like that hook it is best
 effort; server-side branch protection stays the real boundary. It fails open on
 environment gaps (no `jq`, a directory that is not a git repo) but **denies** what
-it cannot follow: a push with a quoted or `$`-expanded remote / refspec, a quoted
-`--head`, or a quoted / expanded directory (`cd "$dir"`, `git -C "$dir"`). Write
-those out unquoted. Quotes inside `gh pr create --title "..."` are fine. The hook only reads the stamp, it contains
+it cannot follow: a push with a quoted, escaped, `$`- / brace- / wildcard- /
+tilde-expanded remote or refspec, a refspec source that does not resolve locally,
+a `--head` of an issue branch that is not a local branch, or a quoted / expanded
+directory (`cd "$dir"`, `git -C "$dir"`). Write those out plainly. Residual gap: a
+raw SHA that is only an *ancestor* of an issue branch (not any branch tip) is not
+recognised. Quotes inside `gh pr create --title "..."` are fine. The hook only reads the stamp, it contains
 no review logic. A deny message names the next step (`/youtrack-task pr`, or
 `pr --no-review` to waive).
 
