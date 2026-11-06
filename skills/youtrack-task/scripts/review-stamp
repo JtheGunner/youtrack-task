@@ -4,32 +4,36 @@
 # directory (shared by all worktrees, never pushed, not in the working tree).
 #
 # Usage:
-#   review-stamp write --id ISSUE-1 --sha <SHA> --verdict PASS|FAILED \
+#   review-stamp write --id ISSUE-1 --sha <SHA> --verdict PASS|FAILED|SKIPPED \
 #                      --independent yes|no [--round N] [--dir <path>]
-#   review-stamp check --id ISSUE-1 [--dir <path>]
+#   review-stamp check --id ISSUE-1 [--dir <path>] [--sha <SHA>]
 #
 # `write` refuses unless <SHA> is the HEAD of --dir (default: cwd) and the tree
-# is clean. `check` always exits 0 on a valid call; read REVIEW=.
+# is clean. SKIPPED is the recorded waiver of a user-confirmed `--no-review`; it
+# requires --independent no. `check` always exits 0 on a valid call; read REVIEW=.
+# `check --sha` asks about that exact commit (a branch tip, a pushed SHA) instead
+# of HEAD and ignores the working tree, which a push does not carry.
 #
 # Output (KEY=VALUE):
 #   write: WROTE=<ID> SHA= VERDICT= INDEPENDENT= ROUND=
-#   check: REVIEW=PASS|STALE|MISSING|FAILED
+#   check: REVIEW=PASS|STALE|MISSING|FAILED|SKIPPED
 #          SHA=<stamped sha> HEAD=<current sha> INDEPENDENT=yes|no ROUND=<n>
 #          NOTE=<text>   0+ advisory lines (for example: dirty tree)
 #   ERROR=<reason> (exit 2)
 #
 # REVIEW values: PASS = stamped PASS, same HEAD, clean tree. FAILED = stamped
 # FAILED on the current HEAD. STALE = HEAD moved or the tree is dirty since the
-# stamp. MISSING = no stamp for this issue.
+# stamp. MISSING = no stamp for this issue. SKIPPED = a waiver was recorded for
+# this commit (same rules as PASS: that commit, and with HEAD a clean tree).
 set -uo pipefail
 die() { echo "ERROR=$*"; exit 2; }
 
 cmd=${1:-}; [ $# -gt 0 ] && shift
-ID= SHA= VERDICT= INDEP= ROUND=0 DIR=.
+ID= SHA= VERDICT= INDEP= ROUND=0 DIR=. SHA_SET=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --id)          [ $# -ge 2 ] || die "need --id"; ID=$2; shift 2 ;;
-    --sha)         [ $# -ge 2 ] || die "need --sha"; SHA=$2; shift 2 ;;
+    --sha)         [ $# -ge 2 ] || die "need --sha"; SHA=$2; SHA_SET=true; shift 2 ;;
     --verdict)     [ $# -ge 2 ] || die "need --verdict"; VERDICT=$2; shift 2 ;;
     --independent) [ $# -ge 2 ] || die "need --independent"; INDEP=$2; shift 2 ;;
     --round)       [ $# -ge 2 ] || die "need --round"; ROUND=$2; shift 2 ;;
@@ -51,8 +55,9 @@ head=$(git -C "$DIR" rev-parse HEAD 2>/dev/null) || die "no-commits"
 dirty=$(git -C "$DIR" status --porcelain 2>/dev/null)
 
 if [ "$cmd" = write ]; then
-  case "$VERDICT" in PASS|FAILED) ;; *) die "bad-verdict: ${VERDICT:-<none>}" ;; esac
+  case "$VERDICT" in PASS|FAILED|SKIPPED) ;; *) die "bad-verdict: ${VERDICT:-<none>}" ;; esac
   case "$INDEP" in yes|no) ;; *) die "bad-independent: ${INDEP:-<none>}" ;; esac
+  [ "$VERDICT" != SKIPPED ] || [ "$INDEP" = no ] || die "bad-independent: a SKIPPED waiver is never independent"
   [ "$SHA" = "$head" ] || die "sha-not-head: HEAD is $head"
   [ -z "$dirty" ] || die "dirty: commit or stash changes before stamping"
   mkdir -p "$stampdir" || die "cannot-create: $stampdir"
@@ -80,7 +85,7 @@ if [ ! -f "$stamp" ]; then
 fi
 field() { sed -n "s/^$1=\\(.*\\)\$/\\1/p" "$stamp" | head -1; }
 s_sha=$(field SHA); s_verdict=$(field VERDICT); s_indep=$(field INDEPENDENT); s_round=$(field ROUND)
-if ! [[ "$s_sha" =~ ^[0-9a-f]{40,64}$ ]] || ! [[ "$s_verdict" =~ ^(PASS|FAILED)$ ]] \
+if ! [[ "$s_sha" =~ ^[0-9a-f]{40,64}$ ]] || ! [[ "$s_verdict" =~ ^(PASS|FAILED|SKIPPED)$ ]] \
    || ! [[ "$s_indep" =~ ^(yes|no)$ ]]; then
   echo "REVIEW=MISSING"
   echo "HEAD=$head"
@@ -88,15 +93,23 @@ if ! [[ "$s_sha" =~ ^[0-9a-f]{40,64}$ ]] || ! [[ "$s_verdict" =~ ^(PASS|FAILED)$
   exit 0
 fi
 
-if [ "$s_sha" != "$head" ]; then
+if $SHA_SET; then
+  [[ "$SHA" =~ ^[0-9a-f]{40,64}$ ]] || die "bad-sha: $SHA"
+  target=$SHA
+  check_tree=false
+else
+  target=$head
+  check_tree=true
+fi
+if [ "$s_sha" != "$target" ]; then
   result=STALE
 elif [ "$s_verdict" = FAILED ]; then
   result=FAILED
-elif [ -n "$dirty" ]; then
+elif $check_tree && [ -n "$dirty" ]; then
   result=STALE
   note="working tree is dirty since the stamp"
 else
-  result=PASS
+  result=$s_verdict
 fi
 echo "REVIEW=$result"
 echo "SHA=$s_sha"

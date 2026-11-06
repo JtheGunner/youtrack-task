@@ -75,9 +75,21 @@ scripts/review-stamp check --id <ID> --dir <dir>
 | `STALE` | HEAD moved or tree dirty since the stamp | run the gate again |
 | `MISSING` | never reviewed (or unreadable stamp) | run the gate |
 | `FAILED` | reviewed, still failing on this HEAD | stop, show the findings, no push |
+| `SKIPPED` | the user waived the review for this commit (`pr --no-review`) | proceed, labelled `Review: skipped` |
 
 `INDEPENDENT=` tells whether the review ran in a subagent. Only `yes` satisfies
-`all --auto-merge`.
+`all --auto-merge`; a `SKIPPED` waiver never does.
+
+`check --sha <SHA>` asks about one exact commit (a branch tip, a pushed SHA)
+instead of HEAD and ignores the working tree; the push hook below uses it.
+
+## Waiver
+
+`pr --no-review` is the one deliberate way past the gate. After the user confirms
+the risk, record it so the choice is visible and the push hook lets the push
+through: `scripts/review-stamp write --id <ID> --sha <HEAD> --verdict SKIPPED
+--independent no --dir <dir>` (needs a clean tree, like any stamp). The waiver
+belongs to that commit; a later commit is `STALE` again.
 
 ## Without subagent support
 
@@ -93,9 +105,28 @@ confirmation to proceed, and `all --auto-merge` stays disabled.
 - `write` refuses unless `--sha` is the HEAD of `--dir` and the tree is clean.
   It validates the ID (`^[A-Z][A-Z0-9_]*-[0-9]+$`), verdict and independence flag.
 - `check` reports; it never changes anything. An unreadable stamp is `MISSING`.
+- Verdicts: `PASS`, `FAILED`, `SKIPPED` (waiver, always `--independent no`).
 - It is a workflow guard, not a security boundary: anyone with shell access can edit
   it. Branch protection on the server is the real boundary.
 - Change this file and the script together.
+
+## Enforcement hook (optional)
+
+`hooks/require-review` makes the gate harness-enforced. Off by default; enable
+with `review_gate_hook = "on"` in the config. In the main session it blocks
+
+- `git push` (any remote, any refspec) of an issue branch and
+- `gh pr create` for an issue branch
+
+unless `review-stamp check --sha <the pushed commit or the PR's branch tip>`
+says `PASS` or `SKIPPED`. An issue branch is one whose name contains an issue ID.
+It also covers a plain `git push` and the user's own `/ship`. Passes untouched:
+other branches, deletions, tag pushes, `review_before_pr = never`, and subagent
+calls (those belong to `hooks/guard-subagent`). Like that hook it is best effort
+and fails open (no `jq`, unresolvable command or repo); server-side branch
+protection stays the real boundary. The hook only reads the stamp, it contains
+no review logic. A deny message names the next step (`/youtrack-task pr`, or
+`pr --no-review` to waive).
 
 ## Language
 

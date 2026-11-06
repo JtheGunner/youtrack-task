@@ -44,8 +44,8 @@ No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP s
 - `git` on your `PATH`.
 - The [`gh` CLI](https://cli.github.com/) on your `PATH` if you want to use
   `/youtrack-task pr`. Not needed for anything else.
-- *(optional)* `jq` on your `PATH` — used by the plugin hook that stops
-  `create_issue` calls without an assignee (it does nothing if `jq` is missing).
+- *(optional)* `jq` on your `PATH` — used by the plugin hooks (assignee check,
+  `all` agent guard, optional review enforcement); they do nothing if `jq` is missing.
 - *(optional)* the [`superpowers`](https://github.com/obra/superpowers) plugin —
   when present, planning and implementation run through its skills. Everything
   works without it.
@@ -91,7 +91,7 @@ Only if your workflow differs from the defaults. Copy
 [`config.example.toml`](./config.example.toml) to
 `~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
 names, a different issue-list query, branch-prefix mapping, where the plan copy
-goes, the `use_superpowers` / `review_before_pr` / `review_rounds` toggles, or the worktree
+goes, the `use_superpowers` / `review_before_pr` / `review_rounds` / `review_gate_hook` toggles, or the worktree
 settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`), or the
 `all` batch settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`;
 `batch_review_rounds` still works as an alias of `review_rounds`).
@@ -283,6 +283,15 @@ One command instead of briefing the agent by hand:
 > agents (no pushes or merges, no network tools; read-only reviewer). It needs
 > `jq` and is a best-effort layer on top of the agents' instructions.
 
+> [!TIP]
+> Want the review gate enforced rather than just instructed? Set
+> `review_gate_hook = "on"` in your config. The plugin's `require-review` hook then
+> blocks `git push` and `gh pr create` for an issue branch (a branch whose name
+> carries an issue ID) unless that exact commit has a review stamp — also when you
+> run them by hand or through `/ship`. `/youtrack-task pr --no-review` records a
+> waiver and lets the push through. Default is `off`; it needs `jq` and is best
+> effort (server-side branch protection is the real safety net).
+
 ### During and after the work
 
 ```
@@ -383,6 +392,7 @@ Build the upload ZIP yourself with `tools/package-agensi` (output:
 | `pr` refuses with `FAILED` / asks for a review                       | The review gate is mandatory before a push: the stamped `PASS` must match the current HEAD, so any commit after the review (or uncommitted changes) makes it `STALE` and `pr` reviews again. Open findings (`FAILED`) must be fixed first. To push without a review on purpose use `--no-review`; the PR is then labelled *Review: skipped*. |
 | `all` says no issue is ready                                         | Every candidate failed triage; the table names the reason per issue (tag in `batch_skip_tags`, no acceptance criteria, open questions, architectural size, unresolved dependency). Fix the issue, drop the tag, or run `/youtrack-task <ID>` interactively. |
 | A worker reports `BLOCKED` / `ESCALATE`                              | It hit ambiguity or architectural scope and stopped on purpose; its question is posted on the issue. Answer it and re-run `all <ID>` (the existing worktree is resumed), or take the issue interactively. |
+| A push or `gh pr create` is blocked with "Blocked by the youtrack-task review gate" | `review_gate_hook = "on"` is set and the exact commit has no review stamp. Run `/youtrack-task pr` (it reviews, then pushes), or waive on purpose with `/youtrack-task pr --no-review`, or set `review_gate_hook = "off"`. |
 | A worker command is rejected by the hook                             | Working as intended: workers never push or merge and use no network tools; the main session pushes after review. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
 | `all` unavailable when installed as a skill only (e.g. the marketplace ZIP) | The `ticket-worker` / `ticket-reviewer` agents and the guard hook ship with the **plugin**. Without them `all` falls back to sequential work in the main session with a weaker, same-session review. |
 | New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |

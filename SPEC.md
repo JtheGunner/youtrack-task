@@ -34,7 +34,8 @@ youtrack-task/
 ├── hooks/
 │   ├── hooks.json           # PreToolUse: YouTrack `create_issue`; Bash from `all` subagents
 │   ├── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
-│   └── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only)
+│   ├── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only)
+│   └── require-review       # opt-in (review_gate_hook): no push / gh pr create of an issue branch without a review stamp
 ├── agents/
 │   ├── ticket-worker.md     # `all`: implements one issue in its worktree, headless
 │   └── ticket-reviewer.md   # review gate: read-only, independent review of one branch
@@ -236,7 +237,14 @@ issue, its requirements, the checkout path, the base and the SHA — never the
 implementer's report. `PASS` is stamped on that exact SHA in
 `<git-common-dir>/youtrack-task/reviews/<ID>` (local, shared by worktrees, never
 pushed). `--no-review` / `review_before_pr = never` are the only ways to push
-without it, and the PR is then labelled `Review: skipped`.
+without it; `pr` records a `SKIPPED` waiver stamp and the PR is labelled
+`Review: skipped`.
+
+Optional enforcement (`review_gate_hook = "on"`, default off):
+`hooks/require-review` blocks `git push` and `gh pr create` of an issue branch in
+the main session unless `review-stamp check --sha <exact commit>` is `PASS` or
+`SKIPPED`. It contains no review logic, fails open, and leaves branches without an
+issue ID, deletions, tag pushes and subagent calls alone.
 
 ### Worktrees (parallel tasks)
 
@@ -416,6 +424,7 @@ the user.
 # use_superpowers   = "auto"          # auto | always | never
 # review_before_pr  = "always"        # always ("auto" is a synonym) | never
 # review_rounds     = 2               # fix + re-review rounds per issue (review gate and `all`)
+# review_gate_hook  = "off"           # on: hooks/require-review blocks unreviewed pushes / PRs
 # worktree          = "auto"          # auto (checkout busy) | off | always
 # worktree_dir      = ".worktrees"    # gitignored dir under the repo root
 # worktree_clone    = ["node_modules", "vendor"]   # CoW-copied (isolated)

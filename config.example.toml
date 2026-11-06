@@ -39,6 +39,14 @@
 # review_before_pr = "always"
 # review_rounds    = 2   # max fix / re-review rounds per issue (alias: batch_review_rounds)
 
+# Enforce the review gate with a hook: in the main session, block `git push` and
+# `gh pr create` of an issue branch (name contains an issue ID) unless the exact
+# commit has a review stamp (PASS, or a recorded `pr --no-review` waiver).
+# Best effort; server-side branch protection stays the real boundary.
+#   off -> default; the gate is enforced by the skill's instructions only
+#   on  -> hooks/require-review blocks unreviewed pushes and PRs (needs jq)
+# review_gate_hook = "off"
+
 # Isolate each pickup in its own git worktree (for working several tasks in
 # parallel). See reference/worktrees.md.
 #   auto   -> worktree when the checkout is dirty, on a non-default branch, or a

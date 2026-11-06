@@ -62,7 +62,8 @@ specific action:
   (`pr`, and `all` step 6) the review gate in `reference/review.md` must have
   stamped `PASS` on the exact HEAD. The only exceptions are the explicit
   `--no-review` / `review_before_pr = never` paths, which are labelled
-  *skipped* in the PR and on the issue.
+  *skipped* in the PR and on the issue. With `review_gate_hook = "on"` the plugin
+  hook `hooks/require-review` enforces this for pushes and `gh pr create`.
 - **Merging a PR happens only in `all --auto-merge`**, by the main session, under
   the conditions in `reference/batch.md` (review `PASS` on the exact head commit,
   required checks green, `CLEAN`, no overlap, no admin bypass). Without that
@@ -160,6 +161,7 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `default_new_type` | *(unset)* — fallback Type for `new` when inference is uncertain |
 | `use_superpowers` | `auto` — `auto` \| `always` \| `never` (see `reference/superpowers.md`) |
 | `review_before_pr` | `always` — `always` (every task with commits is reviewed before push/PR; `auto` is accepted as a synonym) \| `never` (see `reference/review.md`) |
+| `review_gate_hook` | `off` — `on` makes `hooks/require-review` block a push / `gh pr create` of an issue branch without a review stamp (see `reference/review.md`) |
 | `review_rounds` | `2` — max fix / re-review rounds per issue in the review gate (`batch_review_rounds` is accepted as an alias) |
 | `worktree` | `auto` — `auto` (worktree when the checkout is dirty, on a non-default branch, or a plugin worktree already exists; parallel work wants `always`) \| `off` \| `always` |
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
@@ -547,8 +549,11 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
    - `--no-review` and `review_before_pr = never` are the only ways past the gate.
      With the flag, ask for explicit confirmation naming the risk (*"this branch
      has no independent review"*); with the standing config no extra question is
-     needed. Either way add the line `Review: skipped (not independently reviewed)`
-     to the PR body and to the YouTrack PR comment. Never skip silently.
+     needed. Either way record the waiver (`review-stamp write --verdict SKIPPED
+     --independent no`, see `reference/review.md`), and add the line `Review:
+     skipped (not independently reviewed)` to the PR body and to the YouTrack PR
+     comment. Never skip silently. A `SKIPPED` stamp already on this commit counts
+     as that confirmation.
 3. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`, then
    **ask for confirmation** before pushing.
 4. `git push -u origin <branch>` (plain push; never `--force`).

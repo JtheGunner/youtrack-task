@@ -28,6 +28,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   alias. `--review` is accepted and does nothing.
 - Issues without acceptance criteria are reviewed against their goal and the
   plan items the user approved.
+- **Optional enforcement hook** `hooks/require-review` (`review_gate_hook = "on"`,
+  default `off`): in the main session it blocks `git push` and `gh pr create` of
+  an issue branch unless the exact commit has a `PASS` (or a recorded waiver)
+  stamp, so the gate also holds for a plain push or `/ship`. It only reads the
+  stamp; best effort, fails open without `jq`. Covered by
+  `tests/require-review.sh`.
+- `review-stamp` gained `check --sha <SHA>` (ask about one exact commit) and the
+  `SKIPPED` verdict, the recorded waiver behind `pr --no-review`.
 
 ## 0.13.0 — 2026-11-06
 

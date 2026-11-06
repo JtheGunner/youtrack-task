@@ -73,6 +73,28 @@ run "$repo" check;                                  expect "refuse missing id"  
 run "$repo" frobnicate --id X-1;                    expect "refuse unknown command"       2 "ERROR=unknown-command"
 run "$tmp" check --id X-1;                          expect "refuse outside a repo"        2 "ERROR=not-in-git-repo"
 
+# --sha: ask about an exact commit, ignoring HEAD and the working tree
+old=$(git -C "$repo" rev-parse HEAD)
+run "$repo" write --id X-1 --sha "$old" --verdict PASS --independent yes
+git -C "$repo" commit -q --allow-empty -m "fix: third"
+run "$repo" check --id X-1 --sha "$old";            expect "check --sha on the stamped commit -> PASS" 0 "REVIEW=PASS"
+run "$repo" check --id X-1 --sha "$(git -C "$repo" rev-parse HEAD)"
+expect "check --sha on another commit -> STALE"      0 "REVIEW=STALE"
+echo x > "$repo/file"
+run "$repo" check --id X-1 --sha "$old";            expect "check --sha ignores a dirty tree" 0 "REVIEW=PASS"
+rm "$repo/file"
+run "$repo" check --id X-1 --sha nonsense;          expect "refuse malformed --sha"       2 "ERROR=bad-sha"
+
+# SKIPPED waiver: bound to its commit, never independent
+sha=$(git -C "$repo" rev-parse HEAD)
+run "$repo" write --id X-1 --sha "$sha" --verdict SKIPPED --independent yes
+expect "refuse an independent SKIPPED waiver"        2 "ERROR=bad-independent"
+run "$repo" write --id X-1 --sha "$sha" --verdict SKIPPED --independent no
+expect "write SKIPPED waiver"                        0 "WROTE=X-1"
+run "$repo" check --id X-1;                         expect "check -> SKIPPED"             0 "REVIEW=SKIPPED"
+git -C "$repo" commit -q --allow-empty -m "fix: fourth"
+run "$repo" check --id X-1;                         expect "waiver is stale after a commit" 0 "REVIEW=STALE"
+
 # the stamp lives inside the git dir, never in the working tree
 git -C "$repo" status --porcelain | grep -q . && { echo "FAIL stamp leaked into working tree"; fail=1; } || echo "ok   working tree untouched"
 

@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# PreToolUse hook (Bash): no push and no PR of an issue branch without a review.
+#
+# Opt-in: acts only when config `review_gate_hook = "on"` (default "off") and
+# `review_before_pr` is not "never". It makes the review gate of
+# skills/youtrack-task/reference/review.md harness-enforced, so it also covers a
+# plain `git push` or the user's own /ship. It re-implements no review logic: it
+# only asks `scripts/review-stamp check`.
+#
+# Checked commands (main session only; ticket-worker / ticket-reviewer are
+# handled by hooks/guard-subagent):
+#   git [-C dir] push [remote] [refspec ...]   -> the pushed commit of each issue branch
+#   gh pr create [--head branch]               -> the tip of the PR's head branch
+# An "issue branch" is one whose name carries an issue ID (`feat/PROJ-12-slug`);
+# every other push passes untouched, as do deletions and tag pushes.
+# Allowed when the stamp for that exact commit is PASS or SKIPPED (a recorded,
+# user-confirmed `--no-review` waiver). Otherwise exit 2 with the next step.
+#
+# Best effort, like guard-subagent: quoted text is masked before parsing, paths
+# with spaces and exotic shell constructs are not followed. Anything it cannot
+# resolve (no repo, no issue ID, no jq, no stamp script) passes — fail open. The
+# real protection is server-side branch protection.
+set -uf
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+input=$(cat)
+agent=$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null) || exit 0
+[ -z "$agent" ] || exit 0
+cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null) || exit 0
+[ -n "$cmd" ] || exit 0
+[ -n "$cwd" ] || cwd=$PWD
+
+case "$cmd" in *git*push* | *gh*pr*create*) ;; *) exit 0 ;; esac
+
+# --- config ------------------------------------------------------------------
+cfg_file="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
+cfg() { # cfg <key> <default>
+  local v=""
+  [ -f "$cfg_file" ] && v=$(sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"?([A-Za-z0-9_-]+)\"?.*/\\1/p" "$cfg_file" | head -1)
+  printf '%s' "${v:-$2}"
+}
+[ "$(cfg review_gate_hook off)" = on ] || exit 0
+[ "$(cfg review_before_pr always)" != never ] || exit 0
+
+stamp_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-task/scripts/review-stamp"
+[ -x "$stamp_script" ] || exit 0
+
+# --- find the pushing / PR-creating segments ----------------------------------
+# Remove quoted strings (data, not commands), then split on shell separators.
+masked=$(printf '%s' "$cmd" | sed -E "s/\"([^\"\\\\]|\\\\.)*\"//g; s/'[^']*'//g")
+segments=$(printf '%s' "$masked" | tr ';&|()\n' '\n\n\n\n\n\n')
+
+deny() {
+  {
+    printf 'Blocked by the youtrack-task review gate: %s\n\n' "$1"
+    cat <<'MSG'
+Run the review gate first (skills/youtrack-task/reference/review.md): a fresh
+ticket-reviewer must PASS this exact commit. /youtrack-task pr does that and
+then pushes. To push without a review on purpose, run /youtrack-task pr
+--no-review (it records a waiver and labels the PR "Review: skipped"). To turn
+this hook off, set review_gate_hook = "off" in the youtrack-task config.
+MSG
+  } >&2
+  exit 2
+}
+
+issue_id() { printf '%s' "$1" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | head -1; }
+
+# check_commit <dir> <branch> <sha>: deny unless the stamp covers that commit.
+check_commit() {
+  local dir=$1 branch=$2 sha=$3 id out result
+  id=$(issue_id "$branch")
+  [ -n "$id" ] || return 0
+  out=$(bash "$stamp_script" check --id "$id" --dir "$dir" --sha "$sha" 2>/dev/null) || return 0
+  result=$(printf '%s\n' "$out" | sed -n 's/^REVIEW=//p' | head -1)
+  case "$result" in
+    PASS | SKIPPED) return 0 ;;
+    FAILED) deny "the last review of $id ($branch) ended with open findings on $sha." ;;
+    STALE) deny "$id ($branch): commit $sha is not the one that was reviewed (the branch moved on since the stamp)." ;;
+    MISSING) deny "$id ($branch) has no review for commit $sha." ;;
+    *) return 0 ;;
+  esac
+}
+
+while IFS= read -r seg; do
+  # leading VAR=value assignments
+  seg=$(printf '%s' "$seg" | sed -E 's/^[[:space:]]+//; s/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//')
+  [ -n "$seg" ] || continue
+
+  # directory the segment runs in: `git -C dir`, else the hook's cwd; a preceding
+  # `cd dir` segment moves it (relative to cwd).
+  case "$seg" in
+    cd\ *) t=${seg#cd }; t=${t%% *}; t=${t#\~/}; case "$t" in /*) cwd=$t ;; *) cwd="$cwd/$t" ;; esac; continue ;;
+  esac
+
+  dir=$cwd
+  if [[ "$seg" =~ ^git[[:space:]]+-C[[:space:]]+([^[:space:]]+) ]]; then
+    dir=${BASH_REMATCH[1]}
+    case "$dir" in /*) ;; *) dir="$cwd/$dir" ;; esac
+  fi
+  git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
+
+  # ---- git push ----
+  if [[ "$seg" =~ ^git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--[a-z-]+=[^[:space:]]+))*[[:space:]]+push([[:space:]]|$) ]]; then
+    rest=${seg#*push}
+    positional=() deleting=false tags=false
+    for w in $rest; do
+      case "$w" in
+        --delete | -d) deleting=true ;;
+        --tags | --mirror) tags=true ;;
+        -*) ;;
+        *) positional+=("$w") ;;
+      esac
+    done
+    $deleting && continue
+    current=$(git -C "$dir" branch --show-current 2>/dev/null)
+    head_sha=$(git -C "$dir" rev-parse HEAD 2>/dev/null) || continue
+    if [ "${#positional[@]}" -le 1 ]; then
+      $tags && continue
+      [ -n "$current" ] && check_commit "$dir" "$current" "$head_sha"
+      continue
+    fi
+    for spec in "${positional[@]:1}"; do
+      spec=${spec#+}
+      case "$spec" in
+        *:*) src=${spec%%:*}; dst=${spec#*:} ;;
+        *)   src=$spec; dst=$spec ;;
+      esac
+      [ -n "$src" ] || continue   # ":branch" deletes
+      dst=${dst#refs/heads/}
+      if [ "$src" = HEAD ]; then sha=$head_sha; else sha=$(git -C "$dir" rev-parse --verify -q "$src^{commit}" 2>/dev/null) || continue; fi
+      [ "$dst" != HEAD ] || dst=$current
+      check_commit "$dir" "$dst" "$sha"
+    done
+    continue
+  fi
+
+  # ---- gh pr create ----
+  if [[ "$seg" =~ ^gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]; then
+    head_branch=""
+    if [[ "$seg" =~ (--head|-H)[[:space:]=]+([^[:space:]]+) ]]; then head_branch=${BASH_REMATCH[2]}; fi
+    head_branch=${head_branch#*:}
+    [ -n "$head_branch" ] || head_branch=$(git -C "$dir" branch --show-current 2>/dev/null)
+    [ -n "$head_branch" ] || continue
+    sha=$(git -C "$dir" rev-parse --verify -q "refs/heads/$head_branch" 2>/dev/null) || continue
+    check_commit "$dir" "$head_branch" "$sha"
+  fi
+done <<EOF
+$segments
+EOF
+
+exit 0

@@ -1,5 +1,5 @@
 {
-  "description": "Guards direct YouTrack create_issue calls (an Assignee must always be set, text in the user's language) and confines the `all` sub-command's worker and reviewer subagents (issue-branch pushes only, no merges, read-only reviewer).",
+  "description": "Guards direct YouTrack create_issue calls (an Assignee must always be set, text in the user's language), confines the `all` sub-command's worker and reviewer subagents (no pushes or merges, read-only reviewer), and — only when review_gate_hook is on — blocks pushing or opening a PR for an issue branch without a review stamp.",
   "hooks": {
     "PreToolUse": [
       {
@@ -17,6 +17,10 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-subagent\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/require-review\""
           }
         ]
       }
