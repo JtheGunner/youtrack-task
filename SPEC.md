@@ -34,10 +34,11 @@ youtrack-task/
 ├── hooks/
 │   ├── hooks.json           # PreToolUse: YouTrack `create_issue`; Bash from `all` subagents
 │   ├── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
-│   └── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only)
+│   ├── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only)
+│   └── require-review       # opt-in (review_gate_hook): no push / gh pr create of an issue branch without a review stamp
 ├── agents/
 │   ├── ticket-worker.md     # `all`: implements one issue in its worktree, headless
-│   └── ticket-reviewer.md   # `all`: read-only, independent review of one branch
+│   └── ticket-reviewer.md   # review gate: read-only, independent review of one branch
 ├── skills/
 │   └── youtrack-task/
 │       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
@@ -46,13 +47,15 @@ youtrack-task/
 │       ├── scripts/
 │       │   ├── setup-workspace   # step 4: worktree-vs-in-place decision + create + bootstrap
 │       │   ├── sweep-worktrees   # pr / done / prune: remove finished worktrees safely
-│       │   └── worktree-detach   # worktree take|remove: free one issue's branch
+│       │   ├── worktree-detach   # worktree take|remove: free one issue's branch
+│       │   └── review-stamp      # review gate: write|check "PASS on this exact commit"
 │       └── reference/
 │           ├── branching.md      # branch-name + type→prefix rules
 │           ├── writeback.md      # state-transition + comment rules
 │           ├── issue-template.md # structure for `new` free-text generation
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
-│           ├── batch.md          # contract for `all`: triage, workers, review loop, PRs, merge
+│           ├── review.md         # the review gate: one procedure for primary flow, `pr` and `all` (+ review-stamp contract)
+│           ├── batch.md          # contract for `all`: triage, workers, scheduling the review gate, PRs, merge
 │           └── worktrees.md      # contract for the two scripts
 ├── tools/
 │   └── package-agensi       # builds dist/agensi/youtrack-task.zip (marketplace upload)
@@ -164,8 +167,9 @@ Primary:
 
 `--worktree` / `--no-worktree` force / skip an isolated git worktree (default
 `worktree` config = `auto`). `--checkpoints` runs an architectural plan's
-execution with review stops (`superpowers:executing-plans`). `--review` /
-`--no-review` force / skip the automatic code review in the implement step.
+execution with review stops (`superpowers:executing-plans`). `--no-review`
+skips the review gate for this run (`pr` then asks before pushing); `--review`
+is accepted and changes nothing.
 
 Sub-commands (same skill, dispatched on first arg). All ship in v1.
 
@@ -174,7 +178,7 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
                                         [--assignee LOGIN|EMAIL]   # both modes
 /youtrack-task comment <text>                           # add_issue_comment to the current branch's issue
 /youtrack-task log [ISSUE-ID] <duration> [description]  # log_work; issue inferred from branch if omitted
-/youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft]  # push + gh PR + link on issue + → Testing
+/youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft] [--no-review]  # review check + push + gh PR + link on issue + → Testing
 /youtrack-task link [ISSUE-ID] <pr-url>                 # attach an existing PR URL as a comment
 /youtrack-task testing [ISSUE-ID]                       # move state → Testing
 /youtrack-task done [ISSUE-ID]                          # move state → Done
@@ -199,8 +203,8 @@ their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
 
 Full contract: `skills/youtrack-task/reference/batch.md`. Triage (one
 confirmation) → serial setup (worktree + pickup write-back) → parallel
-`ticket-worker`s → a fresh `ticket-reviewer` per result that sees only the issue
-and the diff → report with overlap warnings → PRs after one confirmation listing
+`ticket-worker`s → the shared review gate per result (a fresh `ticket-reviewer`
+that sees only the issue and the diff) → report with overlap warnings → PRs after one confirmation listing
 them → merge **only** with `--auto-merge`.
 
 - Only the main session writes to YouTrack and merges (subagents cannot spawn
@@ -220,7 +224,32 @@ them → merge **only** with `--auto-merge`.
 - Subagents have no working-directory option and a `cd` does not persist between
   Bash calls, so workers prefix each command with `cd <worktree> &&`.
 - Without subagent support the flow degrades to sequential work in the main
-  session with a clean-context review pass.
+  session with a same-session (never independent) review.
+
+### Review gate (every flow)
+
+Full contract: `skills/youtrack-task/reference/review.md`; helper:
+`scripts/review-stamp`. One procedure, three callers: the primary flow's
+step 8 (`fixer = main-session`), `pr` (checks the stamp, runs the gate when it
+is `STALE` / `MISSING`, stops on `FAILED`) and `all` step 4
+(`fixer = ticket-worker`). A fresh `ticket-reviewer` per review gets only the
+issue, its requirements, the checkout path, the base and the SHA — never the
+implementer's report. `PASS` is stamped on that exact SHA in
+`<git-common-dir>/youtrack-task/reviews/<ID>` (local, shared by worktrees, never
+pushed). `--no-review` / `review_before_pr = never` are the only ways to push
+without it; `pr` records a `SKIPPED` waiver stamp and the PR is labelled
+`Review: skipped`.
+
+Optional enforcement (`review_gate_hook = "on"`, default off):
+`hooks/require-review` blocks `git push` and `gh pr create` of an issue branch in
+the main session unless `review-stamp check --sha <exact commit>` is `PASS` or
+`SKIPPED`. It contains no review logic and checks a refspec by destination and
+source, and `--all` / `--mirror` / `--branches` / `:` per local issue branch; a
+commit spelled by SHA is gated when an issue branch tip is exactly that commit
+(exempt only if it is already reachable from a remote-tracking ref). It
+fails open on environment gaps, denies pushes whose arguments it cannot resolve
+(quoted, escaped, expanded or wildcard refspecs, remotes, directories), and leaves branches without an issue
+ID, deletions, pure tag pushes and subagent calls alone.
 
 ### Worktrees (parallel tasks)
 
@@ -384,11 +413,13 @@ re-run. Never commit on the base branch. The script owns base resolution,
 Bound by the Guardrails. superpowers path (`reference/superpowers.md`):
 bounded → `test-driven-development` directly; architectural → execute the plan
 with `subagent-driven-development` (or `executing-plans` under `--checkpoints`),
-TDD per task, then automatic `requesting-code-review` against the acceptance
-criteria (`--no-review` skips, `--review` forces, config `review_before_pr`).
-Both paths → `verification-before-completion` on the acceptance criteria before
-the completion comment. No superpowers → the normal dev workflow + a manual
-verification pass. Never pushes / PRs / moves state — that's `pr` / the user.
+TDD per task. Both paths → `verification-before-completion` on the acceptance
+criteria, then the **review gate** (`reference/review.md`): a fresh
+`ticket-reviewer` subagent with a minimal briefing, result stamped on the exact
+commit by `scripts/review-stamp` (`--no-review` / `review_before_pr = never`
+skip it), then the completion comment. No superpowers → the normal dev workflow
++ a manual verification pass. Never pushes / PRs / moves state — that's `pr` /
+the user.
 
 ## Configuration file
 
@@ -396,7 +427,9 @@ verification pass. Never pushes / PRs / moves state — that's `pr` / the user.
 
 ```toml
 # use_superpowers   = "auto"          # auto | always | never
-# review_before_pr  = "auto"          # auto (architectural only) | always | never
+# review_before_pr  = "always"        # always ("auto" is a synonym) | never
+# review_rounds     = 2               # fix + re-review rounds per issue (review gate and `all`)
+# review_gate_hook  = "off"           # on: hooks/require-review blocks unreviewed pushes / PRs
 # worktree          = "auto"          # auto (checkout busy) | off | always
 # worktree_dir      = ".worktrees"    # gitignored dir under the repo root
 # worktree_clone    = ["node_modules", "vendor"]   # CoW-copied (isolated)
@@ -410,7 +443,7 @@ verification pass. Never pushes / PRs / moves state — that's `pr` / the user.
 # batch_query         = "for: me #Unresolved State: Open sort by: updated desc"  # `all` candidates
 # batch_max_parallel  = 3             # parallel workers in `all`
 # batch_skip_tags     = ["manual"]    # `all` never runs issues with these tags
-# batch_review_rounds = 2             # fix + re-review rounds per issue in `all`
+# batch_review_rounds = 2             # deprecated alias of review_rounds
 #
 # [type_prefix]
 # Bug = "fix"
@@ -461,6 +494,8 @@ plan is approved, but never crosses these without explicit per-action approval:
   the flow and is reported.
 - No writes to databases / seed data / fixtures / credentials — including for QA.
 - No servers/daemons started without asking.
+- No push or PR without a stamped review `PASS` on the exact HEAD (only the labelled
+  `--no-review` / `review_before_pr = never` paths bypass it).
 - Push + PR only in the explicit `pr` sub-command (or the user's own ship flow),
   after a confirmation prompt. Never as part of the primary flow or `done`. Never
   force-push, merge a PR, or delete a branch.

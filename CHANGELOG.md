@@ -4,6 +4,46 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.0 — 2026-11-06
+
+- **Agensi / non-Claude-Code agents:** documented that the review gate runs in its
+  weaker `independent=no` mode there, because agents and hooks are not part of
+  the skill folder.
+- **One review gate for every task.** The independent review that only `all`
+  had now applies to the primary flow and `pr` too. It is defined once in the new
+  `reference/review.md`: a fresh `ticket-reviewer` subagent per review with a
+  minimal briefing (issue, requirements, checkout path, base, SHA — never the
+  implementer's report), fix rounds, and a verdict bound to the exact commit.
+  `all` now just schedules this gate per issue instead of carrying its own copy.
+- **`scripts/review-stamp`** records and checks "PASS on this exact commit"
+  (`write` / `check`; `PASS`, `STALE`, `MISSING`, `FAILED`) in the git directory:
+  local, shared by worktrees, never pushed. Covered by `tests/review-stamp.sh`.
+- **`pr` checks the review** before offering a push: `PASS` proceeds, `STALE` /
+  `MISSING` runs the gate, `FAILED` stops. `--no-review` (new on `pr`) and
+  `review_before_pr = "never"` are the only ways past it and label the PR and the
+  issue comment `Review: skipped`.
+- **Behaviour change:** `review_before_pr` now defaults to `always` (it was `auto`,
+  review only on the architectural path). `auto` is accepted as a synonym of
+  `always`. The primary flow no longer uses `superpowers:requesting-code-review`;
+  its reviewer shared the implementer's context. Review findings are still applied
+  with `superpowers:receiving-code-review`.
+- **Config:** new `review_rounds` (default 2); `batch_review_rounds` stays as an
+  alias. `--review` is accepted and does nothing.
+- Issues without acceptance criteria are reviewed against their goal and the
+  plan items the user approved.
+- **Optional enforcement hook** `hooks/require-review` (`review_gate_hook = "on"`,
+  default `off`): in the main session it blocks `git push` and `gh pr create` of
+  an issue branch unless the exact commit has a `PASS` (or a recorded waiver)
+  stamp, so the gate also holds for a plain push or `/ship`. It only reads the
+  stamp; best effort, fails open without `jq`. It checks refspecs by source and
+  destination, `--all` / `--mirror` / `--branches` per issue branch, and denies
+  pushes whose quoted, escaped, expanded or wildcard arguments it cannot
+  resolve, and gates the matching refspec `:` and a commit pushed by raw SHA when
+  it is an issue branch's tip. Covered by
+  `tests/require-review.sh`.
+- `review-stamp` gained `check --sha <SHA>` (ask about one exact commit) and the
+  `SKIPPED` verdict, the recorded waiver behind `pr --no-review`.
+
 ## 0.13.0 — 2026-11-06
 
 - **`/youtrack-task all` — many issues, one command.** Triage the candidates

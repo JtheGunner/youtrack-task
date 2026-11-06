@@ -25,7 +25,7 @@ superpowers skill gets a clean, labelled input. Map them straight through:
 | Description section | Feeds |
 | --- | --- |
 | Summary + Context + Goal | the problem statement given to brainstorming / systematic-debugging |
-| Acceptance criteria | success criteria for brainstorming; the checklist for `verification-before-completion`; the criteria for `requesting-code-review` |
+| Acceptance criteria | success criteria for brainstorming; the checklist for `verification-before-completion`; the `requirements` handed to the review gate (`reference/review.md`) |
 | Scope (in / out) | the YAGNI boundary brainstorming must respect |
 | Technical notes | known constraints handed to brainstorming and to the implementer |
 | Open questions | brainstorming asks these back to the user as its clarifying questions |
@@ -69,25 +69,25 @@ Bound by the Guardrails. Path from step 6:
 ### bounded
 - Implement directly with `superpowers:test-driven-development` (write the failing
   test first; acceptance-criteria items become tests where feasible).
-- No plan-execution skill, no automatic code review.
+- No plan-execution skill. The review gate (below) still applies.
 
 ### architectural (a plan document exists)
 - Execute it with `superpowers:subagent-driven-development` in the current
   session. `--checkpoints` on the primary command switches to
   `superpowers:executing-plans` (stop for review after each phase).
 - Coding inside each task still goes through `superpowers:test-driven-development`.
-- After execution, run `superpowers:requesting-code-review` against the
-  acceptance criteria **automatically**. `--no-review` skips it; `--review`
-  forces it on the bounded path too. Config `review_before_pr` (`auto` default /
-  `always` / `never`) is the standing setting.
-- Address review feedback with `superpowers:receiving-code-review`.
 
 ### both paths, before finishing
 - `superpowers:verification-before-completion` using the issue's **Acceptance
   criteria** as the checklist — run the real verification commands, don't assert
   from memory.
+- **Review gate** (`reference/review.md`, `fixer = main-session`). This replaces
+  `superpowers:requesting-code-review`: that skill's reviewer shares this
+  session's context, the gate's `ticket-reviewer` does not. `--no-review` and
+  `review_before_pr = never` skip it. Findings are applied with
+  `superpowers:receiving-code-review`.
 - Then post the one-line completion comment (`reference/writeback.md`), list the
-  branch + files touched, and stop. Do **not** push, open a PR, or move the
+  branch + files touched + review result, and stop. Do **not** push, open a PR, or move the
   issue — `/youtrack-task pr` or the user's own ship flow is next.
 - Do not invoke `superpowers:finishing-a-development-branch`; integration is the
   `pr` sub-command's / the user's job.

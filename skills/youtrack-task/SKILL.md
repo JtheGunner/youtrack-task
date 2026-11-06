@@ -58,6 +58,12 @@ specific action:
   them; workers and reviewers never push. **Never force-push.** Never delete a
   remote branch; local deletion is only the safe `git branch -d` of a merged
   branch by `sweep-worktrees`.
+- **No push or PR without a review.** Before a branch is pushed or a PR opened
+  (`pr`, and `all` step 6) the review gate in `reference/review.md` must have
+  stamped `PASS` on the exact HEAD. The only exceptions are the explicit
+  `--no-review` / `review_before_pr = never` paths, which are labelled
+  *skipped* in the PR and on the issue. With `review_gate_hook = "on"` the plugin
+  hook `hooks/require-review` enforces this for pushes and `gh pr create`.
 - **Merging a PR happens only in `all --auto-merge`**, by the main session, under
   the conditions in `reference/batch.md` (review `PASS` on the exact head commit,
   required checks green, `CLEAN`, no overlap, no admin bypass). Without that
@@ -122,8 +128,11 @@ reimplement their logic:
   worktrees (clean + PR merged/closed) safely.
 - `worktree-detach` — `worktree take` / `worktree remove`: drop the worktree
   holding one issue's branch (branch kept), optionally `git switch` to it here.
+- `review-stamp` — the review gate and `pr`: records and checks "PASS on this exact
+  commit" (`write` / `check`).
 
-All echo `KEY=VALUE` lines; the contract is in `reference/worktrees.md`.
+All echo `KEY=VALUE` lines; the contract is in `reference/worktrees.md`
+(`review-stamp`: `reference/review.md`).
 
 **If `scripts/` isn't on disk** (the skill was loaded through a connection that
 doesn't materialise bundled files), do not write the scripts out yourself. Degrade
@@ -133,6 +142,9 @@ to plain git, in place, never forcing anything:
 - `sweep-worktrees` / `worktree prune` → skip and say so.
 - `worktree take` / `worktree remove` → print the `git worktree remove <path>` /
   `git switch <branch>` commands for the user to run.
+- `review-stamp` → still run the review gate (it needs no script), keep the
+  reviewed SHA in this session only, and say that `pr` in a later session cannot
+  verify it and will review again.
 
 ## Config
 
@@ -148,7 +160,9 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `local_plan_copy` | `auto` |
 | `default_new_type` | *(unset)* — fallback Type for `new` when inference is uncertain |
 | `use_superpowers` | `auto` — `auto` \| `always` \| `never` (see `reference/superpowers.md`) |
-| `review_before_pr` | `auto` — `auto` (review on the architectural path) \| `always` \| `never` |
+| `review_before_pr` | `always` — `always` (every task with commits is reviewed before push/PR; `auto` is accepted as a synonym) \| `never` (see `reference/review.md`) |
+| `review_gate_hook` | `off` — `on` makes `hooks/require-review` block a push / `gh pr create` of an issue branch without a review stamp (see `reference/review.md`) |
+| `review_rounds` | `2` — max fix / re-review rounds per issue in the review gate (`batch_review_rounds` is accepted as an alias) |
 | `worktree` | `auto` — `auto` (worktree when the checkout is dirty, on a non-default branch, or a plugin worktree already exists; parallel work wants `always`) \| `off` \| `always` |
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
 | `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
@@ -156,7 +170,7 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `batch_query` | `for: me #Unresolved State: Open sort by: updated desc` — candidates for `all` when no IDs are given |
 | `batch_max_parallel` | `3` — parallel workers for `all` |
 | `batch_skip_tags` | `["manual"]` — issues with one of these tags are never worked on by `all` |
-| `batch_review_rounds` | `2` — max worker-fix / re-review rounds per issue in `all` |
+| `batch_review_rounds` | alias of `review_rounds`, kept for existing configs |
 | `[type_prefix]` table | see `reference/branching.md` |
 
 ## Dispatch on the first argument
@@ -196,8 +210,9 @@ from `git branch --show-current`, else ask the user.
 - `--checkpoints` — step 8 executes an architectural plan with
   `superpowers:executing-plans` (review stop after each phase) instead of
   `subagent-driven-development`.
-- `--review` / `--no-review` — force / skip the automatic code review in step 8
-  (default: review on the architectural path only; see `config` `review_before_pr`).
+- `--no-review` — skip the review gate in step 8 for this run (default: every
+  task with commits is reviewed; see `config` `review_before_pr`). `pr` will then
+  ask before pushing an unreviewed branch. `--review` is accepted and changes nothing.
 
 ### 1. Resolve the issue ID
 
@@ -325,17 +340,23 @@ Only if the user wants to proceed now. Bound by the **Guardrails** above.
 - bounded → implement directly with `superpowers:test-driven-development`.
 - architectural → execute the plan with `superpowers:subagent-driven-development`
   (or `superpowers:executing-plans` when `--checkpoints` is passed), TDD inside
-  each task, then `superpowers:requesting-code-review` against the acceptance
-  criteria automatically (`--no-review` skips; `--review` forces it on the
-  bounded path too; config `review_before_pr` is the standing setting).
+  each task.
 - both → `superpowers:verification-before-completion` with the acceptance
   criteria as the checklist before finishing.
 
 **Fallback path** — the normal development workflow (TDD where it applies) plus a
 manual verification pass against the acceptance criteria.
 
+**Review gate (both paths).** Once the work is verified, run the review gate in
+`reference/review.md` with `fixer = main-session`: a fresh `ticket-reviewer`
+subagent, a minimal briefing, the result stamped on the exact commit. It applies
+to every task with commits, bounded or architectural. `--no-review` or config
+`review_before_pr = never` skips it. A `FAILED` gate stops here with the open
+findings; do not post a completion comment that claims the work is done.
+
 Then post one short completion comment (`add_issue_comment`, template in
-`reference/writeback.md`) listing the branch and the files touched. Do not push,
+`reference/writeback.md`) listing the branch, the files touched and the review
+result (`Review: PASS @ <short-sha>`, or `Review: skipped`). Do not push,
 open a PR, or move the issue here — tell the user the branch is ready and that
 `/youtrack-task pr` or their own `/ship` is the next step.
 
@@ -502,7 +523,7 @@ stick).
 
 ## pr
 
-`/youtrack-task pr [ISSUE-ID] [--no-move] [--base <branch>] [--draft]`
+`/youtrack-task pr [ISSUE-ID] [--no-move] [--base <branch>] [--draft] [--no-review]`
 
 Push the current feature branch, open a GitHub PR, record it on the issue, and
 move the issue to Testing. This is the one place the skill is allowed to push.
@@ -516,7 +537,24 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
    - the branch has commits ahead of the base (`git rev-list --count <base>..HEAD`
      > 0), else *"no commits on this branch"*.
    - clean working tree. If dirty, warn that uncommitted changes won't be in the
-     PR and ask whether to continue.
+     PR and ask whether to continue. Recording a waiver (last bullet) needs a clean
+     tree, so on that path commit or stash first.
+   - **reviewed** (not checked when `review_before_pr = never` or `--no-review`,
+     see the last bullet): run
+     `scripts/review-stamp check --id <ID>` per `reference/review.md`.
+     `PASS` with `INDEPENDENT=yes` → continue. `STALE` / `MISSING` → run the review
+     gate now (`fixer = main-session`; it needs a clean tree, so a dirty tree is
+     committed or the user is asked first), then continue on `PASS`. `FAILED` →
+     stop and show the open findings. `PASS` with `INDEPENDENT=no` → say the review
+     was not independent and continue only on explicit confirmation.
+   - `--no-review` and `review_before_pr = never` are the only ways past the gate.
+     With the flag, ask for explicit confirmation naming the risk (*"this branch
+     has no independent review"*); with the standing config no extra question is
+     needed. Either way record the waiver (`review-stamp write --verdict SKIPPED
+     --independent no`, see `reference/review.md`), and add the line `Review:
+     skipped (not independently reviewed)` to the PR body and to the YouTrack PR
+     comment. Never skip silently. A `SKIPPED` stamp already on this commit counts
+     as that confirmation.
 3. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`, then
    **ask for confirmation** before pushing.
 4. `git push -u origin <branch>` (plain push; never `--force`).
@@ -608,8 +646,9 @@ Flow, in short:
    print one table, ask **one** confirmation (it names whether auto-merge is on).
 2. **Setup**, serial: `setup-workspace --mode worktree` + pickup write-back.
 3. **Work**, parallel and in the background: one `ticket-worker` per issue.
-4. **Review**: a fresh `ticket-reviewer` per issue that sees only the issue and
-   the diff, never the worker's report; up to `batch_review_rounds` fix rounds.
+4. **Review**: the shared review gate (`reference/review.md`) per issue with
+   `fixer = ticket-worker`: a fresh `ticket-reviewer` that sees only the issue and
+   the diff, never the worker's report; up to `review_rounds` fix rounds.
 5. **Report** with overlap warnings; completion comments to YouTrack.
 6. **PRs** after one confirmation for the whole list (the main session pushes
    each reviewed branch).

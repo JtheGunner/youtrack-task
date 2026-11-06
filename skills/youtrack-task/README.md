@@ -54,6 +54,7 @@ None of them install packages or use `sudo`. The only network access is the
 | `scripts/setup-workspace` | Decides worktree vs. in-place, creates the branch or worktree, bootstraps a new worktree. | `git switch -c` / `git worktree add` in the repo; adds the worktree dir to `.git/info/exclude` (no commit); under `<repo>/.worktrees/` it copies the dirs listed in `worktree_clone` (default `node_modules`, `vendor`) with `cp -c -R`, symlinks the paths in `worktree_link` (default `.env`) from the main checkout, and runs `.claude/youtrack-worktree-setup.sh` if the repo ships one. |
 | `scripts/sweep-worktrees` | Removes this skill's worktrees whose PR is merged or closed and whose tree is clean. | `gh pr view` (reads PR state from GitHub), `git worktree remove` (never `--force`), `git branch -d` (never `-D`). |
 | `scripts/worktree-detach` | Frees one issue's branch from a worktree (`worktree take` / `remove`). | `git worktree remove` of that single clean worktree, optional `git switch`. |
+| `scripts/review-stamp` | Records and checks "review PASS on this exact commit" for the review gate and `pr`. | Writes one small file under `<git-common-dir>/youtrack-task/reviews/` (local, never pushed); reads git state only. |
 
 Config is read from `~/.config/youtrack-task/config.toml` (override the path with
 `YOUTRACK_TASK_CONFIG`). Every key is optional; see the table in `SKILL.md`.

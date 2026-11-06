@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# PreToolUse hook (Bash): no push and no PR of an issue branch without a review.
+#
+# Opt-in: acts only when config `review_gate_hook = "on"` (default "off") and
+# `review_before_pr` is not "never". It makes the review gate of
+# skills/youtrack-task/reference/review.md harness-enforced, so it also covers a
+# plain `git push` or the user's own /ship. It re-implements no review logic: it
+# only asks `scripts/review-stamp check`.
+#
+# Checked commands (main session only; ticket-worker / ticket-reviewer are
+# handled by hooks/guard-subagent):
+#   git [-C dir] push [remote] [refspec ...]   -> the pushed commit of each issue branch
+#   git push --all | --branches | --mirror     -> every local issue branch
+#   gh pr create [--head branch]               -> the tip of the PR's head branch
+# An "issue branch" is one whose name carries an issue ID (`feat/PROJ-12-slug`).
+# A refspec is checked by its destination and, when the source is a branch, by its
+# source name (`feat/PROJ-12-x:main` pushes issue code to main). Every other push
+# passes untouched, as do deletions and pure tag pushes.
+# Allowed when the stamp for that exact commit is PASS or SKIPPED (a recorded,
+# user-confirmed `--no-review` waiver). Otherwise exit 2 with the next step.
+#
+# Best effort, like guard-subagent: quoted text is masked before parsing and
+# exotic shell constructs are not followed. Environmental gaps pass (no jq, no
+# stamp script, a directory that is plainly not a git repo, a branch without an
+# issue ID) — fail open. What it cannot resolve in a push or `gh pr create --head`
+# (a quoted or $-expanded argument or directory) is denied instead, with a hint to
+# write it out. Residual gap: a raw SHA that is only an ancestor of an issue branch
+# (not any branch tip) is not recognised. The real protection is server-side branch
+# protection.
+set -uf
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+input=$(cat)
+agent=$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null) || exit 0
+[ -z "$agent" ] || exit 0
+cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null) || exit 0
+[ -n "$cmd" ] || exit 0
+[ -n "$cwd" ] || cwd=$PWD
+
+case "$cmd" in *git*push* | *gh*pr*create*) ;; *) exit 0 ;; esac
+
+# --- config ------------------------------------------------------------------
+cfg_file="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
+cfg() { # cfg <key> <default>
+  local v=""
+  [ -f "$cfg_file" ] && v=$(sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"?([A-Za-z0-9_-]+)\"?.*/\\1/p" "$cfg_file" | head -1)
+  printf '%s' "${v:-$2}"
+}
+[ "$(cfg review_gate_hook off)" = on ] || exit 0
+[ "$(cfg review_before_pr always)" != never ] || exit 0
+
+stamp_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-task/scripts/review-stamp"
+[ -x "$stamp_script" ] || exit 0
+
+# --- find the pushing / PR-creating segments ----------------------------------
+# Quoted strings are data, not commands: replace each by a placeholder so that
+# separators inside them do not split the command, but a quoted argument stays
+# visible as an argument that cannot be resolved.
+Q='__Q__'
+masked=$(printf '%s' "$cmd" | sed -E "s/\"([^\"\\\\]|\\\\.)*\"/$Q/g; s/'[^']*'/$Q/g")
+segments=$(printf '%s' "$masked" | tr ';&|()\n' '\n\n\n\n\n\n')
+
+deny() {
+  {
+    printf 'Blocked by the youtrack-task review gate: %s\n\n' "$1"
+    cat <<'MSG'
+Run the review gate first (skills/youtrack-task/reference/review.md): a fresh
+ticket-reviewer must PASS this exact commit. /youtrack-task pr does that and
+then pushes. To push without a review on purpose, run /youtrack-task pr
+--no-review (it records a waiver and labels the PR "Review: skipped"). To turn
+this hook off, set review_gate_hook = "off" in the youtrack-task config.
+MSG
+  } >&2
+  exit 2
+}
+
+issue_id() { printf '%s' "$1" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | head -1; }
+
+# check_commit <dir> <name> <sha>: deny unless the stamp covers that commit.
+# <name> is a branch name; without an issue ID in it nothing is checked.
+check_commit() {
+  local dir=$1 name=$2 sha=$3 id out result
+  id=$(issue_id "$name")
+  [ -n "$id" ] || return 0
+  out=$(bash "$stamp_script" check --id "$id" --dir "$dir" --sha "$sha" 2>/dev/null) || return 0
+  result=$(printf '%s\n' "$out" | sed -n 's/^REVIEW=//p' | head -1)
+  case "$result" in
+    PASS | SKIPPED) return 0 ;;
+    FAILED) deny "the last review of $id ($name) ended with open findings on $sha." ;;
+    STALE) deny "$id ($name): commit $sha is not the one that was reviewed (the branch moved on since the stamp)." ;;
+    MISSING) deny "$id ($name) has no review for commit $sha." ;;
+    *) return 0 ;;
+  esac
+}
+
+# unresolvable <text>: still holds a quoted, escaped, expanded or wildcard part we
+# cannot follow (placeholder for a quote, $, `, \, {, *, ?, [, ~).
+unresolvable() {
+  case "$1" in
+    *"$Q"* | *'$'* | *'`'* | *'\'* | *'{'* | *'*'* | *'?'* | *'['* | *'~'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# check_all_issue_branches <dir>: every local issue branch is about to leave.
+check_all_issue_branches() {
+  local dir=$1 ref_sha ref_name
+  while IFS=' ' read -r ref_sha ref_name; do
+    [ -n "$ref_name" ] || continue
+    check_commit "$dir" "$ref_name" "$ref_sha"
+  done < <(git -C "$dir" for-each-ref --format='%(objectname) %(refname:short)' refs/heads 2>/dev/null)
+}
+
+# check_tip_aliases <dir> <sha>: the commit may be spelled by its SHA or by a ref
+# that hides the branch name. Every local issue branch whose tip is exactly this
+# commit is gated — unless the commit is already reachable from a remote-tracking
+# ref that is not itself an issue branch: it is published, so pushing it again (a
+# fresh issue branch sitting on main's tip, say) does not release unreviewed work.
+# A local branch name is no proof and exempts nothing. Remote-tracking refs are
+# local data and can be forged (`git update-ref`), so this is a convenience for
+# the honest case, not a boundary; the server is the boundary.
+check_tip_aliases() {
+  local dir=$1 sha=$2 ref_sha ref_name
+  # published = contained in a remote-tracking ref that is not itself named like an
+  # issue branch (origin/feat/PROJ-1-x is exactly what is being gated)
+  while IFS= read -r ref_name; do
+    [ -n "$ref_name" ] || continue
+    [ -z "$(issue_id "$ref_name")" ] && return 0
+  done < <(git -C "$dir" for-each-ref --contains "$sha" --format='%(refname:short)' refs/remotes 2>/dev/null)
+  while IFS=' ' read -r ref_sha ref_name; do
+    [ "$ref_sha" = "$sha" ] || continue
+    [ -n "$(issue_id "$ref_name")" ] || continue
+    check_commit "$dir" "$ref_name" "$sha"
+  done < <(git -C "$dir" for-each-ref --format='%(objectname) %(refname:short)' refs/heads 2>/dev/null)
+}
+
+cwd_known=true
+while IFS= read -r seg; do
+  # leading VAR=value assignments
+  seg=$(printf '%s' "$seg" | sed -E 's/^[[:space:]]+//; s/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//')
+  [ -n "$seg" ] || continue
+
+  # a `cd dir` segment moves the directory of the segments after it
+  case "$seg" in
+    cd\ *)
+      t=${seg#cd }; t=${t%% *}; t=${t#\~/}
+      if unresolvable "$t"; then
+        cwd_known=false
+      else
+        cwd_known=true
+        case "$t" in /*) cwd=$t ;; *) cwd="$cwd/$t" ;; esac
+      fi
+      continue ;;
+  esac
+
+  is_push=false
+  is_pr=false
+  if [[ "$seg" =~ ^git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--[a-z-]+=[^[:space:]]+))*[[:space:]]+push([[:space:]]|$) ]]; then
+    is_push=true
+  elif [[ "$seg" =~ ^gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]; then
+    is_pr=true
+  fi
+  $is_push || $is_pr || continue
+
+  # directory this segment runs in
+  dir=$cwd
+  if [[ "$seg" =~ ^git[[:space:]]+-C[[:space:]]+([^[:space:]]+) ]]; then
+    dir=${BASH_REMATCH[1]}
+    if unresolvable "$dir"; then
+      cwd_known=false
+    else
+      case "$dir" in /*) ;; *) dir="$cwd/$dir" ;; esac
+    fi
+  fi
+  $cwd_known || deny "cannot tell in which directory this command runs (quoted or expanded path). Write the path out unquoted."
+  git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
+  current=$(git -C "$dir" branch --show-current 2>/dev/null)
+  head_sha=$(git -C "$dir" rev-parse HEAD 2>/dev/null) || continue
+
+  # ---- git push ----
+  if $is_push; then
+    if unresolvable "$seg"; then
+      deny "this git push has a quoted or expanded argument the hook cannot resolve. Write the remote and refspecs out unquoted."
+    fi
+    rest=${seg#*push}
+    positional=()
+    deleting=false tags=false all_refs=false
+    for w in $rest; do
+      case "$w" in
+        --delete | -d) deleting=true ;;
+        --tags) tags=true ;;
+        --all | --branches | --mirror) all_refs=true ;;
+        -*) ;;
+        *) positional+=("$w") ;;
+      esac
+    done
+    $deleting && continue
+    if $all_refs; then
+      check_all_issue_branches "$dir"
+      continue
+    fi
+    if [ "${#positional[@]}" -le 1 ]; then
+      $tags && continue
+      [ -n "$current" ] && check_commit "$dir" "$current" "$head_sha"
+      check_tip_aliases "$dir" "$head_sha"
+      continue
+    fi
+    for spec in "${positional[@]:1}"; do
+      spec=${spec#+}
+      if [ "$spec" = : ]; then   # matching refspec: every branch that exists on both sides
+        check_all_issue_branches "$dir"
+        continue
+      fi
+      case "$spec" in
+        *:*) src=${spec%%:*}; dst=${spec#*:} ;;
+        *)   src=$spec; dst=$spec ;;
+      esac
+      [ -n "$src" ] || continue   # ":branch" deletes
+      dst=${dst#refs/heads/}
+      if [ "$src" = HEAD ]; then
+        sha=$head_sha
+        src_name=$current
+      else
+        sha=$(git -C "$dir" rev-parse --verify -q "$src^{commit}" 2>/dev/null) \
+          || deny "cannot resolve the refspec source '$src' locally, so the hook cannot tell which commit leaves."
+        src_name=${src#refs/heads/}
+      fi
+      [ "$dst" != HEAD ] || dst=$current
+      # the commit leaves under the destination name and, when the source is a
+      # branch, also came from it: an issue ID in either puts it under the gate
+      check_commit "$dir" "$dst" "$sha"
+      check_commit "$dir" "$src_name" "$sha"
+      check_tip_aliases "$dir" "$sha"
+    done
+    continue
+  fi
+
+  # ---- gh pr create ----
+  head_branch=""
+  if [[ "$seg" =~ (--head|-H)[[:space:]=]+([^[:space:]]+) ]]; then head_branch=${BASH_REMATCH[2]}; fi
+  if unresolvable "$head_branch"; then
+    deny "this gh pr create has a quoted or expanded --head the hook cannot resolve. Write the branch name out unquoted."
+  fi
+  head_branch=${head_branch#*:}
+  [ -n "$head_branch" ] || head_branch=$current
+  [ -n "$head_branch" ] || continue
+  if ! sha=$(git -C "$dir" rev-parse --verify -q "refs/heads/$head_branch" 2>/dev/null); then
+    [ -z "$(issue_id "$head_branch")" ] || deny "the --head branch $head_branch does not exist locally, so the hook cannot tell which commit it holds. Check it out or fetch it first."
+    continue
+  fi
+  check_commit "$dir" "$head_branch" "$sha"
+done <<EOF
+$segments
+EOF
+
+exit 0
