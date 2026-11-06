@@ -116,12 +116,19 @@ check_all_issue_branches() {
 # check_tip_aliases <dir> <sha>: the commit may be spelled by its SHA or by a ref
 # that hides the branch name. Every local issue branch whose tip is exactly this
 # commit is gated — unless the commit is already reachable from a remote-tracking
-# ref: it is published, so pushing it again (a fresh issue branch sitting on
-# main's tip, say) does not release unreviewed work. A local branch name is no
-# proof of anything and exempts nothing.
+# ref that is not itself an issue branch: it is published, so pushing it again (a
+# fresh issue branch sitting on main's tip, say) does not release unreviewed work.
+# A local branch name is no proof and exempts nothing. Remote-tracking refs are
+# local data and can be forged (`git update-ref`), so this is a convenience for
+# the honest case, not a boundary; the server is the boundary.
 check_tip_aliases() {
   local dir=$1 sha=$2 ref_sha ref_name
-  [ -z "$(git -C "$dir" for-each-ref --count=1 --contains "$sha" refs/remotes 2>/dev/null)" ] || return 0
+  # published = contained in a remote-tracking ref that is not itself named like an
+  # issue branch (origin/feat/PROJ-1-x is exactly what is being gated)
+  while IFS= read -r ref_name; do
+    [ -n "$ref_name" ] || continue
+    [ -z "$(issue_id "$ref_name")" ] && return 0
+  done < <(git -C "$dir" for-each-ref --contains "$sha" --format='%(refname:short)' refs/remotes 2>/dev/null)
   while IFS=' ' read -r ref_sha ref_name; do
     [ "$ref_sha" = "$sha" ] || continue
     [ -n "$(issue_id "$ref_name")" ] || continue

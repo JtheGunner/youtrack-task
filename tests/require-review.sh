@@ -117,6 +117,10 @@ git -C "$repo" branch -q -D scratch
 # only a published commit (reachable from a remote-tracking ref) is exempt
 git -C "$repo" branch feat/X-7-fresh main
 t 2 "unpublished main tip under a fresh issue branch is gated" "$repo" "git push origin main" "has no review"
+# a remote-tracking ref named like the issue branch is no proof of publication
+git -C "$repo" update-ref refs/remotes/origin/feat/X-1-demo "$tip"
+t 2 "tracking ref named like the issue branch does not exempt it" "$repo" "git push origin $tip:refs/heads/release" "not the one that was reviewed"
+git -C "$repo" update-ref -d refs/remotes/origin/feat/X-1-demo
 git -C "$repo" update-ref refs/remotes/origin/main main
 t 0 "main published: a fresh issue branch on its tip does not block pushing main" "$repo" "git push origin main"
 git -C "$repo" update-ref -d refs/remotes/origin/main
