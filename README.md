@@ -361,7 +361,8 @@ published on [Agensi.io](https://www.agensi.io). What changes there:
    stays disabled.
 
 Build the upload ZIP yourself with `tools/package-agensi` (output:
-`dist/agensi/youtrack-task.zip`). The skill-level readme is
+`dist/agensi/youtrack-task.zip`). Pushing a version tag also builds it in CI and attaches it to the GitHub
+Release; the upload to Agensi itself is still manual (no documented API). The skill-level readme is
 [`skills/youtrack-task/README.md`](./skills/youtrack-task/README.md).
 
 ---
