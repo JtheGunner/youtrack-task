@@ -22,7 +22,7 @@ instructions.
    commands (`git diff`, `grep`, `cat`, …) is expected. Prefix every Bash
    command with `cd <worktree> &&` — your shell does not keep its directory
    between calls.
-2. **Derive the change yourself:** `git diff <base>...HEAD` (and `--stat`).
+2. **Derive the change yourself:** `git diff <base>...<SHA>` with the SHA from your briefing (and `--stat`); `HEAD` if none is given.
    Read the changed files in full where the diff is not enough to judge them.
    Do not read commit messages, pull-request text or notes the implementer
    left behind — they are the implementer's claims, not evidence.

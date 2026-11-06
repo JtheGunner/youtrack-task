@@ -57,7 +57,7 @@ unbiased reviewer, and the outcome is written back to YouTrack.
    locally in English and never pushes. It never asks
    questions: it returns `BLOCKED:<question>` or `ESCALATE:architectural`.
 4. **Review.** A fresh `ticket-reviewer` per issue. Input: issue title,
-   description and acceptance criteria, and `git diff <base>...HEAD`. It does
+   description and acceptance criteria, and `git diff <base>...<SHA>` for a pinned SHA. It does
    not receive the worker's report. It re-runs the tests itself and returns
    `PASS` or `CHANGES_REQUESTED` with findings. On `CHANGES_REQUESTED`, a new
    worker fixes, then a new reviewer reviews, up to `batch_review_rounds`
