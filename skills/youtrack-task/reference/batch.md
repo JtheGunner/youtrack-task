@@ -4,6 +4,10 @@ Work through several issues in one run: isolated workers in parallel, a fresh
 reviewer per result, write-back to YouTrack, optional merging. Bound by the
 **Guardrails** in `SKILL.md`.
 
+> **Review is not defined here.** The review procedure (fresh reviewer, minimal
+> briefing, fix rounds, exact-SHA stamp) is `reference/review.md`, shared with
+> the primary flow and `pr`; this file only schedules it per issue.
+>
 > **Roles.** The main session orchestrates and performs **every** YouTrack write,
 > **every push** and every merge. `ticket-worker` and `ticket-reviewer` (plugin
 > agents) are leaves: subagents cannot spawn subagents, and keeping the writes in
@@ -81,7 +85,7 @@ Handle the report's `STATUS`:
 | STATUS | Do |
 | --- | --- |
 | `DONE` with `TESTS` reporting a green run | go to review (it fixes the reviewed SHA, see 4) |
-| `DONE` with failing or missing `TESTS` | treat as `CHANGES_REQUESTED` input for one fix round (it counts against `batch_review_rounds`), else needs-human |
+| `DONE` with failing or missing `TESTS` | treat as `CHANGES_REQUESTED` input for one fix round (it counts against `review_rounds`), else needs-human |
 | `BLOCKED` | post the question as a comment **in the issue's language** (translate it), mark the issue *needs-human*, continue with the others |
 | `ESCALATE` | same, noting the work looks architectural and belongs in `/youtrack-task <ID>` |
 | anything else: no report, garbled report, worker stopped by the hook | *needs-human*, with the reason in the final report |
@@ -94,30 +98,19 @@ per-issue plan approval.
 
 ## 4. Review
 
-Unless `--no-review`: for each `DONE` issue, first require a clean tree
-(`git -C <DIR> status --porcelain` empty; otherwise `CHANGES_REQUESTED` input
-for a fix round) and record `SHA_review = git -C <DIR> rev-parse HEAD`. This is
-the **only** recorded SHA. Then dispatch a **new** `ticket-reviewer`. Its
-briefing holds only: issue ID + title, description with acceptance criteria,
-the worktree path, the base, and `SHA_review` (it reviews
-`git diff <base>...<SHA_review>`). **Never include the worker's report, plan, commit
-messages' claims or any of your own conclusions** — independence is the point.
-(The reviewer is also kept away from `git log` messages and PR text by its
-allowlist.)
+Unless `--no-review`: for each `DONE` issue run the shared review gate in
+`reference/review.md` with `fixer = ticket-worker`, `dir = DIR`, `rounds =
+review_rounds` (`batch_review_rounds` alias). Everything about the fresh
+reviewer, its minimal briefing, the verdict rules, the fix rounds, the clean-tree
+and exact-SHA requirements and the stamp lives there; this flow adds only:
 
-- `PASS` → accept only if HEAD still equals `SHA_review` and the tree is still
-  clean; otherwise treat it as `CHANGES_REQUESTED` (one round consumed). That
-  exact commit is what may be pushed, PR'd and merged.
-- `CHANGES_REQUESTED`, or a `PASS` that lists an `unverifiable` criterion
-  (treat it as `CHANGES_REQUESTED`) → dispatch a new `ticket-worker` with the
-  original briefing plus the reviewer's `FINDINGS`, then a **new** reviewer that
-  does **not** get the earlier findings.
-- `batch_review_rounds` (default 2) is the number of **fix rounds**; so at most
-  rounds + 1 reviews. **A PR only ever follows a `PASS` on the final HEAD** —
-  a last fix is always re-reviewed. Still failing after the last round → the
-  issue goes to the user as *needs-human* with the open findings. Never loop
-  silently.
-- A reviewer that returns no clear `VERDICT` counts as `CHANGES_REQUESTED`.
+- A dirty worker tree is `CHANGES_REQUESTED` input for a fix round.
+- A fix worker gets the original briefing plus the reviewer's `FINDINGS`; its
+  report goes through the table in step 3.
+- Still failing after the last round → the issue goes to the user as
+  *needs-human* with the open findings. Never loop silently.
+- **A PR only ever follows a stamped `PASS` on the final HEAD**; a last fix is
+  always re-reviewed.
 
 ## 5. Report
 
@@ -142,8 +135,10 @@ issue, from the main session:
    else skip the issue. Run `gh pr list --head <BRANCH> --state all`: if any PR
    exists, skip push and merge for that issue and report it (it may carry commits
    nobody reviewed);
-1. confirm the worktree HEAD still equals `SHA_review` and the tree is clean; if
-   not, the issue goes back to review (one round) — do not push it;
+1. `scripts/review-stamp check --id <ID> --dir <DIR>` must say `REVIEW=PASS`
+   with `INDEPENDENT=yes`; take `SHA_review` from its `SHA=` line. Anything else
+   (`STALE`: HEAD moved or tree dirty) sends the issue back through the review
+   gate (one round) — do not push it;
 2. `git -C <DIR> push -u origin <SHA_review>:refs/heads/<BRANCH>` (plain). If it
    is rejected, report and stop for that issue: never force, never
    rebase-and-retry;
@@ -167,8 +162,9 @@ Without the flag: never merge; tell the user the PRs are ready.
 With the flag the main session (never a worker or reviewer) may merge a PR only
 if **all** hold, checked fresh immediately before each merge:
 
-- the PR was **created by this run** for an issue with a `PASS`, and its head
-  commit equals `SHA_review` (`gh pr view <n> --json headRefOid`);
+- the PR was **created by this run** for an issue whose stamp is `PASS` /
+  `INDEPENDENT=yes`, and its head commit equals the stamped `SHA`
+  (`gh pr view <n> --json headRefOid`);
 - the issue has **no overlap warning** with another branch in this run (shared
   files could break each other even without a textual conflict);
 - required checks: `gh pr checks <n> --required` shows at least one check and
@@ -194,10 +190,10 @@ offer `/youtrack-task done <ID>` per merged issue (state changes stay explicit).
 ## Without subagent support
 
 If the agent cannot dispatch subagents: process the ready issues one at a time
-in the main session through the normal primary flow's step 8. The "review" is
-then a same-session re-read of the issue and the diff — **weaker, and never
-independent**: say so, do not call it `PASS`-for-merge, and `--auto-merge` stays
-disabled (precondition above).
+in the main session through the normal primary flow's step 8. Its review gate then
+runs in the weaker, never-independent mode described in `reference/review.md`
+("Without subagent support"): say so, do not call it `PASS`-for-merge, and
+`--auto-merge` stays disabled (precondition above).
 
 ## Language
 

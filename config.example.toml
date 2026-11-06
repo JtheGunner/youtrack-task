@@ -32,11 +32,12 @@
 #   never  -> always plain plan mode + normal dev workflow
 # use_superpowers = "auto"
 
-# Automatic `superpowers:requesting-code-review` in the implement step.
-#   auto   -> review only when an architectural plan was executed
-#   always -> review after every implementation
-#   never  -> never auto-review (you still have --review to force it)
-# review_before_pr = "auto"
+# Review gate (reference/review.md): an independent `ticket-reviewer` subagent
+# reviews every task with commits before it can be pushed or opened as a PR.
+#   always -> review every task (default; "auto" is accepted as a synonym)
+#   never  -> standing opt-out; `pr` then labels the PR "Review: skipped"
+# review_before_pr = "always"
+# review_rounds    = 2   # max fix / re-review rounds per issue (alias: batch_review_rounds)
 
 # Isolate each pickup in its own git worktree (for working several tasks in
 # parallel). See reference/worktrees.md.
@@ -56,7 +57,7 @@
 # batch_query         = "for: me #Unresolved State: Open sort by: updated desc"  # candidates when no IDs are given
 # batch_max_parallel  = 3          # parallel workers
 # batch_skip_tags     = ["manual"] # issues with these tags are never run unattended
-# batch_review_rounds = 2          # max worker-fix / re-review rounds per issue
+# batch_review_rounds = 2          # deprecated alias of review_rounds
 
 # Branch prefix per YouTrack issue Type. Keys are Type names exactly as YouTrack
 # reports them (case-sensitive). Unlisted types fall back to "chore".

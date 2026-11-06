@@ -26,7 +26,7 @@ issues from inside any project repo:
 |:--:|----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 📝 | **`/youtrack-task new "<free text>"`**       | capture an issue; Claude turns your text into a titled, structured issue                                                                                                                                                       |
 | 🌿 | **`/youtrack-task <ID>`**                    | pick one up: fetch it, branch, move it to **In Progress**, plan the work (through the [`superpowers`](https://github.com/obra/superpowers) plugin when present), write the plan back as a comment, and optionally implement it |
-| 🚀 | **`/youtrack-task pr` / `testing` / `done`** | open the PR (and link it on the issue), then walk the state ladder as the work lands                                                                                                                                           |
+| 🚀 | **`/youtrack-task pr` / `testing` / `done`** | check the independent review, open the PR (and link it on the issue), then walk the state ladder as the work lands                                                                                                                                           |
 | 🌲 | **`/youtrack-task worktree …`**              | run several tasks at once, each in its own isolated git worktree; `list` / `prune` / `take` / `remove` to manage them                                                                                                          |
 | 🤖 | **`/youtrack-task all`**                     | work through many issues in one command: parallel workers in isolated worktrees, an independent reviewer per result, PRs, and — only if you pass `--auto-merge` — merging                                                      |
 
@@ -91,10 +91,10 @@ Only if your workflow differs from the defaults. Copy
 [`config.example.toml`](./config.example.toml) to
 `~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
 names, a different issue-list query, branch-prefix mapping, where the plan copy
-goes, the `use_superpowers` / `review_before_pr` toggles, or the worktree
+goes, the `use_superpowers` / `review_before_pr` / `review_rounds` toggles, or the worktree
 settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`), or the
-`all` batch settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`,
-`batch_review_rounds`).
+`all` batch settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`;
+`batch_review_rounds` still works as an alias of `review_rounds`).
 
 ---
 
@@ -135,11 +135,13 @@ What happens:
    `docs/` directory, a copy is also saved to `docs/plans/‹ID›.md`.
 7. **Implement** *(optional, if you say go)* — with `superpowers` present:
    `test-driven-development` throughout, `subagent-driven-development` (or
-   `executing-plans` with `--checkpoints`) for a written plan, an automatic
-   `requesting-code-review` on larger work, and `verification-before-completion`
-   against the issue's acceptance criteria before the completion comment. Without
-   it: the normal dev workflow. Either way it stops before push — `/youtrack-task
-   pr` is next.
+   `executing-plans` with `--checkpoints`) for a written plan, and
+   `verification-before-completion` against the issue's acceptance criteria.
+   Without it: the normal dev workflow. Either way the work then goes through the
+   **review gate**: a fresh, independent `ticket-reviewer` subagent that never
+   sees your session's reasoning checks the commit, and a `PASS` is stamped on
+   that exact commit. Then the completion comment is posted and it stops before
+   push — `/youtrack-task pr` is next.
 
 Flags:
 
@@ -150,7 +152,7 @@ Flags:
 | `--base ‹branch›`              | branch from `‹branch›` instead of the detected default                                                                         |
 | `--worktree` / `--no-worktree` | force / skip an isolated git worktree for this pickup (default: `worktree` config, itself `auto`)                              |
 | `--checkpoints`                | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
-| `--review` / `--no-review`     | force / skip the automatic code review in the implement step (default: review only when a written plan was executed)           |
+| `--no-review`                  | skip the review gate for this run; `pr` then asks before pushing and labels the PR *Review: skipped* (default: every task with commits is reviewed; `--review` is accepted and does nothing) |
 
 ### Create an issue
 
@@ -251,11 +253,11 @@ One command instead of briefing the agent by hand:
    agent (at most `--max`, default 3, at a time). Workers use TDD, commit locally
    in English, and never push, merge or write to YouTrack.
    A worker that hits ambiguity stops and reports a question instead of guessing.
-3. **Independent review** — a fresh `ticket-reviewer` per issue sees only the
-   issue, its acceptance criteria and the diff — never the worker's report or
-   reasoning — and re-runs the tests itself. `CHANGES_REQUESTED` triggers a fix
-   and a *new* reviewer, up to `batch_review_rounds` (default 2), then the issue
-   is handed back to you.
+3. **Independent review** — the same review gate every task goes through: a
+   fresh `ticket-reviewer` per issue sees only the issue, its acceptance criteria
+   and the diff — never the worker's report or reasoning — and re-runs the tests
+   itself. `CHANGES_REQUESTED` triggers a fix and a *new* reviewer, up to
+   `review_rounds` (default 2), then the issue is handed back to you.
 4. **Report and PRs** — a table with verdicts, files touched and overlap warnings
    (files changed by more than one issue, i.e. likely merge conflicts). Only
    issues that passed review qualify. After one more confirmation covering the
@@ -305,7 +307,7 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 ```
 /youtrack-task new …     →  (optional) create the issue first
 /youtrack-task ADMIN-6   →  branch, In Progress, plan, (optional) implement
-/youtrack-task pr        →  push + GitHub PR + PR link on the issue + → Testing
+/youtrack-task pr        →  review check + push + GitHub PR + PR link on the issue + → Testing
       … PR review + merge …
 /youtrack-task done      →  → Done
 ```
@@ -357,9 +359,9 @@ Build the upload ZIP yourself with `tools/package-agensi` (output:
 | API token                                                                     | `YOUTRACK_TOKEN` env var                                                  |          🚫          |
 | Which project an issue is in                                                  | encoded in the issue ID (`INFRA-42`)                                      |          🚫          |
 | State names, list query, prefix map, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
-| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach)   | `skills/youtrack-task/`                                                   |          ✅          |
-| `all` agents (`ticket-worker`, `ticket-reviewer`) and their guard hook        | `agents/`, `hooks/guard-subagent` (plugin install only)                   |          ✅          |
-| `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`, `batch_review_rounds`) | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
+| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach, review stamp) | `skills/youtrack-task/`                                                   |          ✅          |
+| Review agent (`ticket-reviewer`, used by every flow), `all` worker (`ticket-worker`) and the guard hook | `agents/`, `hooks/guard-subagent` (plugin install only)                   |          ✅          |
+| `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`; review rounds via `review_rounds`) | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
 | Marketplace upload ZIP (built, not committed)                                 | `dist/agensi/youtrack-task.zip` via `tools/package-agensi`                |          🚫          |
 
 ---
@@ -378,6 +380,7 @@ Build the upload ZIP yourself with `tools/package-agensi` (output:
 | New issue assigned to you instead of the requested user              | The `--assignee` login / email wasn't found in YouTrack, so `new` fell back to the token's owner (flagged at the confirm step). Check the exact login under YouTrack → Users.                          |
 | Issues still come out in English although you write German            | Almost always a stale plugin: third-party marketplaces don't auto-update. Run `/plugin marketplace update youtrack-task` then `/plugin update youtrack-task@youtrack-task`, restart Claude Code, and check the version under `/plugin`. Enable *Auto-update* for the marketplace in `/plugin` → Marketplaces to stop it recurring. If it persists, name the language in your input ("auf Deutsch") — an explicit instruction always wins. |
 | Issue created in conversation (not via `new`) ended up unassigned or English | The plugin's `create_issue` hook now rejects a call without an Assignee and tells Claude to retry with you as assignee (needs `jq` on your `PATH`; Claude Code only). Update the plugin and restart if you still see it. |
+| `pr` refuses with `FAILED` / asks for a review                       | The review gate is mandatory before a push: the stamped `PASS` must match the current HEAD, so any commit after the review (or uncommitted changes) makes it `STALE` and `pr` reviews again. Open findings (`FAILED`) must be fixed first. To push without a review on purpose use `--no-review`; the PR is then labelled *Review: skipped*. |
 | `all` says no issue is ready                                         | Every candidate failed triage; the table names the reason per issue (tag in `batch_skip_tags`, no acceptance criteria, open questions, architectural size, unresolved dependency). Fix the issue, drop the tag, or run `/youtrack-task <ID>` interactively. |
 | A worker reports `BLOCKED` / `ESCALATE`                              | It hit ambiguity or architectural scope and stopped on purpose; its question is posted on the issue. Answer it and re-run `all <ID>` (the existing worktree is resumed), or take the issue interactively. |
 | A worker command is rejected by the hook                             | Working as intended: workers never push or merge and use no network tools; the main session pushes after review. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
