@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.13.0 — 2026-11-03
+## 0.13.0 — 2026-11-06
 
 - **`/youtrack-task all` — many issues, one command.** Triage the candidates
   (`ready` / `needs-human` / `blocked`), then work them in parallel: one
