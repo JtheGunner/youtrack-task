@@ -119,7 +119,8 @@ with `review_gate_hook = "on"` in the config. In the main session it blocks
   source branch, so `feat/PROJ-1-x:main` is gated too),
 - `git push --all` / `--branches` / `--mirror` and the matching refspec `:` (every
   local issue branch is checked); a commit pushed by raw SHA or through another
-  ref name is gated when an issue branch's tip is exactly that commit,
+  ref name is gated when an issue branch's tip is exactly that commit (only a commit already
+  reachable from a remote-tracking ref counts as published and is exempt),
 - `gh pr create` for an issue branch,
 
 unless `review-stamp check --sha <the pushed commit or the PR's branch tip>`

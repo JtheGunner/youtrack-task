@@ -110,9 +110,16 @@ t 2 "issue tip pushed by raw SHA to another name" "$repo" "git push origin $tip:
 t 2 "unresolvable refspec source denied, not skipped" "$wt" "git push origin no-such-ref:main" "cannot resolve the refspec source"
 t 2 "gh pr create --head of an issue branch that is not local" "$repo" "gh pr create --head feat/X-9-remote-only" "does not exist locally"
 t 0 "gh pr create --head of a non-issue branch that is not local passes" "$repo" "gh pr create --head some-remote-branch"
-t 0 "pushing main is not blocked by an issue branch sitting on the same commit" "$repo" "git push origin main"
+# a local non-issue branch is no proof of review
+git -C "$repo" branch scratch "$tip"
+t 2 "a local scratch branch on the issue tip does not exempt it" "$repo" "git push origin $tip:refs/heads/release" "not the one that was reviewed"
+git -C "$repo" branch -q -D scratch
+# only a published commit (reachable from a remote-tracking ref) is exempt
 git -C "$repo" branch feat/X-7-fresh main
-t 0 "a fresh issue branch on main's tip does not block pushing main" "$repo" "git push origin main"
+t 2 "unpublished main tip under a fresh issue branch is gated" "$repo" "git push origin main" "has no review"
+git -C "$repo" update-ref refs/remotes/origin/main main
+t 0 "main published: a fresh issue branch on its tip does not block pushing main" "$repo" "git push origin main"
+git -C "$repo" update-ref -d refs/remotes/origin/main
 git -C "$repo" branch -q -D feat/X-7-fresh
 
 t 0 "delete push passes" "$wt" "git push origin --delete feat/X-1-demo"

@@ -245,7 +245,8 @@ Optional enforcement (`review_gate_hook = "on"`, default off):
 the main session unless `review-stamp check --sha <exact commit>` is `PASS` or
 `SKIPPED`. It contains no review logic and checks a refspec by destination and
 source, and `--all` / `--mirror` / `--branches` / `:` per local issue branch; a
-commit spelled by SHA is gated when an issue branch tip is exactly that commit. It
+commit spelled by SHA is gated when an issue branch tip is exactly that commit
+(exempt only if it is already reachable from a remote-tracking ref). It
 fails open on environment gaps, denies pushes whose arguments it cannot resolve
 (quoted, escaped, expanded or wildcard refspecs, remotes, directories), and leaves branches without an issue
 ID, deletions, pure tag pushes and subagent calls alone.
