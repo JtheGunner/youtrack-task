@@ -98,6 +98,12 @@ the diff itself. That is **weaker and never independent**: say so, stamp it with
 `--independent no`, do not call it `PASS`-for-merge. `pr` then asks for explicit
 confirmation to proceed, and `all --auto-merge` stays disabled.
 
+This is also the mode outside Claude Code (for example the Agensi.io package): only
+`skills/youtrack-task/` ships there, so the `ticket-reviewer` agent and the hooks
+(`guard-subagent`, `require-review`) are absent. Use a generic fresh subagent with
+the same minimal briefing if the agent has one; otherwise review in the main
+session. Either way the stamp says `--independent no`.
+
 ## Stamp contract (`scripts/review-stamp`)
 
 - Stored in `$(git rev-parse --git-common-dir)/youtrack-task/reviews/<ID>`: local,

@@ -6,6 +6,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## 0.14.0 — 2026-11-06
 
+- **Agensi / non-Claude-Code agents:** documented that the review gate runs in its
+  weaker `independent=no` mode there, because agents and hooks are not part of
+  the skill folder.
 - **One review gate for every task.** The independent review that only `all`
   had now applies to the primary flow and `pr` too. It is defined once in the new
   `reference/review.md`: a fresh `ticket-reviewer` subagent per review with a

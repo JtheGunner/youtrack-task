@@ -355,6 +355,10 @@ published on [Agensi.io](https://www.agensi.io). What changes there:
    not by the Claude Code `mcp__youtrack__` prefix.
 3. **Bundled `scripts/` are optional.** If the agent loads the skill without
    writing them to disk, it falls back to plain in-place git (no worktrees).
+4. **The review gate runs in its weaker mode.** The `ticket-reviewer` agent and the
+   hooks live at plugin level and are not part of the skill folder. The review is
+   stamped `independent=no`, `pr` asks for confirmation, and `all --auto-merge`
+   stays disabled.
 
 Build the upload ZIP yourself with `tools/package-agensi` (output:
 `dist/agensi/youtrack-task.zip`). The skill-level readme is
