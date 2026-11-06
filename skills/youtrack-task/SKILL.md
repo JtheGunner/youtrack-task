@@ -164,6 +164,7 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `review_gate_hook` | `off` — `on` makes `hooks/require-review` block a push / `gh pr create` of an issue branch without a review stamp (see `reference/review.md`) |
 | `review_rounds` | `2` — max fix / re-review rounds per issue in the review gate (`batch_review_rounds` is accepted as an alias) |
 | `worktree` | `auto` — `auto` (worktree when the checkout is dirty, on a non-default branch, or a plugin worktree already exists; parallel work wants `always`) \| `off` \| `always` |
+| `confirm_branch_name` | `true` — `false` accepts the computed branch name without asking (it is still shown; `--confirm-branch` / `--no-confirm-branch` override per run) |
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
 | `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
 | `worktree_link` | `[".env"]` — paths symlinked from the main checkout into a new worktree |
@@ -199,6 +200,7 @@ from `git branch --show-current`, else ask the user.
 ```
 /youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
                [--worktree | --no-worktree] [--checkpoints] [--review | --no-review]
+               [--confirm-branch | --no-confirm-branch]
 ```
 
 - `--no-move` — don't change the issue state on pickup (keep the pickup comment).
@@ -207,6 +209,10 @@ from `git branch --show-current`, else ask the user.
 - `--worktree` / `--no-worktree` — force / skip an isolated git worktree for this
   pickup (default: `config` `worktree`, itself defaulting to `auto`). See
   `reference/worktrees.md`.
+- `--confirm-branch` / `--no-confirm-branch` — ask / don't ask whether the computed
+  branch name is OK in step 4 (default: config `confirm_branch_name`, itself
+  `true`). The flag wins over the config. Without the question the name is
+  accepted as computed and only shown.
 - `--checkpoints` — step 8 executes an architectural plan with
   `superpowers:executing-plans` (review stop after each phase) instead of
   `subagent-driven-development`.
@@ -259,7 +265,9 @@ issue has one), and a 2–4 sentence gist of the description + any decisive comm
 
 Compute `<prefix>` and `<slug>` per `reference/branching.md` (English, leading
 type word stripped, 40-char cap). Show the resulting branch name for
-accept/rename, then run the bundled script — **do not hand-roll the branch /
+accept/rename — unless confirmation is off (`--no-confirm-branch`, or config
+`confirm_branch_name = false` without `--confirm-branch`): then print
+`→ Branch: <name>` and go on with the computed name. Then run the bundled script — **do not hand-roll the branch /
 worktree logic**, the script is the source of truth
 (spec: `reference/worktrees.md`):
 

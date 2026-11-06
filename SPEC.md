@@ -163,10 +163,14 @@ Primary:
 ```
 /youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
                [--worktree | --no-worktree] [--checkpoints] [--review | --no-review]
+               [--confirm-branch | --no-confirm-branch]
 ```
 
 `--worktree` / `--no-worktree` force / skip an isolated git worktree (default
-`worktree` config = `auto`). `--checkpoints` runs an architectural plan's
+`worktree` config = `auto`). `--confirm-branch` / `--no-confirm-branch` ask /
+skip the "is this branch name OK?" question (default `confirm_branch_name`
+config = `true`; flag wins; the name is still printed when skipped).
+`--checkpoints` runs an architectural plan's
 execution with review stops (`superpowers:executing-plans`). `--no-review`
 skips the review gate for this run (`pr` then asks before pushing); `--review`
 is accepted and changes nothing.
@@ -361,7 +365,8 @@ priority, state, subsystem if present, and the gist of the description.
 ### 4. Set up the workspace
 
 Compute `<prefix>` / `<slug>` per `reference/branching.md` (English, type word
-stripped, 40-char cap), show the branch name for accept/rename, then **run
+stripped, 40-char cap), show the branch name for accept/rename (skipped when `confirm_branch_name =
+false` or `--no-confirm-branch`: print it and continue), then **run
 `scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> [--base …]
 [--mode worktree|inplace]`** and act on its `KEY=VALUE` output (see the Worktrees
 section and `reference/worktrees.md`):
@@ -430,6 +435,7 @@ the user.
 # review_before_pr  = "always"        # always ("auto" is a synonym) | never
 # review_rounds     = 2               # fix + re-review rounds per issue (review gate and `all`)
 # review_gate_hook  = "off"           # on: hooks/require-review blocks unreviewed pushes / PRs
+# confirm_branch_name = true          # false: accept the computed branch name without asking
 # worktree          = "auto"          # auto (checkout busy) | off | always
 # worktree_dir      = ".worktrees"    # gitignored dir under the repo root
 # worktree_clone    = ["node_modules", "vendor"]   # CoW-copied (isolated)

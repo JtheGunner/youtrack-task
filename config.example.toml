@@ -47,6 +47,12 @@
 #   on  -> hooks/require-review blocks unreviewed pushes and PRs (needs jq)
 # review_gate_hook = "off"
 
+# Ask whether the computed branch name is OK before creating the branch.
+#   true  -> show the name and let you accept or rename it (default)
+#   false -> accept the computed name automatically (it is still shown)
+# Per run: --confirm-branch / --no-confirm-branch override this.
+# confirm_branch_name = true
+
 # Isolate each pickup in its own git worktree (for working several tasks in
 # parallel). See reference/worktrees.md.
 #   auto   -> worktree when the checkout is dirty, on a non-default branch, or a
