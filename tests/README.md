@@ -109,3 +109,9 @@ Use a throwaway or low-stakes issue.
 | 54  | `review_gate_hook = "on"`, then `git push` on an unreviewed issue branch in a real session | blocked with the review-gate message naming `/youtrack-task pr`; with `off` or `review_before_pr = "never"` it goes through |
 | 55  | `review_gate_hook = "on"`, `/youtrack-task pr --no-review` | confirmation, `SKIPPED` waiver written, the push is allowed, PR and issue comment say `Review: skipped`; one more commit makes the next push blocked again |
 | 56  | `review_gate_hook = "on"`, `/youtrack-task all ID1 ID2` | the main session's `git push <sha>:refs/heads/<branch>` and `gh pr create --head` (run from the main checkout) pass because each branch tip is stamped `PASS`; no hook rejection in the main session |
+| 57  | pick up an issue with the defaults (no config key, no flag) | the branch name is shown and you are asked to accept or rename it, as before |
+| 58  | `confirm_branch_name = false` in the config, pick up an issue | no question; one line `→ Branch: <name>` is printed and the branch is created with the computed name |
+| 59  | `confirm_branch_name = false`, pick up with `--confirm-branch` | the question is asked despite the config |
+| 60  | default config, pick up with `--no-confirm-branch` | no question; name printed and used |
+| 61  | `confirm_branch_name = false` on a dirty tree, or with an existing branch for the issue | the `dirty-tree` and `existing-branch` questions are still asked |
+| 62  | `confirm_branch_name = false`, `all ID1 ID2` | unchanged: `all` never asks for branch names |

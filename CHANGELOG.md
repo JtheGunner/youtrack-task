@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.0 — 2026-11-06
+
+- **Skip the branch-name question.** New config key `confirm_branch_name`
+  (default `true`) and flags `--confirm-branch` / `--no-confirm-branch` for the
+  primary flow. With `false` / `--no-confirm-branch` the computed branch name is
+  accepted automatically and shown as one line; the flag wins over the config.
+  Other questions (`dirty-tree`, existing branch, project mismatch) are unchanged,
+  and `all` never asked for branch names.
+
 ## 0.14.0 — 2026-11-06
 
 - **Agensi / non-Claude-Code agents:** documented that the review gate runs in its

@@ -58,6 +58,17 @@ Show the computed branch name and let the user accept it or supply their own
 (e.g. a tighter English name like `fix/ADMIN-6-row-tint-hover`). Proceed with the
 computed name only after the user has seen it.
 
+The question can be skipped, so the computed name is accepted automatically:
+
+- config `confirm_branch_name = false` (default `true`), or
+- the flag `--no-confirm-branch` for one run.
+
+`--confirm-branch` forces the question back on for one run. Precedence: flag,
+then config, then the default (`true`). The name is still shown as one line
+(`→ Branch: <name>`) so the pickup stays traceable. Only this question is
+skipped; `setup-workspace` outcomes (`ERROR=dirty-tree`, `existing-branch`)
+are asked as before. `all` never asks for a branch name.
+
 ## Base branch
 
 `scripts/setup-workspace` resolves it: `--base` arg → `origin/HEAD` →

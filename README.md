@@ -91,7 +91,7 @@ Only if your workflow differs from the defaults. Copy
 [`config.example.toml`](./config.example.toml) to
 `~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
 names, a different issue-list query, branch-prefix mapping, where the plan copy
-goes, the `use_superpowers` / `review_before_pr` / `review_rounds` / `review_gate_hook` toggles, or the worktree
+goes, the `use_superpowers` / `review_before_pr` / `review_rounds` / `review_gate_hook` toggles, `confirm_branch_name` (skip the branch-name question), or the worktree
 settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`), or the
 `all` batch settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`;
 `batch_review_rounds` still works as an alias of `review_rounds`).
@@ -151,6 +151,7 @@ Flags:
 | `--no-writeback`               | don't change state and don't add the pickup comment                                                                            |
 | `--base ‹branch›`              | branch from `‹branch›` instead of the detected default                                                                         |
 | `--worktree` / `--no-worktree` | force / skip an isolated git worktree for this pickup (default: `worktree` config, itself `auto`)                              |
+| `--confirm-branch` / `--no-confirm-branch` | ask / don't ask whether the computed branch name is OK; with `--no-confirm-branch` the name is accepted and just shown (default: `confirm_branch_name` config, itself `true`) |
 | `--checkpoints`                | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
 | `--no-review`                  | skip the review gate for this run; `pr` then asks before pushing and labels the PR *Review: skipped* (default: every task with commits is reviewed; `--review` is accepted and does nothing) |
 
@@ -374,7 +375,7 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | YouTrack URL                                                                  | `YOUTRACK_MCP_URL` env var                                                |          🚫          |
 | API token                                                                     | `YOUTRACK_TOKEN` env var                                                  |          🚫          |
 | Which project an issue is in                                                  | encoded in the issue ID (`INFRA-42`)                                      |          🚫          |
-| State names, list query, prefix map, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
+| State names, list query, prefix map, branch-name confirmation, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
 | The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach, review stamp) | `skills/youtrack-task/`                                                   |          ✅          |
 | Review agent (`ticket-reviewer`, used by every flow), `all` worker (`ticket-worker`) and the guard hook | `agents/`, `hooks/guard-subagent` (plugin install only)                   |          ✅          |
 | `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`; review rounds via `review_rounds`) | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
@@ -390,6 +391,7 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | MCP connects but writes fail with 403                                | The token's user lacks permission on that project, or the token scope is wrong.                                                                                                                     |
 | State change skipped with a warning                                  | The skill couldn't identify the state field from the project schema. Set `in_progress_state` / `testing_state` / `done_state` in the config to match your project's field values.                   |
 | Branch name too long                                                 | Slugs are capped; if it's still awkward, rename with `git branch -m`.                                                                                                                               |
+| Asked every time whether the branch name is OK                       | Set `confirm_branch_name = false` in the config, or pass `--no-confirm-branch` for one run. `--confirm-branch` asks again when the config says no.                                                                                                                               |
 | "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree.                                                               |
 | Worktrees piling up                                                  | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand.                                                                                             |
 | Skill runs in Cursor / Copilot but no YouTrack tools are found       | Add the YouTrack MCP server to that agent's MCP settings (see *Use it in other agents*); the skill matches tool names by base name, so any prefix works.                                           |
