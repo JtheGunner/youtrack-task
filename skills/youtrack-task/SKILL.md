@@ -537,7 +537,8 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
    - the branch has commits ahead of the base (`git rev-list --count <base>..HEAD`
      > 0), else *"no commits on this branch"*.
    - clean working tree. If dirty, warn that uncommitted changes won't be in the
-     PR and ask whether to continue.
+     PR and ask whether to continue. Recording a waiver (last bullet) needs a clean
+     tree, so on that path commit or stash first.
    - **reviewed** (not checked when `review_before_pr = never` or `--no-review`,
      see the last bullet): run
      `scripts/review-stamp check --id <ID>` per `reference/review.md`.
