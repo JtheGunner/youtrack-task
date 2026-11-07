@@ -118,6 +118,9 @@ AWK
 
 if [ "$role" = reviewer ]; then
   case "$cmd" in *'<<'*) deny "the reviewer is read-only (no heredocs)." ;; esac
+  # A backslash before a newline joins two lines in the real shell but is validated as two
+  # separate segments here, which would let an option hide in the second one.
+  case "$cmd" in *'\'$'\n'* | *'\'$'\r'*) deny "the reviewer is read-only (no line continuations with a trailing backslash)." ;; esac
   body=$cmd
 else
   body=$(printf '%s\n' "$cmd" | awk "$awk_heredoc")
@@ -142,7 +145,7 @@ segments() { printf '%s\n' "$1" | tr ';&|' '\n\n\n' | tr -s ' \t' ' ' | sed -E '
 
 [ "$(segments "$masked" | wc -l)" -le 80 ] || deny "too many chained commands (max 80); split the work into smaller steps."
 
-bad_env_re='^(PATH|LD_[A-Z_]*|DYLD_[A-Z_]*|GIT_[A-Z_]*|BASH_ENV|ENV|SHELL|IFS|PROMPT_COMMAND|HOME)='
+bad_env_re='^(PATH|LD_[A-Z_]*|DYLD_[A-Z_]*|GIT_[A-Z_]*|BASH_ENV|ENV|SHELL|IFS|PROMPT_COMMAND|HOME|GRADLE_[A-Za-z0-9_]*|ORG_GRADLE_[A-Za-z0-9_]*|JAVA_[A-Za-z0-9_]*|_JAVA_OPTIONS|JDK_[A-Za-z0-9_]*|ANDROID_[A-Za-z0-9_]*|KOTLIN_[A-Za-z0-9_]*|TMPDIR)='
 
 # Remove leading VAR=value assignments so the real command is visible; refuse
 # assignments that change how commands are found or run.
@@ -156,6 +159,49 @@ strip_assignments() {
     s=$(printf '%s' "$s" | sed -E 's/^[A-Za-z_][A-Za-z0-9_]*=[^ ]* *//')
   done
   printf '%s' "$s"
+}
+
+# Gradle: only read-only check tasks, with an optional project path
+# (:feature:play:testDebugUnitTest) and a fixed set of harmless options.
+#   tasks:   exactly test / check / lint / detekt / ktlintCheck / spotlessCheck, lint(Debug|Release|Vital|
+#            VitalRelease), or test<Variant>UnitTest (testDebugUnitTest). No prefix patterns:
+#            Gradle expands camelCase abbreviations, so lintF would run lintFix.
+#            Names that write sources or baselines (Fix, Baseline, Format, Apply, Generate, Update, …)
+#            are denied even when they start with an allowed word.
+#   Values (--tests, -x) contain no glob characters: this validator splits without globbing,
+#   the real shell would expand them.
+#   options: no -D / -P (they can set org.gradle.* daemon / JVM settings or steer the build), no
+#            -I / -b / -c / -g / -p (other scripts or directories).
+# Build, publish and clean tasks are not on the list.
+gradle_allows() {
+  local tok task expect_value=0 seen_task=0
+  case "$1" in 'gradle '* | 'gradlew '* | './gradlew '*) ;; *) return 1 ;; esac
+  set -f
+  for tok in ${1#* }; do
+    if [ "$expect_value" = 1 ]; then
+      expect_value=0
+      printf '%s' "$tok" | grep -Eq '^[A-Za-z0-9_.:#,-]+$' && ! printf '%s' "$tok" | grep -Eq '^-' || { set +f; return 1; }
+      continue
+    fi
+    case "$tok" in
+      --tests | -x | --exclude-task) expect_value=1 ;;
+      --tests=*) printf '%s' "$tok" | grep -Eq '^--tests=[A-Za-z0-9_.:#,][A-Za-z0-9_.:#,-]*$' || { set +f; return 1; } ;;
+      --no-daemon | --daemon | --offline | --continue | --parallel | --no-parallel | --quiet | -q | --info | -i | --warn | -w | \
+      --stacktrace | -s | --full-stacktrace | -S | --rerun-tasks | --build-cache | --no-build-cache | --configuration-cache | \
+      --no-configuration-cache | --dry-run | -m | --console=plain | --console=auto | --console=rich | --console=verbose) ;;
+      -*) set +f; return 1 ;;
+      *)
+        task=${tok##*:}
+        printf '%s' "$tok" | grep -Eq '^([A-Za-z0-9_-]*:)*[A-Za-z0-9_]+$' || { set +f; return 1; }
+        # Exact names only: Gradle resolves camelCase abbreviations (lintF -> lintFix), so a prefix
+        # pattern would let write tasks through. Variant suffixes must be spelled out in full.
+        printf '%s' "$task" | grep -Eq '^(test|check|lint|detekt|ktlintCheck|spotlessCheck|lint(Debug|Release|Vital|VitalRelease)|test[A-Z][A-Za-z0-9]*UnitTest)$' || { set +f; return 1; }
+        ! printf '%s' "$task" | grep -Eiq 'Fix|Baseline|Format|Apply|Generate|Update|Install|Publish|Upload|Deploy|Write|Create|Migrate|Clean' || { set +f; return 1; }
+        seen_task=1 ;;
+    esac
+  done
+  set +f
+  [ "$expect_value" = 0 ] && [ "$seen_task" = 1 ]
 }
 
 reviewer_allows() {
@@ -173,6 +219,7 @@ reviewer_allows() {
   printf '%s' "$s" | grep -Eq '^gh( .*)? --web' && return 1
   printf '%s' "$s" | grep -Eq '(^|[ /=])\.\.(/|$| )' && return 1   # no path traversal out of the repo
 
+  case "$s" in 'gradle '* | 'gradlew '* | './gradlew '*) gradle_allows "$s"; return $? ;; esac
   printf '%s' "$s" | grep -Eq '^git (status|diff|rev-parse|rev-list|ls-files|ls-tree|blame|cat-file|merge-base|name-rev|grep|diff-tree|shortlog)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^git (remote -v|stash list|tag( -l| --list)?|branch( (--list|-a|-r|--show-current|-vv))*)$' && return 0
   printf '%s' "$s" | grep -Eq '^gh (run (list|view)|pr (diff|checks|status))( |$)' && return 0
@@ -180,7 +227,7 @@ reviewer_allows() {
   printf '%s' "$s" | grep -Eq '^sed -n [0-9$,]+p( [^ -][^ ]*)*$' && return 0
   printf '%s' "$s" | grep -Eq '^(npm|pnpm|yarn|bun) (test|run (test|lint|typecheck|check)[a-z:-]*)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^npx (--no-install )?(jest|vitest|tsc|eslint|playwright test)( |$)' && return 0
-  printf '%s' "$s" | grep -Eq '^((php )?(\./)?vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|pytest|python3? -m pytest|ruff check|eslint|php -l|phpunit|pest|phpstan|php artisan test|composer (test|run(-script)? (test|lint|analyse|check)[a-z:-]*)|go (test|vet)|cargo (test|clippy|check)|make( -[a-zA-Z]+)* (test|check|lint)|ctest|mvn( -[a-zA-Z]+)* test|gradle test|\./gradlew test|dotnet test|bats|shellcheck|bash -n|(bash|sh) (\./)?tests?/[A-Za-z0-9._/-]+)( |$)' && return 0
+  printf '%s' "$s" | grep -Eq '^((php )?(\./)?vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|pytest|python3? -m pytest|ruff check|eslint|php -l|phpunit|pest|phpstan|php artisan test|composer (test|run(-script)? (test|lint|analyse|check)[a-z:-]*)|go (test|vet)|cargo (test|clippy|check)|make( -[a-zA-Z]+)* (test|check|lint)|ctest|mvn( -[a-zA-Z]+)* test|dotnet test|bats|shellcheck|bash -n|(bash|sh) (\./)?tests?/[A-Za-z0-9._/-]+)( |$)' && return 0
   return 1
 }
 

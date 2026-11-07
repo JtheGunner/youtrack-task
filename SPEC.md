@@ -217,7 +217,7 @@ them → merge **only** with `--auto-merge`.
   subagents; one writer keeps the language and assignee rules in one place).
 - Workers commit locally and never push; the main session pushes a branch only
   after a `PASS` and the single PR confirmation. Reviewers are read-only
-  (allowlist) and do not see commit messages or PR text.
+  (allowlist; test runners such as Gradle check tasks are allowed) and do not see commit messages or PR text.
   `hooks/guard-subagent` enforces this via the hook input's `agent_type` — a
   best-effort layer; branch protection and a limited token are the real
   boundary.
