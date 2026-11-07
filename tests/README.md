@@ -120,3 +120,10 @@ Use a throwaway or low-stakes issue.
 | 63  | `tests/read-config.sh` | every case prints `ok`; exit 0 (missing file → defaults, bare / quoted values, commented keys ignored, lists, `review_rounds` vs. alias) |
 | 64  | `confirm_branch_name = false`, start a fresh session in another repo, `/youtrack-task <ID>` | the transcript shows `scripts/read-config` run first; no branch question and no "OK to proceed?" gate; the pickup runs through to planning |
 | 65  | `scripts/` missing from the skill (delivery without bundled files), `confirm_branch_name = false` | the skill reads `config.toml` with the Read tool before step 4; still no branch question |
+| 66  | default config, `/youtrack-task pr` on a reviewed branch | commits and diffstat shown, then the "push and open a PR?" question is asked |
+| 67  | `confirm_pr = false` in the config, `/youtrack-task pr` | commits and diffstat shown, one line `→ Pushing <branch> and opening a PR (confirm_pr off)`, no question; push, PR, issue comment and move to Testing happen |
+| 68  | `confirm_pr = false`, `/youtrack-task pr --confirm-pr` | the question is asked despite the config |
+| 69  | default config, `/youtrack-task pr --no-confirm-pr` | no question for this run; the config file is unchanged |
+| 70  | `confirm_pr = false` on the default branch, with no commits ahead, with a dirty tree, or with a `STALE` / `MISSING` review stamp | the checks still stop or ask as before (default branch / no commits → stop; dirty tree → warning question; review → gate runs) |
+| 71  | `confirm_pr = false`, `/youtrack-task pr --no-review` | the explicit "no independent review" confirmation is still asked |
+| 72  | `confirm_pr = false`, `/youtrack-task all ID1 ID2` | unchanged: the single batch confirmation before pushing is still asked |

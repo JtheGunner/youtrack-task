@@ -53,6 +53,14 @@
 # Per run: --confirm-branch / --no-confirm-branch override this.
 # confirm_branch_name = true
 
+# Ask for confirmation before `/youtrack-task pr` pushes the branch and opens
+# the pull request. The commit list and diff stat are always shown.
+#   true  -> ask "push and open a PR?" (default)
+#   false -> push and open the PR without asking; setting this is your standing
+#            authorization. The review gate and the other `pr` checks still apply.
+# Per run: --confirm-pr / --no-confirm-pr override this. `all` is unaffected.
+# confirm_pr = true
+
 # Isolate each pickup in its own git worktree (for working several tasks in
 # parallel). See reference/worktrees.md.
 #   auto   -> worktree when the checkout is dirty, on a non-default branch, or a
