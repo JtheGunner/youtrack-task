@@ -122,6 +122,8 @@ text is sent verbatim, as the user wrote it.
 
 This skill bundles helpers in its `scripts/` directory — run them, don't
 reimplement their logic:
+- `read-config` — step 0 of every invocation: resolves the config below with
+  defaults applied. Never decide a config value without it.
 - `setup-workspace` — step 4: the worktree-vs-in-place decision, branch / worktree
   creation, resume detection, and worktree bootstrap. Reads the config below.
 - `sweep-worktrees` — `pr` step 8, `done`, and `worktree prune`: removes finished
@@ -139,6 +141,8 @@ doesn't materialise bundled files), do not write the scripts out yourself. Degra
 to plain git, in place, never forcing anything:
 - `setup-workspace` → `git switch -c <prefix>/<ID>-<slug> <base>` from a clean tree
   (ask before stashing); report `MODE=inplace`. No worktree.
+- `read-config` → read `~/.config/youtrack-task/config.toml` with the Read tool
+  (if it exists) and apply the defaults in the Config table yourself.
 - `sweep-worktrees` / `worktree prune` → skip and say so.
 - `worktree take` / `worktree remove` → print the `git worktree remove <path>` /
   `git switch <branch>` commands for the user to run.
@@ -148,8 +152,16 @@ to plain git, in place, never forcing anything:
 
 ## Config
 
-Optional file `~/.config/youtrack-task/config.toml`. Read it if present; every key
-is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
+Optional file `~/.config/youtrack-task/config.toml`; every key is optional.
+
+**Load it first, on every invocation, before any decision that depends on it**
+(step 0 of the primary flow and of every sub-command): run
+`scripts/read-config` (from this skill's `scripts/` directory) and use its
+`KEY=VALUE` output as the only source of config values. The Defaults column below
+is documentation, not something to apply from memory — a value you did not get
+from `read-config` (or, without `scripts/`, from reading the file) is unknown.
+Flags override config for one run. `setup-workspace` / `sweep-worktrees` read the
+file themselves. Defaults:
 
 | Key | Default |
 | --- | --- |
@@ -249,6 +261,11 @@ from `git branch --show-current`, else ask the user.
   task with commits is reviewed; see `config` `review_before_pr`). `pr` will then
   ask before pushing an unreviewed branch. `--review` is accepted and changes nothing.
 
+### 0. Load config
+
+Run `scripts/read-config` and keep its output for the whole run (see **Config**).
+No other step reads or guesses config values.
+
 ### 1. Resolve the issue ID
 
 Resolve in this order:
@@ -293,10 +310,16 @@ issue has one), and a 2–4 sentence gist of the description + any decisive comm
 ### 4. Set up the workspace
 
 Compute `<prefix>` and `<slug>` per `reference/branching.md` (English, leading
-type word stripped, 40-char cap). Show the resulting branch name for
-accept/rename — unless confirmation is off (`--no-confirm-branch`, or config
-`confirm_branch_name = false` without `--confirm-branch`): then print
-`→ Branch: <name>` and go on with the computed name. Then run the bundled script — **do not hand-roll the branch /
+type word stripped, 40-char cap). Then decide from the step-0 output:
+
+| `--no-confirm-branch`, or `CONFIRM_BRANCH_NAME=false` without `--confirm-branch` | do this |
+| --- | --- |
+| yes | print one line `→ Branch: <name>` and go straight on. **No question, no go-ahead gate.** |
+| no | show the name for accept/rename, then go on. Ask only about the name. |
+
+Either way, the pickup (workspace, state change, pickup comment, planning) is
+already authorized by the invocation: never bundle it into an extra "OK to
+proceed?" question. Then run the bundled script — **do not hand-roll the branch /
 worktree logic**, the script is the source of truth
 (spec: `reference/worktrees.md`):
 

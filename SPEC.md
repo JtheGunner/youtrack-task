@@ -45,6 +45,7 @@ youtrack-task/
 │       ├── README.md        # skill-level readme: requirements, per-agent MCP setup, script ops
 │       ├── examples/        # sample runs: pickup.md, new.md, pr.md
 │       ├── scripts/
+│       │   ├── read-config       # step 0: resolve config.toml + defaults as KEY=VALUE
 │       │   ├── setup-workspace   # step 4: worktree-vs-in-place decision + create + bootstrap
 │       │   ├── sweep-worktrees   # pr / done / prune: remove finished worktrees safely
 │       │   ├── worktree-detach   # worktree take|remove: free one issue's branch
@@ -385,8 +386,9 @@ priority, state, subsystem if present, and the gist of the description.
 ### 4. Set up the workspace
 
 Compute `<prefix>` / `<slug>` per `reference/branching.md` (English, type word
-stripped, 40-char cap), show the branch name for accept/rename (skipped when `confirm_branch_name =
-false` or `--no-confirm-branch`: print it and continue), then **run
+stripped, 40-char cap), show the branch name for accept/rename (skipped when `CONFIRM_BRANCH_NAME=false`
+from `scripts/read-config`, or `--no-confirm-branch`: print it and continue; no other go-ahead gate
+is added, the invocation authorizes the pickup), then **run
 `scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> [--base …]
 [--mode worktree|inplace]`** and act on its `KEY=VALUE` output (see the Worktrees
 section and `reference/worktrees.md`):
