@@ -174,6 +174,33 @@ is optional. `setup-workspace` / `sweep-worktrees` read it directly. Defaults:
 | `batch_review_rounds` | alias of `review_rounds`, kept for existing configs |
 | `[type_prefix]` table | see `reference/branching.md` |
 
+## Resolving a project
+
+Everywhere the skill needs "the current repo's YouTrack project" (bare issue
+number, repo sanity check, `new`), use this one procedure — never an ad-hoc
+guess. `find_projects` returns **at most 20 projects per page**, so one call with
+an empty query shows only the first page; a project missing from it may still
+exist. Names differ from keys (repo `intelli-key-port` ↔ key `IKP`), so match on
+the **name**, not the key.
+
+1. **Candidates.** The repo name from `git remote get-url origin` (strip the
+   `.git` suffix and any owner path) and the basename of the working directory,
+   each also with `-` / `_` removed.
+2. **Targeted search.** `find_projects(query=<candidate>)` per candidate. A
+   case-insensitive exact name match wins. A single substring match is offered for
+   confirmation. Several matches → ask which.
+3. **Full listing, only if step 2 found nothing.** Page through
+   `find_projects(query="", limit=20, offset=0, 20, 40, …)` until a page returns
+   fewer than 20 items, then match the candidates against every name.
+4. **Verify.** `get_project` on the chosen key before using it.
+5. **Only now** may you say there is no matching project — after steps 2 and 3.
+   A list you show the user to pick from must be the complete one from step 3
+   (or say it is partial). Never answer *"there is no project named …"* from a
+   single unpaged call.
+
+A project key the user typed (`--project KEY`) skips 1–3 and goes straight to
+`get_project`. An issue ID's prefix is authoritative for that issue's project.
+
 ## Dispatch on the first argument
 
 | First arg | Action |
@@ -239,10 +266,9 @@ Resolve in this order:
    the reply is treated exactly like rule 2 (→ `<PROJECT>-N`), **never** as a
    position in the list. Empty list → say so, ask for an explicit ID.
 
-**Current repo's project key:** derive it from the git remote / cwd and match it
-against YouTrack projects (`mcp__youtrack__find_projects` / `get_project`), or take
-the dominant project prefix among the issues returned by `list_query` for this
-repo. This is the same project used for the sanity check in step 3.
+**Current repo's project key:** resolve it with "Resolving a project" above, or
+take the dominant project prefix among the issues returned by `list_query` for
+this repo. This is the same project used for the sanity check in step 3.
 
 ### 2. Fetch context
 
@@ -257,7 +283,8 @@ issue has one), and a 2–4 sentence gist of the description + any decisive comm
 - `git rev-parse --is-inside-work-tree` must succeed. If not, stop: *"Not inside a
   git repository — cd into the project first."*
 - `git remote get-url origin` → repo slug. Compare loosely to the issue's project
-  (use `mcp__youtrack__get_project` for its name / short name). On a clear
+  (use `mcp__youtrack__get_project` for its name / short name; the issue ID's
+  prefix already names the project, so no project search is needed). On a clear
   mismatch, warn once: *"`<ID>` is in project `<PROJ>` but this repo looks like
   `<slug>` — continue anyway?"* Continue only on yes. Never hard-block.
 
@@ -458,10 +485,10 @@ is given.
 
 **project** (required)
 - `--project KEY` if given.
-- Else derive the current repo's project key (git remote / cwd → match YouTrack
-  projects, same as the primary flow's step 3) and offer it: *"Create in `ADMIN`
-  (this repo)? or name another project."*
-- Else list projects via `mcp__youtrack__find_projects` and ask.
+- Else resolve the current repo's project with "Resolving a project" and offer
+  it: *"Create in `ADMIN` (this repo)? or name another project."* Never tell the
+  user a project doesn't exist unless that procedure ran to the end.
+- Else list **all** projects (paginated, see "Resolving a project" step 3) and ask.
 - Validate the key exists (`mcp__youtrack__get_project`) before continuing.
 
 **title** (required) — `--title` or ask.
@@ -640,7 +667,8 @@ the review loop, PR and merge conditions — is `reference/batch.md`; follow it,
 don't improvise. Needs the plugin's `ticket-worker` and `ticket-reviewer` agents
 (without subagent support, see the fallback in `batch.md`).
 
-- `ID ...` — explicit issues; without them `batch_query` picks the candidates.
+- `ID ...` — explicit issues (full IDs only; the prefix names the project, so no
+  project lookup is needed); without them `batch_query` picks the candidates.
 - `--max N` — parallel workers (default `batch_max_parallel`).
 - `--no-review` — skip the independent reviewer.
 - `--dry-run` — triage table only; no workspace, no write.
