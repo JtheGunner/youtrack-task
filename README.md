@@ -109,6 +109,10 @@ settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`), or the
 
 What happens:
 
+Before anything else, a bundled script (`scripts/read-config`) resolves your
+`config.toml` with all defaults, so a setting like `confirm_branch_name = false`
+is applied every time, not only when Claude happens to read the file.
+
 1. **Fetch** — Claude pulls the issue (summary, description, type, priority,
    state, subsystem) and its comments, and shows you a short brief.
 2. **Sanity check** — verifies you're in a git repo and that the repo roughly
@@ -391,7 +395,7 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | MCP connects but writes fail with 403                                | The token's user lacks permission on that project, or the token scope is wrong.                                                                                                                     |
 | State change skipped with a warning                                  | The skill couldn't identify the state field from the project schema. Set `in_progress_state` / `testing_state` / `done_state` in the config to match your project's field values.                   |
 | Branch name too long                                                 | Slugs are capped; if it's still awkward, rename with `git branch -m`.                                                                                                                               |
-| Asked every time whether the branch name is OK                       | Set `confirm_branch_name = false` in the config, or pass `--no-confirm-branch` for one run. `--confirm-branch` asks again when the config says no.                                                                                                                               |
+| Asked every time whether the branch name is OK                       | Set `confirm_branch_name = false` in the config, or pass `--no-confirm-branch` for one run. `--confirm-branch` asks again when the config says no. Still asked with `false` set? Check that the transcript shows `scripts/read-config` running first, and that the key sits at the top level of the file, not under a `[table]`.                                                                                                                               |
 | "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree.                                                               |
 | Worktrees piling up                                                  | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand.                                                                                             |
 | Skill runs in Cursor / Copilot but no YouTrack tools are found       | Add the YouTrack MCP server to that agent's MCP settings (see *Use it in other agents*); the skill matches tool names by base name, so any prefix works.                                           |

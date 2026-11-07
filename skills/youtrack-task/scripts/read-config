@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# read-config — resolve the youtrack-task config once, with defaults applied.
+# The skill's single source of truth for config values: the agent runs this
+# instead of deciding by itself whether to read the file.
+#
+# Usage: read-config
+#
+# Reads $YOUTRACK_TASK_CONFIG, else ~/.config/youtrack-task/config.toml. A
+# missing file is not an error: every key falls back to its default.
+#
+# Output (KEY=VALUE, one per line, always the complete set):
+#   CONFIG_FILE=<path>|none
+#   <KEY>=<value>   upper-cased config key; list keys are space-separated
+#
+# Keep the defaults in sync with config.example.toml and the Config table in
+# SKILL.md.
+set -uo pipefail
+
+CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
+
+# Only the top level counts: everything from the first [table] header on (for
+# example [type_prefix]) is ignored, so a same-named key there cannot leak in.
+top_level() { sed '/^[[:space:]]*\[/,$d' "$CFG"; }
+
+cfg_scalar() { # $1 = key ; echoes the value, quoted or bare, or nothing
+  [ -f "$CFG" ] || return 0
+  local v
+  v=$(top_level | sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"([^\"]*)\".*/\\1/p" | head -1)
+  [ -n "$v" ] || v=$(top_level | sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*([^][:space:]#\"]+).*/\\1/p" | head -1)
+  printf '%s' "$v"
+}
+
+cfg_list() { # $1 = key ; echoes the items space-separated, or nothing
+  [ -f "$CFG" ] || return 0
+  top_level | sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\\[(.*)\\].*/\\1/p" | head -1 | tr -d '"' | tr ',' ' ' | tr -s ' ' | sed -E 's/^ +| +$//g'
+}
+
+emit() { # $1 = key ; $2 = default ; $3 = scalar|list
+  local v
+  if [ "$3" = list ]; then v=$(cfg_list "$1"); else v=$(cfg_scalar "$1"); fi
+  printf '%s=%s\n' "$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')" "${v:-$2}"
+}
+
+if [ -f "$CFG" ]; then echo "CONFIG_FILE=$CFG"; else echo "CONFIG_FILE=none"; fi
+
+emit list_query 'for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc' scalar
+emit in_progress_state 'In Progress' scalar
+emit testing_state Testing scalar
+emit done_state Done scalar
+emit local_plan_copy auto scalar
+emit default_new_type '' scalar
+emit use_superpowers auto scalar
+emit review_before_pr always scalar
+emit review_gate_hook off scalar
+emit worktree auto scalar
+emit confirm_branch_name true scalar
+emit worktree_dir .worktrees scalar
+emit worktree_clone 'node_modules vendor' list
+emit worktree_link .env list
+emit batch_query 'for: me #Unresolved State: Open sort by: updated desc' scalar
+emit batch_max_parallel 3 scalar
+emit batch_skip_tags manual list
+
+# review_rounds: the new key wins, batch_review_rounds is the old alias.
+rounds=$(cfg_scalar review_rounds)
+[ -n "$rounds" ] || rounds=$(cfg_scalar batch_review_rounds)
+echo "REVIEW_ROUNDS=${rounds:-2}"

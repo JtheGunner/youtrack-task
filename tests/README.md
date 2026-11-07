@@ -117,3 +117,6 @@ Use a throwaway or low-stakes issue.
 | 60  | default config, pick up with `--no-confirm-branch` | no question; name printed and used |
 | 61  | `confirm_branch_name = false` on a dirty tree, or with an existing branch for the issue | the `dirty-tree` and `existing-branch` questions are still asked |
 | 62  | `confirm_branch_name = false`, `all ID1 ID2` | unchanged: `all` never asks for branch names |
+| 63  | `tests/read-config.sh` | every case prints `ok`; exit 0 (missing file → defaults, bare / quoted values, commented keys ignored, lists, `review_rounds` vs. alias) |
+| 64  | `confirm_branch_name = false`, start a fresh session in another repo, `/youtrack-task <ID>` | the transcript shows `scripts/read-config` run first; no branch question and no "OK to proceed?" gate; the pickup runs through to planning |
+| 65  | `scripts/` missing from the skill (delivery without bundled files), `confirm_branch_name = false` | the skill reads `config.toml` with the Read tool before step 4; still no branch question |

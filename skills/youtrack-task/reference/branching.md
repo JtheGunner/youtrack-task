@@ -64,10 +64,14 @@ The question can be skipped, so the computed name is accepted automatically:
 - the flag `--no-confirm-branch` for one run.
 
 `--confirm-branch` forces the question back on for one run. Precedence: flag,
-then config, then the default (`true`). The name is still shown as one line
+then config, then the default (`true`). The config value comes from
+`scripts/read-config` (step 0), never from memory: an unread config is not
+"default `true`", it is unknown. The name is still shown as one line
 (`→ Branch: <name>`) so the pickup stays traceable. Only this question is
 skipped; `setup-workspace` outcomes (`ERROR=dirty-tree`, `existing-branch`)
-are asked as before. `all` never asks for a branch name.
+are asked as before. `all` never asks for a branch name. No other gate is added
+either: the invocation already authorizes the pickup, so the name is never
+bundled with "OK to move the issue and post the comment?".
 
 ## Base branch
 
