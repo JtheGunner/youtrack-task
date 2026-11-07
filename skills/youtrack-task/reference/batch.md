@@ -35,6 +35,10 @@ reviewer per result, write-back to YouTrack, optional merging. Bound by the
 ## 1. Triage (read-only)
 
 Candidates: the explicit `ID ...`, else `search_issues` with `batch_query`.
+`all` needs no project lookup: every ID names its project by its prefix, and
+`batch_query` is project-agnostic. A bare number is not accepted here — refuse
+it and ask for the full ID (resolving it would need "Resolving a project" in
+`SKILL.md`, and `all` never guesses a project).
 For each, `get_issue` (+ comments) and classify:
 
 | Verdict | When |

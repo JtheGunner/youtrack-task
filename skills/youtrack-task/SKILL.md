@@ -667,7 +667,8 @@ the review loop, PR and merge conditions — is `reference/batch.md`; follow it,
 don't improvise. Needs the plugin's `ticket-worker` and `ticket-reviewer` agents
 (without subagent support, see the fallback in `batch.md`).
 
-- `ID ...` — explicit issues; without them `batch_query` picks the candidates.
+- `ID ...` — explicit issues (full IDs only; the prefix names the project, so no
+  project lookup is needed); without them `batch_query` picks the candidates.
 - `--max N` — parallel workers (default `batch_max_parallel`).
 - `--no-review` — skip the independent reviewer.
 - `--dry-run` — triage table only; no workspace, no write.
