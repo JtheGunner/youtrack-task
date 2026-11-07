@@ -51,7 +51,10 @@ specific action:
 - **Never start servers, daemons, or watchers without asking**, and stop any you
   were told to start.
 - **Pushing and opening a PR happen only in the explicit `pr` sub-command** (or
-  the user's own `/ship`), after a confirmation prompt. Never as an implicit part
+  the user's own `/ship`), after a confirmation prompt — unless `pr` was told not
+  to ask (config `confirm_pr = false` or `--no-confirm-pr`), which is the user's
+  standing authorization for that push and PR and nothing more: the review gate
+  and the other checks still apply. Never as an implicit part
   of the primary flow, `done`, or anything else. Within an explicit `all` run,
   the **main session** may push an issue's own branch (plain push, never any
   other ref) and open PRs for the whole batch after **one** confirmation listing
@@ -177,6 +180,7 @@ file themselves. Defaults:
 | `review_rounds` | `2` — max fix / re-review rounds per issue in the review gate (`batch_review_rounds` is accepted as an alias) |
 | `worktree` | `auto` — `auto` (worktree when the checkout is dirty, on a non-default branch, or a plugin worktree already exists; parallel work wants `always`) \| `off` \| `always` |
 | `confirm_branch_name` | `true` — `false` accepts the computed branch name without asking (it is still shown; `--confirm-branch` / `--no-confirm-branch` override per run) |
+| `confirm_pr` | `true` — `false` makes `pr` push and open the PR without the confirmation question (commits and diffstat are still shown; `--confirm-pr` / `--no-confirm-pr` override per run) |
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
 | `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
 | `worktree_link` | `[".env"]` — paths symlinked from the main checkout into a new worktree |
@@ -587,7 +591,8 @@ stick).
 
 ## pr
 
-`/youtrack-task pr [ISSUE-ID] [--no-move] [--base <branch>] [--draft] [--no-review]`
+`/youtrack-task pr [ISSUE-ID] [--no-move] [--base <branch>] [--draft] [--no-review]
+                  [--confirm-pr | --no-confirm-pr]`
 
 Push the current feature branch, open a GitHub PR, record it on the issue, and
 move the issue to Testing. This is the one place the skill is allowed to push.
@@ -619,8 +624,17 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
      skipped (not independently reviewed)` to the PR body and to the YouTrack PR
      comment. Never skip silently. A `SKIPPED` stamp already on this commit counts
      as that confirmation.
-3. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`, then
-   **ask for confirmation** before pushing.
+3. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`
+   (always), then decide from the step-0 output:
+
+   | `--no-confirm-pr`, or `CONFIRM_PR=false` without `--confirm-pr` | do this |
+   | --- | --- |
+   | yes | print one line `→ Pushing <branch> and opening a PR (confirm_pr off)` and go on to step 4. **No question.** |
+   | no | **ask for confirmation** before pushing. |
+
+   This table gates only the push-and-PR question. The checks in step 2 (default
+   branch, commits ahead, dirty tree, review gate, `--no-review` confirmation) are
+   unaffected and still stop or ask as written there.
 4. `git push -u origin <branch>` (plain push; never `--force`).
 5. Open the PR:
    - If `gh pr view <branch> --json url,state` already shows an open PR, reuse its

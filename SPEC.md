@@ -184,7 +184,7 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
                                         [--assignee LOGIN|EMAIL]   # both modes
 /youtrack-task comment <text>                           # add_issue_comment to the current branch's issue
 /youtrack-task log [ISSUE-ID] <duration> [description]  # log_work; issue inferred from branch if omitted
-/youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft] [--no-review]  # review check + push + gh PR + link on issue + → Testing
+/youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft] [--no-review] [--confirm-pr | --no-confirm-pr]  # review check + push + gh PR + link on issue + → Testing
 /youtrack-task link [ISSUE-ID] <pr-url>                 # attach an existing PR URL as a comment
 /youtrack-task testing [ISSUE-ID]                       # move state → Testing
 /youtrack-task done [ISSUE-ID]                          # move state → Done
@@ -195,7 +195,7 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 
 State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
 Progress` automatically. `pr` is the only command that pushes (plus `all`, where the main session pushes reviewed branches) — it needs `gh`,
-prompts before pushing, never force-pushes/deletes, merges only under `all --auto-merge`, and moves the issue to
+prompts before pushing (unless `confirm_pr = false` / `--no-confirm-pr`), never force-pushes/deletes, merges only under `all --auto-merge`, and moves the issue to
 Testing. `testing` / `done` are pure state transitions (no git). `done` is always
 last: it means "merged and accepted". When `ISSUE-ID` is omitted for any
 sub-command it is taken from the current branch name; if that fails, the skill
@@ -458,6 +458,7 @@ the user.
 # review_rounds     = 2               # fix + re-review rounds per issue (review gate and `all`)
 # review_gate_hook  = "off"           # on: hooks/require-review blocks unreviewed pushes / PRs
 # confirm_branch_name = true          # false: accept the computed branch name without asking
+# confirm_pr        = true            # false: `pr` pushes + opens the PR without the confirmation question
 # worktree          = "auto"          # auto (checkout busy) | off | always
 # worktree_dir      = ".worktrees"    # gitignored dir under the repo root
 # worktree_clone    = ["node_modules", "vendor"]   # CoW-copied (isolated)
@@ -525,7 +526,7 @@ plan is approved, but never crosses these without explicit per-action approval:
 - No push or PR without a stamped review `PASS` on the exact HEAD (only the labelled
   `--no-review` / `review_before_pr = never` paths bypass it).
 - Push + PR only in the explicit `pr` sub-command (or the user's own ship flow),
-  after a confirmation prompt. Never as part of the primary flow or `done`. Never
+  after a confirmation prompt (skippable via `confirm_pr = false` / `--no-confirm-pr` — a standing authorization; review gate unaffected). Never as part of the primary flow or `done`. Never
   force-push, merge a PR, or delete a branch.
 - Branch slug: leading type word stripped ("Bugfix:", "Feature/Refactoring:"),
   40-char cap, name shown for accept/rename before use.

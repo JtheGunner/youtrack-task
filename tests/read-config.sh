@@ -21,6 +21,7 @@ expect() {
 run "$tmp/missing.toml"
 expect "missing file -> CONFIG_FILE=none"      "CONFIG_FILE=none"
 expect "missing file -> confirm default true"  "CONFIRM_BRANCH_NAME=true"
+expect "missing file -> confirm_pr default true" "CONFIRM_PR=true"
 expect "missing file -> worktree auto"         "WORKTREE=auto"
 expect "missing file -> clone default"         "WORKTREE_CLONE=node_modules vendor"
 expect "missing file -> review rounds 2"       "REVIEW_ROUNDS=2"
@@ -30,6 +31,8 @@ cat > "$tmp/user.toml" <<'EOF'
 list_query = "for: me #Unresolved sort by: updated desc"
 # confirm_branch_name = true
 confirm_branch_name = false   # trailing comment
+# confirm_pr = true
+confirm_pr = false            # trailing comment
 worktree = "always"
 use_superpowers = "always"
 worktree_clone = ["node_modules", "vendor", "storage"]
@@ -42,6 +45,7 @@ run "$tmp/user.toml"
 expect "file present -> CONFIG_FILE"           "CONFIG_FILE=$tmp/user.toml"
 expect "bare false is honoured"                "CONFIRM_BRANCH_NAME=false"
 expect "commented key is ignored"              "CONFIRM_BRANCH_NAME=false"
+expect "confirm_pr false is honoured"          "CONFIRM_PR=false"
 expect "quoted scalar"                         "WORKTREE=always"
 expect "quoted value with spaces"              "LIST_QUERY=for: me #Unresolved sort by: updated desc"
 expect "list is space-separated"               "WORKTREE_CLONE=node_modules vendor storage"
@@ -65,5 +69,18 @@ printf 'worktree = "off"\n[type_prefix]\nworktree = "always"\nconfirm_branch_nam
 run "$tmp/table.toml"
 expect "key in a [table] does not leak"        "CONFIRM_BRANCH_NAME=true"
 expect "top-level value wins over [table]"     "WORKTREE=off"
+
+printf 'confirm_pr = "false"\n' > "$tmp/pr-quoted.toml"
+run "$tmp/pr-quoted.toml"
+expect "confirm_pr quoted false is honoured"   "CONFIRM_PR=false"
+expect "confirm_pr is independent of branch"   "CONFIRM_BRANCH_NAME=true"
+
+printf '# confirm_pr = false\n' > "$tmp/pr-commented.toml"
+run "$tmp/pr-commented.toml"
+expect "confirm_pr only commented -> default"  "CONFIRM_PR=true"
+
+printf '[type_prefix]\nconfirm_pr = false\n' > "$tmp/pr-table.toml"
+run "$tmp/pr-table.toml"
+expect "confirm_pr in a [table] does not leak" "CONFIRM_PR=true"
 
 exit $fail

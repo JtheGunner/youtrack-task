@@ -54,6 +54,7 @@ emit review_before_pr always scalar
 emit review_gate_hook off scalar
 emit worktree auto scalar
 emit confirm_branch_name true scalar
+emit confirm_pr true scalar
 emit worktree_dir .worktrees scalar
 emit worktree_clone 'node_modules vendor' list
 emit worktree_link .env list

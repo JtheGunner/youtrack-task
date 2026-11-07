@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.0 — 2026-11-07
+
+- **New: `confirm_pr` config key and `--confirm-pr` / `--no-confirm-pr` flags for
+  `pr`.** `/youtrack-task pr` always asked "push and open a PR?" after showing the
+  commits and diffstat. With `confirm_pr = false` in `config.toml`, or
+  `--no-confirm-pr` for one run, `pr` still shows them but pushes and opens the PR
+  without the question; `--confirm-pr` asks again when the config says `false`.
+  Default is `true`, so nothing changes unless you opt in. The setting is a
+  standing authorization for that push and PR only: the review gate, the
+  default-branch / commits-ahead / dirty-tree checks and the `--no-review`
+  confirmation are unaffected, and so is the single batch confirmation in `all`.
+  Resolved by `scripts/read-config` (`CONFIRM_PR`); the decision in `pr` step 3 is a
+  table over the resolved value. Covered by `tests/read-config.sh` and manual
+  tests 66-72.
+
 ## 0.15.4 — 2026-11-07
 
 - **Fix: the `ticket-reviewer` could not run Gradle tests.** The reviewer allowlist
