@@ -45,7 +45,7 @@ youtrack-task/
 │       ├── README.md        # skill-level readme: requirements, per-agent MCP setup, script ops
 │       ├── examples/        # sample runs: pickup.md, new.md, pr.md
 │       ├── scripts/
-│       │   ├── read-config       # step 0: resolve config.toml + defaults as KEY=VALUE
+│       │   ├── read-config       # step 0 of every invocation: resolve config.toml + defaults as KEY=VALUE
 │       │   ├── setup-workspace   # step 4: worktree-vs-in-place decision + create + bootstrap
 │       │   ├── sweep-worktrees   # pr / done / prune: remove finished worktrees safely
 │       │   ├── worktree-detach   # worktree take|remove: free one issue's branch

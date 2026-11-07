@@ -230,6 +230,10 @@ A project key the user typed (`--project KEY`) skips 1–3 and goes straight to
 | `worktree` | `list` / `prune` / `take` / `remove` this plugin's worktrees — see "worktree" below |
 | `all` | work through several issues in parallel with independent review — see "all" below |
 
+**Every invocation, whatever the first argument, starts with step 0:** run
+`scripts/read-config` (see **Config**) before anything that depends on a config
+value. The sub-commands below do not repeat it.
+
 For `comment` / `log` / `pr` / `link` / `testing` / `done`, resolve the issue ID
 from an explicit leading `ISSUE-ID` argument if given, else extract `[A-Z]+-\d+`
 from `git branch --show-current`, else ask the user.

@@ -18,17 +18,21 @@ set -uo pipefail
 
 CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
 
+# Only the top level counts: everything from the first [table] header on (for
+# example [type_prefix]) is ignored, so a same-named key there cannot leak in.
+top_level() { sed '/^[[:space:]]*\[/,$d' "$CFG"; }
+
 cfg_scalar() { # $1 = key ; echoes the value, quoted or bare, or nothing
   [ -f "$CFG" ] || return 0
   local v
-  v=$(sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"([^\"]*)\".*/\\1/p" "$CFG" | head -1)
-  [ -n "$v" ] || v=$(sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*([^][:space:]#\"]+).*/\\1/p" "$CFG" | head -1)
+  v=$(top_level | sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"([^\"]*)\".*/\\1/p" | head -1)
+  [ -n "$v" ] || v=$(top_level | sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*([^][:space:]#\"]+).*/\\1/p" | head -1)
   printf '%s' "$v"
 }
 
 cfg_list() { # $1 = key ; echoes the items space-separated, or nothing
   [ -f "$CFG" ] || return 0
-  sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\\[(.*)\\].*/\\1/p" "$CFG" | head -1 | tr -d '"' | tr ',' ' ' | tr -s ' ' | sed -E 's/^ +| +$//g'
+  top_level | sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\\[(.*)\\].*/\\1/p" | head -1 | tr -d '"' | tr ',' ' ' | tr -s ' ' | sed -E 's/^ +| +$//g'
 }
 
 emit() { # $1 = key ; $2 = default ; $3 = scalar|list

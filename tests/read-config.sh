@@ -57,4 +57,13 @@ printf 'confirm_branch_name = "false"\n' > "$tmp/quoted.toml"
 run "$tmp/quoted.toml"
 expect "quoted false is honoured"              "CONFIRM_BRANCH_NAME=false"
 
+printf '# confirm_branch_name = false\n' > "$tmp/commented.toml"
+run "$tmp/commented.toml"
+expect "only a commented key -> default"       "CONFIRM_BRANCH_NAME=true"
+
+printf 'worktree = "off"\n[type_prefix]\nworktree = "always"\nconfirm_branch_name = false\n' > "$tmp/table.toml"
+run "$tmp/table.toml"
+expect "key in a [table] does not leak"        "CONFIRM_BRANCH_NAME=true"
+expect "top-level value wins over [table]"     "WORKTREE=off"
+
 exit $fail
