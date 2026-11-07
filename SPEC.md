@@ -53,6 +53,7 @@ youtrack-task/
 │           ├── branching.md      # branch-name + type→prefix rules
 │           ├── writeback.md      # state-transition + comment rules
 │           ├── issue-template.md # structure for `new` free-text generation
+│           ├── projects.md       # project resolution: the 20-item `find_projects` cap + paging loop
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
 │           ├── review.md         # the review gate: one procedure for primary flow, `pr` and `all` (+ review-stamp contract)
 │           ├── batch.md          # contract for `all`: triage, workers, scheduling the review gate, PRs, merge

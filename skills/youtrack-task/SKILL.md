@@ -198,6 +198,8 @@ the **name**, not the key.
    (or say it is partial). Never answer *"there is no project named …"* from a
    single unpaged call.
 
+The 20-item cap and the paging loop are spelled out in `reference/projects.md`.
+
 A project key the user typed (`--project KEY`) skips 1–3 and goes straight to
 `get_project`. An issue ID's prefix is authoritative for that issue's project.
 
