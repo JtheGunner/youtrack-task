@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.1 — 2026-11-07
+
+- **Fix: existing projects reported as missing.** The repo → YouTrack project
+  lookup could answer *"there is no project named …"* for a project that exists,
+  because `find_projects` returns only 20 projects per page and the skill looked
+  at the first page only. A single "Resolving a project" procedure now searches by
+  repo name first, then pages through all projects, verifies the hit with
+  `get_project`, and only then may report a missing project. Used by the
+  bare-number pickup, the repo sanity check and `new`.
+
 ## 0.15.0 — 2026-11-06
 
 - **Skip the branch-name question.** New config key `confirm_branch_name`

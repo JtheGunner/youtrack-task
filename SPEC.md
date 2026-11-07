@@ -307,7 +307,8 @@ Required: `project`, `title`, `description`. Two input modes:
   one at a time. Bare `new` asks free-text-or-fields first.
 
 Field resolution:
-- **project**: `--project` → repo-derived default → `find_projects` list. Validated.
+- **project**: `--project` → repo-derived default (see *Project resolution*) →
+  full paginated `find_projects` list. Validated with `get_project`.
 - **type**: `--type` (validated against the project schema) → else inferred from
   the (generated or given) title + description and shown for confirmation; never
   created unconfirmed. `default_new_type` (config) is the fallback when unsure.
@@ -334,13 +335,31 @@ Priority / Assignee as custom fields; `change_issue_assignee` / `update_issue`
 fallback) → report ID + URL + assignee → offer
 pickup (`/youtrack-task <new-ID>`), no auto-chain.
 
+## Project resolution
+
+Used wherever the repo's YouTrack project is needed (bare issue number, repo
+sanity check, `new`). `find_projects` returns at most 20 projects per page, so a
+single unpaged call can miss an existing project; names also differ from keys
+(repo `intelli-key-port` ↔ key `IKP`), so matching is by **name**.
+
+1. Candidates: repo name from the `origin` remote (no `.git`, no owner) and the
+   cwd basename, each also with `-` / `_` removed.
+2. Targeted `find_projects(query=<candidate>)`; exact case-insensitive name match
+   wins, a single substring match is confirmed, several → ask.
+3. Only if nothing matched: page through `find_projects(query="")` with
+   `offset += 20` until a page has fewer than 20 items; match against all names.
+4. Verify with `get_project`.
+5. "No project named …" is allowed only after steps 2 and 3; a partial list is
+   never presented as complete. `--project KEY` skips 1–3; an issue ID's prefix is
+   authoritative for that issue.
+
 ## Primary flow
 
 ### 1. Resolve the issue ID
 
 - Arg is a full ID (`^[A-Z][A-Z0-9_]+-\d+$`) → use it.
-- Arg is a bare number `N` → qualify with the current repo's project key →
-  `<PROJECT>-N`, echo it, proceed on yes.
+- Arg is a bare number `N` → qualify with the current repo's project key
+  (*Project resolution*) → `<PROJECT>-N`, echo it, proceed on yes.
 - No arg → `git branch --show-current`; a `[A-Z]+-\d+` in it → extract, confirm.
 - Still nothing → `search_issues` with `list_query` (config-overridable), list
   candidates as `<ID> — <summary> — <state>` (no row numbers). Reply is an issue
