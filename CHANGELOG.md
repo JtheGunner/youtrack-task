@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.4 — 2026-11-07
+
+- **Fix: the `ticket-reviewer` could not run Gradle tests.** The reviewer allowlist
+  in `hooks/guard-subagent` accepted only `gradle test` / `./gradlew test`, so
+  `./gradlew :feature:play:testDebugUnitTest`, `./gradlew testDebugUnitTest lint`
+  or `./gradlew --no-daemon test` were blocked and Android / multi-module projects
+  could not be reviewed. Gradle is now allowed for check tasks only, matched by
+  exact name (`test`, `check`, `lint`, `detekt`, `ktlintCheck`, `spotlessCheck`,
+  `lint(Debug|Release|Vital|VitalRelease)`, `test<Variant>UnitTest`), optionally
+  with a project path, because Gradle expands camelCase abbreviations (`lintF`
+  would run `lintFix`). Options are a fixed harmless set (`--no-daemon`,
+  `--offline`, `--tests <pattern>`, `-x <task>`, …). Building, publishing or
+  cleaning tasks, tasks that write sources or baselines, `-D` / `-P`, options that
+  load other scripts or directories (`-I`, `-b`, `-c`, `-g`, `-p`) and glob
+  characters in option values stay denied; a trailing backslash
+  (line continuation) is denied for the reviewer, and `GRADLE_*`, `JAVA_*`, `JDK_*`,
+  `ANDROID_*`, `KOTLIN_*`, `_JAVA_OPTIONS`, `ORG_GRADLE_*` and `TMPDIR` cannot be set in a
+  subagent command. Covered by
+  `tests/guard-subagent.sh`.
+
 ## 0.15.3 — 2026-11-07
 
 - **Fix: `confirm_branch_name = false` was not applied reliably.** The skill only
