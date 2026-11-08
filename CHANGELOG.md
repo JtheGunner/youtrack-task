@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.1 — 2026-11-08
+
+- **Fix: `/youtrack-task all` without IDs found nothing.** Three causes, all in how
+  the candidates were gathered, plus one in how the result was reported:
+  - `batch_query` was project-agnostic, so the first 20 results were tickets of
+    other projects. `all` now adds the current repo's `project: {KEY}` (resolved
+    with "Resolving a project") unless the query has its own `project:` clause.
+  - The default query hardcoded `State: Open`, which skips projects whose initial
+    state has another name (`Submitted`). The default is now
+    `for: me #Unresolved sort by: updated desc`; only issues already in
+    `in_progress_state`, `testing_state` or `done_state` are dropped, and the state
+    ladder in `writeback.md` counts every other unresolved state as position 0.
+  - `search_issues` returns 20 issues per call and was read once. `all` now pages
+    with `offset` until a page has fewer than 20 items.
+  - The model filtered candidates in its head and ended with a prose question
+    instead of the triage table. Every candidate now gets a verdict in the table;
+    with no *ready* row the run prints the table and stops without asking.
+  Existing configs that set `batch_query` explicitly are unaffected apart from the
+  added project clause. Covered by `tests/read-config.sh` and manual tests 73-76.
+
 ## 0.16.0 — 2026-11-07
 
 - **New: `confirm_pr` config key and `--confirm-pr` / `--no-confirm-pr` flags for

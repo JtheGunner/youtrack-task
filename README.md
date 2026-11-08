@@ -250,8 +250,10 @@ One command instead of briefing the agent by hand:
 ```
 
 1. **Triage** — read-only. Each candidate (the IDs you name, else the issues
-   matching `batch_query`) is sorted into *ready*, *needs-human* or *blocked* and
-   shown in one table; you confirm once. Issues tagged `manual`, without
+   matching `batch_query`, limited to this repo's YouTrack project and read page by
+   page) is sorted into *ready*, *needs-human* or *blocked* and shown in one
+   table; you confirm once. If nothing is *ready*, the table is all you get — no
+   follow-up question. Issues tagged `manual`, without
    acceptance criteria, with open questions, of architectural size, or touching
    servers / network / secrets / data stores are **never** run unattended.
    `--dry-run` stops here.
@@ -406,6 +408,7 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | Issues still come out in English although you write German            | Almost always a stale plugin: third-party marketplaces don't auto-update. Run `/plugin marketplace update youtrack-task` then `/plugin update youtrack-task@youtrack-task`, restart Claude Code, and check the version under `/plugin`. Enable *Auto-update* for the marketplace in `/plugin` → Marketplaces to stop it recurring. If it persists, name the language in your input ("auf Deutsch") — an explicit instruction always wins. |
 | Issue created in conversation (not via `new`) ended up unassigned or English | The plugin's `create_issue` hook now rejects a call without an Assignee and tells Claude to retry with you as assignee (needs `jq` on your `PATH`; Claude Code only). Update the plugin and restart if you still see it. |
 | `pr` refuses with `FAILED` / asks for a review                       | The review gate is mandatory before a push: the stamped `PASS` must match the current HEAD, so any commit after the review (or uncommitted changes) makes it `STALE` and `pr` reviews again. Open findings (`FAILED`) must be fixed first. To push without a review on purpose use `--no-review`; the PR is then labelled *Review: skipped*. |
+| `all` finds nothing although the repo's project has open tickets    | Fixed in 0.16.1: without IDs, `all` now limits `batch_query` to this repo's project (before, other projects' tickets filled the first 20 results), reads every result page, and treats a project's initial state (e.g. `Submitted`) like `Open`. Update the plugin and restart Claude Code. A `batch_query` with its own `project:` clause is used as written. |
 | `all` says no issue is ready                                         | Every candidate failed triage; the table names the reason per issue (tag in `batch_skip_tags`, no acceptance criteria, open questions, architectural size, unresolved dependency). Fix the issue, drop the tag, or run `/youtrack-task <ID>` interactively. |
 | A worker reports `BLOCKED` / `ESCALATE`                              | It hit ambiguity or architectural scope and stopped on purpose; its question is posted on the issue. Answer it and re-run `all <ID>` (the existing worktree is resumed), or take the issue interactively. |
 | A push or `gh pr create` is blocked with "Blocked by the youtrack-task review gate" | `review_gate_hook = "on"` is set and the exact commit has no review stamp. Run `/youtrack-task pr` (it reviews, then pushes), or waive on purpose with `/youtrack-task pr --no-review`, or set `review_gate_hook = "off"`. |

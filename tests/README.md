@@ -127,3 +127,7 @@ Use a throwaway or low-stakes issue.
 | 70  | `confirm_pr = false` on the default branch, with no commits ahead, with a dirty tree, or with a `STALE` / `MISSING` review stamp | the checks still stop or ask as before (default branch / no commits → stop; dirty tree → warning question; review → gate runs) |
 | 71  | `confirm_pr = false`, `/youtrack-task pr --no-review` | the explicit "no independent review" confirmation is still asked |
 | 72  | `confirm_pr = false`, `/youtrack-task all ID1 ID2` | unchanged: the single batch confirmation before pushing is still asked |
+| 73  | account with open tickets in several projects, `/youtrack-task all --dry-run` from the repo of project B | the search runs with `project: B …`; only B's tickets appear in the table |
+| 74  | project whose initial state is `Submitted` (no `Open` tickets), `all --dry-run` | the `Submitted` tickets appear with a verdict; tickets in In Progress / Testing / Done are only counted |
+| 75  | more than 20 matching tickets, `all --dry-run` | `search_issues` is called repeatedly with `offset` 0, 20, … until a short page; all tickets are in the table |
+| 76  | no candidate is *ready*, `all` | the table is printed and the run stops; no question such as "should I run X instead?" |

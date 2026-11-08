@@ -25,6 +25,7 @@ expect "missing file -> confirm_pr default true" "CONFIRM_PR=true"
 expect "missing file -> worktree auto"         "WORKTREE=auto"
 expect "missing file -> clone default"         "WORKTREE_CLONE=node_modules vendor"
 expect "missing file -> review rounds 2"       "REVIEW_ROUNDS=2"
+expect "missing file -> batch_query not state-bound" "BATCH_QUERY=for: me #Unresolved sort by: updated desc"
 
 cat > "$tmp/user.toml" <<'EOF'
 # comment

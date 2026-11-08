@@ -184,7 +184,7 @@ file themselves. Defaults:
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
 | `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
 | `worktree_link` | `[".env"]` — paths symlinked from the main checkout into a new worktree |
-| `batch_query` | `for: me #Unresolved State: Open sort by: updated desc` — candidates for `all` when no IDs are given |
+| `batch_query` | `for: me #Unresolved sort by: updated desc` — candidates for `all` when no IDs are given; the current repo's `project: {KEY}` is added unless the query already has a `project:` clause |
 | `batch_max_parallel` | `3` — parallel workers for `all` |
 | `batch_skip_tags` | `["manual"]` — issues with one of these tags are never worked on by `all` |
 | `batch_review_rounds` | alias of `review_rounds`, kept for existing configs |
@@ -711,7 +711,8 @@ don't improvise. Needs the plugin's `ticket-worker` and `ticket-reviewer` agents
 (without subagent support, see the fallback in `batch.md`).
 
 - `ID ...` — explicit issues (full IDs only; the prefix names the project, so no
-  project lookup is needed); without them `batch_query` picks the candidates.
+  project lookup is needed); without them `batch_query`, scoped to the current
+  repo's project and read page by page, picks the candidates (see `batch.md` §1).
 - `--max N` — parallel workers (default `batch_max_parallel`).
 - `--no-review` — skip the independent reviewer.
 - `--dry-run` — triage table only; no workspace, no write.
@@ -721,8 +722,9 @@ don't improvise. Needs the plugin's `ticket-worker` and `ticket-reviewer` agents
 
 Flow, in short:
 
-1. **Triage** (read-only): classify issues *ready* / *needs-human* / *blocked*,
-   print one table, ask **one** confirmation (it names whether auto-merge is on).
+1. **Triage** (read-only): classify every candidate *ready* / *needs-human* / *blocked*,
+   print one table (also when nothing is *ready* — then stop, no question), ask
+   **one** confirmation (it names whether auto-merge is on).
 2. **Setup**, serial: `setup-workspace --mode worktree` + pickup write-back.
 3. **Work**, parallel and in the background: one `ticket-worker` per issue.
 4. **Review**: the shared review gate (`reference/review.md`) per issue with

@@ -207,8 +207,10 @@ their own ship flow run that instead of `pr`, then `/youtrack-task link <url>`.
 
 ### `all` — batch with independent review
 
-Full contract: `skills/youtrack-task/reference/batch.md`. Triage (one
-confirmation) → serial setup (worktree + pickup write-back) → parallel
+Full contract: `skills/youtrack-task/reference/batch.md`. Without IDs the candidates
+come from `batch_query`, scoped to the repo's project and read page by page (20 per
+page); the initial state of a project need not be `Open`. Triage (one table; one
+confirmation, none when nothing is *ready*) → serial setup (worktree + pickup write-back) → parallel
 `ticket-worker`s → the shared review gate per result (a fresh `ticket-reviewer`
 that sees only the issue and the diff) → report with overlap warnings → PRs after one confirmation listing
 them → merge **only** with `--auto-merge`.
@@ -469,7 +471,7 @@ the user.
 # testing_state     = "Testing"       # target of `/youtrack-task testing`
 # done_state        = "Done"          # target of `/youtrack-task done`
 # local_plan_copy   = "auto"          # auto | always | never
-# batch_query         = "for: me #Unresolved State: Open sort by: updated desc"  # `all` candidates
+# batch_query         = "for: me #Unresolved sort by: updated desc"  # `all` candidates; `project: {KEY}` of the repo is added unless the query has a `project:` clause
 # batch_max_parallel  = 3             # parallel workers in `all`
 # batch_skip_tags     = ["manual"]    # `all` never runs issues with these tags
 # batch_review_rounds = 2             # deprecated alias of review_rounds
