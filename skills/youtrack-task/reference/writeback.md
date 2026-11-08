@@ -34,7 +34,10 @@ Cache the resolved field name for the rest of the session; re-resolve per projec
 | `/youtrack-task done` | `done_state` | issue already at Done |
 
 "Already at a later state" is decided by ladder position, not string equality.
-Ladder order: Open=0, In Progress=1, Testing=2, Done=3. Only move forward; never
+Ladder order: Open=0, In Progress=1, Testing=2, Done=3. Any other unresolved state
+that is not `in_progress_state` / `testing_state` / `done_state` — a project's
+initial state such as `Submitted`, `Reopened`, `To be discussed` — counts as
+position 0. Only move forward; never
 move an issue backward automatically — if the user asks for `testing` on an issue
 that is already `Done`, tell them and do nothing.
 
