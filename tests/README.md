@@ -133,3 +133,6 @@ Use a throwaway or low-stakes issue.
 | 76  | no candidate is *ready*, `all` | the table is printed and the run stops; no question such as "should I run X instead?" |
 | 77  | `tests/setup-workspace.sh` | every case prints `ok`, ends with `ALL OK`; exit 0 (a base that exists only locally is the start point in place, in a linked worktree and in a new worktree, even when HEAD is another branch; `origin/<base>` beats a diverged local `<base>`; an unresolvable base gives `ERROR=cannot-resolve-base` (exit 2) with no branch or worktree created; a custom `worktree_dir` is created and resumed) |
 | 78  | `shellcheck -S warning hooks/guard-subagent hooks/require-review hooks/require-assignee skills/youtrack-task/scripts/*` | no output, exit 0 (intentional exceptions carry a `# shellcheck disable=… # reason` comment) |
+| 79  | open a PR against `main` | the `ci` workflow runs `tests/*.sh`, ShellCheck, `jq empty` on all JSON files and the plugin/marketplace version check; all green |
+| 80  | bump only `plugin.json` (not `marketplace.json`) and push | the `ci` job fails on the version-consistency step |
+| 81  | push a `v*` tag whose version differs from either manifest, or with a failing `ci` | the release workflow stops before building the ZIP |
