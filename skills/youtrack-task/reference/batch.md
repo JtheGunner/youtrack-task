@@ -14,7 +14,11 @@ reviewer per result, write-back to YouTrack, optional merging. Bound by the
 > one place keeps the language and assignee rules in one place. Workers commit
 > locally and never push, so nothing unreviewed reaches the remote. The plugin
 > hook `hooks/guard-subagent` backs this up for those two agents (best effort;
-> server-side branch protection is the real boundary).
+> server-side branch protection is the real boundary). It denies pushes, merges,
+> `gh pr create` / `repo` / `release` / `secret` / `api`, network tools and
+> history rewriting (`commit --amend`, `reset --hard`, `clean`, `rebase`,
+> `update-ref`, `filter-branch`, `worktree remove --force`) for the worker. Known
+> limit: interpreter one-liners and package installs are not blocked.
 
 ```
 /youtrack-task all [ID ...] [--max N] [--no-review] [--dry-run] [--auto-merge]

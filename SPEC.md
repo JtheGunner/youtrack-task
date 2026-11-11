@@ -228,7 +228,11 @@ them → merge **only** with `--auto-merge`.
   a few other allowed commands can still show them.
   `hooks/guard-subagent` enforces this via the hook input's `agent_type` — a
   best-effort layer; branch protection and a limited token are the real
-  boundary.
+  boundary. For the worker it also denies history rewriting (`git commit
+  --amend`, `reset --hard`, `clean`, `rebase`, `update-ref`, `filter-branch`,
+  `worktree remove --force`) and the `gh` verbs `repo`, `release`, `secret`,
+  `pr create`. Known limit, documented rather than blocked: interpreter
+  one-liners and package installs.
 - `--auto-merge`: PR created by this run (a reused PR is never auto-merged), head
   commit equal to the SHA the reviewer passed, at least one required check and
   all green, `CLEAN`, no file overlap with another issue of the run, plain

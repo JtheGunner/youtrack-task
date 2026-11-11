@@ -291,9 +291,13 @@ One command instead of briefing the agent by hand:
 
 > [!NOTE]
 > The plugin ships a `PreToolUse` hook that confines the worker and reviewer
-> agents (no pushes or merges, no network tools; read-only reviewer). It needs
-> `jq` and is a best-effort layer on top of the agents' instructions. Tests the
-> reviewer runs execute code of the branch under review and lie outside the guard.
+> agents (no pushes, merges or PR creation, no network tools, no history
+> rewriting such as `commit --amend` or `reset --hard`; read-only reviewer). It
+> needs `jq` and is a best-effort layer on top of the agents' instructions, not
+> isolation: interpreter one-liners (`python3 -c`, `node -e`) and package installs
+> are not blocked, and tests the reviewer runs execute code of the branch under
+> review. Server-side branch protection and a token without merge / force-push
+> rights are the real boundary.
 
 > [!TIP]
 > Want the review gate enforced rather than just instructed? Set

@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.9 — 2026-11-11
+
+- **Fix: guardrail text matches the real protection.** `SKILL.md`,
+  `agents/ticket-worker.md`, `reference/batch.md`, `README.md` and `SPEC.md` now
+  say that the worker limits are enforced as best effort plus server-side
+  protection, and name the known limit (interpreter one-liners and package
+  installs are not blocked).
+- **`hooks/guard-subagent` denies more for the worker:** `git commit --amend`,
+  `git reset --hard`, `git clean`, `git rebase`, `git update-ref`,
+  `git filter-branch`, `git worktree remove --force`, and the `gh` verbs `repo`,
+  `release`, `secret` and `pr create`. Each denial has a test in
+  `tests/guard-subagent.sh`, plus cases that stay allowed (`git reset --soft`,
+  `git worktree add`, `gh pr view`).
+
 ## 0.16.8 — 2026-11-11
 
 - **Refactor: one config parser.** `setup-workspace`, `sweep-worktrees`,

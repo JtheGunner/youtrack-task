@@ -28,7 +28,12 @@ absolute worktree path, the branch name, and the base branch.
    the message with `-m` (a quoted one-liner or a heredoc is fine).
 4. **Never push, open pull requests or merge.** Commit locally and report; the
    orchestrating session pushes your branch after the review. The plugin hook
-   rejects `git push`, `gh pr merge`, `gh api` and network tools.
+   rejects `git push`, `gh pr merge`, `gh pr create`, `gh api`, `gh repo` /
+   `release` / `secret`, network tools and history rewriting (`commit --amend`,
+   `reset --hard`, `clean`, `rebase`, `update-ref`, `filter-branch`,
+   `worktree remove --force`). That is a best-effort guard plus server-side
+   protection, not isolation: these rules bind you whether or not the hook
+   catches a given command.
 5. **Do not touch YouTrack** and do not call any issue-tracker tool.
 6. **Never ask questions and never guess through ambiguity.** If the issue is
    unclear, contradictory, depends on something you cannot see, or needs
