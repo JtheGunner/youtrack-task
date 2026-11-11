@@ -289,7 +289,8 @@ One command instead of briefing the agent by hand:
 > [!NOTE]
 > The plugin ships a `PreToolUse` hook that confines the worker and reviewer
 > agents (no pushes or merges, no network tools; read-only reviewer). It needs
-> `jq` and is a best-effort layer on top of the agents' instructions.
+> `jq` and is a best-effort layer on top of the agents' instructions. Tests the
+> reviewer runs execute code of the branch under review and lie outside the guard.
 
 > [!TIP]
 > Want the review gate enforced rather than just instructed? Set

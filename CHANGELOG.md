@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.7 — 2026-11-11
+
+- **Docs: the reviewer-isolation claim is best effort.** `reference/review.md`,
+  `SPEC.md` and `README.md` no longer say the allowlist keeps the reviewer away
+  from commit messages and PR text. `git log` / `git show` are denied, but
+  `git cat-file`, `git shortlog`, `git rev-list --format`, `gh pr status` and
+  `gh pr diff` are allowed. They also state that running the project's tests
+  executes code of the reviewed branch and lies outside the guard. The allowlist
+  in `hooks/guard-subagent` is unchanged.
+
 ## 0.16.6 — 2026-11-11
 
 - **Test: the worktree scripts are covered.** New `tests/sweep-worktrees.sh` (with

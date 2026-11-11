@@ -41,8 +41,14 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
    issue ID + title, the `requirements`, `dir`, `base`, `SHA_review` (it reviews
    `git diff <base>...<SHA_review>`). **Never include** the implementer's report,
    plan, commit-message claims, earlier findings, or any conclusion of your own.
-   The reviewer's allowlist in `hooks/guard-subagent` keeps it away from commit
-   messages and PR text.
+   The reviewer's allowlist in `hooks/guard-subagent` makes it harder for the
+   reviewer to reach commit messages and PR text (`git log` and `git show` are
+   denied), as a best-effort measure: other allowed commands such as
+   `git cat-file`, `git shortlog`, `git rev-list --format=%B` and
+   `gh pr status` / `gh pr diff` can still show them, and the agent's own
+   instructions say not to read them. Running the project's tests (`npm test`,
+   `pytest`, `make test`, `bash tests/…`) executes code of the branch under
+   review and lies outside the guard, so "read-only" is not enforced there.
 4. **Verdict.**
    - `PASS` requires every criterion `met`. A `PASS` that lists an `unverifiable`
      criterion is `CHANGES_REQUESTED`, as is a missing or garbled `VERDICT`.
