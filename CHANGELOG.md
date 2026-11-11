@@ -9,7 +9,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Worker file writes are confined.** A new `PreToolUse` matcher
   `Edit|Write|MultiEdit` runs `hooks/guard-subagent` for the `ticket-worker`: any
   `file_path` outside the worktree (derived from the hook input's `cwd`) and any
-  path with a `.git` component is rejected. Paths are collapsed and symlinks
+  path with a `.git` component (any letter case) is rejected. Paths are collapsed and symlinks
   resolved first; with `cwd` in the main checkout only the repo's linked worktrees
   are writable. Tests in `tests/guard-subagent.sh`.
 - **A missing `jq` is no longer silent.** `guard-subagent`, `require-assignee` and

@@ -12,7 +12,8 @@
 #                   symlinks resolved before the check. Without a git repo around
 #                   `cwd` only the `.git` rule applies. Known limit: when `cwd` is
 #                   the main checkout the worker may still write into the
-#                   worktree of another issue.
+#                   worktree of another issue. Write targets of Bash commands
+#                   (redirections, cp, mv, tee, ln) are not path-checked.
 #
 #   ticket-worker   develops and commits locally. Denied: any `git push`,
 #                   `gh pr merge`, `gh api`, network tools (curl, wget, ssh, …),
@@ -120,6 +121,8 @@ case "$tool" in
     lexical=$(collapse_path "$file")
     physical=$(physical_path "$file")
     for candidate in "$lexical" "$physical"; do
+      # Case-insensitive: on macOS / Windows `.GIT` is the same directory as `.git`.
+      candidate=$(printf '%s' "$candidate" | tr '[:upper:]' '[:lower:]')
       case "$candidate/" in
         */.git/*) deny "never write inside .git (hooks, config, refs): $file" ;;
       esac

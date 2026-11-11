@@ -414,6 +414,8 @@ tf 2 $W Write "$main/.git/hooks/pre-commit" "$wt" ".git"
 tf 2 $W Edit "$wt/.git/hooks/post-commit" "$wt" ".git"
 tf 2 $W Write "$wt/sub/../.git/config" "$wt" ".git"
 tf 2 $W Write "$wt/.git/x" "$fx/plain" ".git"
+tf 2 $W Write "$wt/.GIT/hooks/pre-commit" "$wt" ".git"
+tf 2 $W Edit "$wt/sub/.Git/config" "$wt" ".git"
 
 echo "# worker started in the main checkout: only linked worktrees are writable"
 tf 0 $W Write "$wt/a.txt" "$main"
