@@ -34,8 +34,8 @@ Do not attempt REST calls or `curl` as a fallback.
 
 ## Guardrails
 
-This skill sets up work and drives planning; once a plan is approved it may go on
-to implement, following the normal development workflow. Throughout, these are
+This skill sets up work and drives planning; with `--implement` it goes on to
+implement the plan, following the normal development workflow. Throughout, these are
 hard limits — never cross them without the user explicitly approving that
 specific action. For the `all` agents these limits are enforced as **best
 effort** by `hooks/guard-subagent` plus server-side protection (branch
