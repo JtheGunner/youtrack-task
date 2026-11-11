@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.5 — 2026-11-11
+
+- **CI: every change is checked before merge and before release.** New workflow
+  `.github/workflows/ci.yml` runs on `pull_request` and on pushes to `main`. It
+  runs `tests/*.sh`, `shellcheck -S warning` on `hooks/*` and
+  `skills/youtrack-task/scripts/*`, `jq empty` on every JSON file, and checks that
+  `plugin.json` and `marketplace.json` (`plugins[0].version`) carry the same
+  version. `release-package.yml` now depends on that job and compares the tag
+  with **both** manifests. No change to the plugin itself.
+
 ## 0.16.4 — 2026-11-11
 
 - **Test: `tests/read-config.sh` covers every config key.** The ten keys that had

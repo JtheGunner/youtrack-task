@@ -59,6 +59,9 @@ youtrack-task/
 │           ├── review.md         # the review gate: one procedure for primary flow, `pr` and `all` (+ review-stamp contract)
 │           ├── batch.md          # contract for `all`: triage, workers, scheduling the review gate, PRs, merge
 │           └── worktrees.md      # contract for the two scripts
+├── .github/workflows/
+│   ├── ci.yml               # PR / main / release: tests, shellcheck, JSON + version consistency
+│   └── release-package.yml  # on a v* tag: needs ci, tag == both manifests, builds + attaches the ZIP
 ├── tools/
 │   └── package-agensi       # builds dist/agensi/youtrack-task.zip (marketplace upload)
 ├── config.example.toml      # documents every optional override, dummy values only
