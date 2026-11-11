@@ -152,5 +152,12 @@ run "$r" --id T-1 --slug s --prefix fix --base main --mode worktree
 [ "$rc" = 0 ] && has "MODE=worktree" && has "BRANCH=fix/T-1-s" && [ -d "$r/.worktrees/T-1-s" ]
 check "ID prefix collision: T-1 does not resume T-12's worktree" $?
 
+# --- 13. config keys inside a [table] are ignored (single parser: read-config) --------
+r=$tmp/table-key; mk_repo "$r"
+printf '[type_prefix]\nworktree_dir = ".wt"\nworktree_clone = ["nope"]\n' > "$tmp/table.toml"
+YOUTRACK_TASK_CONFIG=$tmp/table.toml run "$r" --id T-13 --slug s --prefix fix --base main --mode worktree
+[ "$rc" = 0 ] && has "MODE=worktree" && [ -d "$r/.worktrees/T-13-s" ] && [ ! -e "$r/.wt" ]
+check "[table] worktree_dir is ignored: worktree lands in the default dir" $?
+
 [ "$fail" = 0 ] && echo "ALL OK"
 exit "$fail"

@@ -52,6 +52,11 @@ GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 
 ## Step 1 — locate and create
 
+**Config:** `setup-workspace`, `sweep-worktrees`, `worktree-detach` and the
+`require-review` hook read config only through `scripts/read-config <key>` (the
+one parser: top-level keys only, defaults applied). A same-named key inside a
+`[table]` such as `[type_prefix]` is ignored by all of them.
+
 **Directory:** `<repo-root>/<worktree_dir>/<ID>-<slug>` where `worktree_dir`
 defaults to `.worktrees`. The directory name is the flat `<ID>-<slug>`; the
 branch keeps the full `<prefix>/<ID>-<slug>`.

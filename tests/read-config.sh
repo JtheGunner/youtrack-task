@@ -133,4 +133,21 @@ expect "[table] worktree_dir does not leak"      "WORKTREE_DIR=.worktrees"
 expect "[table] worktree_link does not leak"     "WORKTREE_LINK=.env"
 expect "[table] batch_max_parallel does not leak" "BATCH_MAX_PARALLEL=3"
 
+# --- single-key mode: `read-config <key>` prints only the resolved value ----------
+get() { out=$(YOUTRACK_TASK_CONFIG=$1 bash "$script" "$2" 2>&1); rc=$?; }
+expect_get() { # <label> <config> <key> <want>
+  get "$2" "$3"
+  if [ "$rc" = 0 ] && [ "$out" = "$4" ]; then echo "ok   $1"
+  else echo "FAIL $1 (want '$4', got '$out', rc=$rc)"; fail=1; fi
+}
+expect_get "key mode: default when the file is missing" "$tmp/missing.toml" worktree_dir ".worktrees"
+expect_get "key mode: configured scalar"              "$tmp/all-keys.toml" review_gate_hook "on"
+expect_get "key mode: list value"                     "$tmp/all-keys.toml" worktree_link ".env .env.local config/secrets.php"
+expect_get "key mode: [table] key is ignored"         "$tmp/table-all.toml" worktree_dir ".worktrees"
+expect_get "key mode: key is case-insensitive"        "$tmp/all-keys.toml" WORKTREE_DIR ".trees"
+expect_get "key mode: review_rounds alias resolved"   "$tmp/missing.toml" review_rounds "2"
+get "$tmp/missing.toml" no_such_key
+if [ "$rc" = 2 ] && printf '%s' "$out" | grep -q '^ERROR='; then echo "ok   key mode: unknown key -> ERROR, exit 2"
+else echo "FAIL key mode: unknown key (rc=$rc, out='$out')"; fail=1; fi
+
 exit $fail
