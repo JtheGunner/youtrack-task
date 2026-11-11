@@ -21,12 +21,20 @@ Description:
 ## Summary
 Hovering a tinted table row replaces its colour with the default hover colour.
 
+## Context
+Status tables in the admin area tint rows by state. The hover style overrides the
+background, so the tint disappears while the pointer is over the row.
+
 ## Goal
 A same-hue hover state that keeps the row's tint recognisable.
 
 ## Acceptance criteria
 - [ ] Tinted rows keep their hue on hover
 - [ ] Untinted rows are unchanged
+
+## Scope
+- In scope: hover state of tinted table rows
+- Out of scope: other row states (selected, disabled)
 
 ## Open questions
 - Which tint colours exist besides the three in the status column?

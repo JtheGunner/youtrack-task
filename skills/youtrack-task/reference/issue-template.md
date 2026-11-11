@@ -7,16 +7,14 @@ guesswork — the section headings are parse anchors.
 
 ## Language
 
-Title and description share one language, resolved per SKILL.md "Language"
-(explicit instruction → input language → session language). The confirm step
-names it, so the user can correct it before anything is created.
+Title and description share one language, resolved per `SKILL.md` "Language".
+The confirm step names it, so the user can correct it before anything is created.
 
 ## Title
 
-- Written in the **language of the user's input** — the same language as the
-  description. German input → German title, English input → English title. Never
-  translate the title to English; English is only for git artifacts, which are
-  derived separately (`reference/branching.md`).
+- Written in the description's language (see Language above), never translated for
+  YouTrack; git artifacts derive their English name separately
+  (`reference/branching.md`).
 - One line, imperative mood, ≤ 70 characters.
 - No leading type word (`Bug:`, `Feature:`) — the Type field carries that.
 - Names the outcome, not the activity
@@ -25,9 +23,9 @@ names it, so the user can correct it before anything is created.
 
 ## Description — fixed sections, in this order
 
-Write the prose in the **language of the user's input** (same language as the
-title). Keep the headings verbatim as below. Omit an *optional* section only when there is genuinely
-nothing to put in it; never omit a required one.
+Write the prose in the title's language. Keep the headings verbatim as below. Omit
+an *optional* section only when there is genuinely nothing to put in it; never omit
+a required one.
 
 ### Summary  *(required)*
 1–3 sentences: what needs to change and why. The paragraph someone reads to

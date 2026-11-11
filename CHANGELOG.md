@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.1 — 2026-11-11
+
+- **One definition per rule.** The language rule is worded only in `SKILL.md`;
+  `writeback.md`, `issue-template.md`, `batch.md` and `superpowers.md` point to it.
+  `confirm_branch_name` / `confirm_pr` are decided by the tables in `SKILL.md` step 4
+  and `reference/pr.md` step 4, and the never-force / never-`-D` / dirty-worktree
+  limits by the Guardrails; `branching.md`, `subcommands.md` and `batch.md` refer
+  to them. No behaviour changed.
+- **Confirm tables lead with the effective value** (flag over config) instead of a
+  condition in the header cell.
+- **`review.md` is the runtime procedure only.** The stamp contract and the hook
+  internals moved to `SPEC.md`.
+- **Examples match the spec:** `new` shows Context and Scope, `pr` shows the review
+  gate, `pickup` shows the branch line, the plan comment, `--implement`, the review
+  gate and the completion comment.
+- `scripts-fallback.md` is marked as the path for a missing `scripts/` only and
+  names what it cannot resolve (`[type_prefix]`, array keys).
+- `tests/skill-text.sh` checks the above.
+
 ## 0.18.0 — 2026-11-11
 
 - **`SKILL.md` loads only what the call needs.** It shrank from 813 to 372 lines:

@@ -97,12 +97,10 @@ Bound by the Guardrails. Path from step 6:
 
 ## Language
 
-Whatever language the issue is in, everything this path writes to **git** —
-commit messages from the TDD / execution steps, any branch it creates — is in
-**English** (Guardrails). Design docs / plan files written locally are English
-too. Only the YouTrack plan comment follows the issue's language (SKILL.md
-"Language") — even when a superpowers skill or the user's global rules default to
-English for their own output.
+`SKILL.md` "Language" applies to everything this path writes, including local
+design docs and plan files (git artifacts, English). It holds even when a
+superpowers skill or the user's global rules default to another language for their
+own output.
 
 ## Fallback (no superpowers)
 

@@ -151,6 +151,6 @@ removes **automatically**, without asking, every plugin worktree under
   clean — commit / stash in it first.
 - `remove <ID>` — `<skill-dir>/scripts/worktree-detach --id <ID>`. Same, without the switch.
 
-Never `git worktree remove --force`, never `git branch -D`, never remove a
-worktree that has uncommitted changes. `take` / `remove` keep the branch — only
-`prune` (merged branches) deletes one, and only with `-d`.
+The limits (no `--force`, no `-D`, no removal of a dirty worktree) are the
+Guardrails in `SKILL.md`. `take` / `remove` keep the branch — only `prune` (merged
+branches) deletes one.
