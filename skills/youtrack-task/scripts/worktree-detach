@@ -29,9 +29,9 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not-in-git-repo"
 [ -n "$ID" ] || [ -n "$WT" ] || die "need --id or --dir"
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
-WT_DIR=$( [ -f "$CFG" ] && sed -nE 's/^[[:space:]]*worktree_dir[[:space:]]*=[[:space:]]*"?([A-Za-z0-9._/-]+)"?.*/\1/p' "$CFG" | head -1 )
-WT_DIR=${WT_DIR:-.worktrees}
+# One parser for the config file: read-config (it ignores [table] sections).
+READ_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-config"
+WT_DIR=$("$READ_CONFIG" worktree_dir) || { echo "ERROR=read-config-failed"; exit 2; }
 
 # resolve the worktree + its branch
 BR=

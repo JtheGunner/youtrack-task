@@ -141,6 +141,10 @@ printf 'review_gate_hook = "on"\n' > "$cfg"
 run_hook ticket-worker "$wt" "git push"
 [ "$got" = 0 ] && echo "ok   0  subagent calls are left to guard-subagent" || { echo "FAIL subagent call handled by require-review (rc=$got)"; fail=1; }
 
+printf '[type_prefix]\nreview_gate_hook = "on"\n' > "$cfg"
+t 0 "[table] review_gate_hook is ignored (default off): unreviewed push passes" "$wt" "git push -u origin feat/X-1-demo"
+printf 'review_gate_hook = "on"\n' > "$cfg"
+
 printf '{"tool_input":' | bash "$hook" >/dev/null 2>&1; [ $? = 0 ] && echo "ok   0  malformed input fails open" || { echo "FAIL malformed input"; fail=1; }
 
 [ "$fail" = 0 ] && echo "ALL OK" || echo "FAILURES"

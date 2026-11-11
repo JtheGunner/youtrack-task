@@ -111,7 +111,10 @@ What happens:
 
 Before anything else, a bundled script (`scripts/read-config`) resolves your
 `config.toml` with all defaults, so a setting like `confirm_branch_name = false`
-is applied every time, not only when Claude happens to read the file.
+is applied every time, not only when Claude happens to read the file. The other
+scripts and the review-gate hook read their settings through the same script, so
+Claude, the scripts and the hook always see the same value for a key (keys under a
+`[table]` such as `[type_prefix]` are ignored by all of them).
 
 1. **Fetch** — Claude pulls the issue (summary, description, type, priority,
    state, subsystem) and its comments, and shows you a short brief.

@@ -3,12 +3,16 @@
 # The skill's single source of truth for config values: the agent runs this
 # instead of deciding by itself whether to read the file.
 #
-# Usage: read-config
+# Usage: read-config [key]
+#   no argument  print the complete set of KEY=VALUE lines
+#   <key>        print only that key's resolved value (case-insensitive; the
+#                scripts and hooks use this so no one else parses the file).
+#                Unknown key: "ERROR=unknown-key: <key>" and exit 2.
 #
 # Reads $YOUTRACK_TASK_CONFIG, else ~/.config/youtrack-task/config.toml. A
 # missing file is not an error: every key falls back to its default.
 #
-# Output (KEY=VALUE, one per line, always the complete set):
+# Output without an argument (KEY=VALUE, one per line, always the complete set):
 #   CONFIG_FILE=<path>|none
 #   <KEY>=<value>   upper-cased config key; list keys are space-separated
 #
@@ -41,28 +45,44 @@ emit() { # $1 = key ; $2 = default ; $3 = scalar|list
   printf '%s=%s\n' "$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')" "${v:-$2}"
 }
 
-if [ -f "$CFG" ]; then echo "CONFIG_FILE=$CFG"; else echo "CONFIG_FILE=none"; fi
+resolve_all() {
+  if [ -f "$CFG" ]; then echo "CONFIG_FILE=$CFG"; else echo "CONFIG_FILE=none"; fi
 
-emit list_query 'for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc' scalar
-emit in_progress_state 'In Progress' scalar
-emit testing_state Testing scalar
-emit done_state Done scalar
-emit local_plan_copy auto scalar
-emit default_new_type '' scalar
-emit use_superpowers auto scalar
-emit review_before_pr always scalar
-emit review_gate_hook off scalar
-emit worktree auto scalar
-emit confirm_branch_name true scalar
-emit confirm_pr true scalar
-emit worktree_dir .worktrees scalar
-emit worktree_clone 'node_modules vendor' list
-emit worktree_link .env list
-emit batch_query 'for: me #Unresolved sort by: updated desc' scalar
-emit batch_max_parallel 3 scalar
-emit batch_skip_tags manual list
+  emit list_query 'for: me #Unresolved State: {In Progress}, {Open} sort by: updated desc' scalar
+  emit in_progress_state 'In Progress' scalar
+  emit testing_state Testing scalar
+  emit done_state Done scalar
+  emit local_plan_copy auto scalar
+  emit default_new_type '' scalar
+  emit use_superpowers auto scalar
+  emit review_before_pr always scalar
+  emit review_gate_hook off scalar
+  emit worktree auto scalar
+  emit confirm_branch_name true scalar
+  emit confirm_pr true scalar
+  emit worktree_dir .worktrees scalar
+  emit worktree_clone 'node_modules vendor' list
+  emit worktree_link .env list
+  emit batch_query 'for: me #Unresolved sort by: updated desc' scalar
+  emit batch_max_parallel 3 scalar
+  emit batch_skip_tags manual list
 
-# review_rounds: the new key wins, batch_review_rounds is the old alias.
-rounds=$(cfg_scalar review_rounds)
-[ -n "$rounds" ] || rounds=$(cfg_scalar batch_review_rounds)
-echo "REVIEW_ROUNDS=${rounds:-2}"
+  # review_rounds: the new key wins, batch_review_rounds is the old alias.
+  rounds=$(cfg_scalar review_rounds)
+  [ -n "$rounds" ] || rounds=$(cfg_scalar batch_review_rounds)
+  echo "REVIEW_ROUNDS=${rounds:-2}"
+}
+
+all=$(resolve_all)
+if [ $# -eq 0 ]; then
+  printf '%s\n' "$all"
+  exit 0
+fi
+
+key=$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')
+line=$(printf '%s\n' "$all" | grep -m1 "^${key}=")
+if [ -z "$line" ]; then
+  echo "ERROR=unknown-key: $1"
+  exit 2
+fi
+printf '%s\n' "${line#*=}"

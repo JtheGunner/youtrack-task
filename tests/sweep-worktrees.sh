@@ -131,6 +131,14 @@ check "outside a git repo: ERROR=not-in-git-repo" $?
 run "$tmp/merged" --bogus; [ "$rc" = 2 ] && printf '%s\n' "$out" | grep -q '^ERROR=unknown arg'
 check "unknown argument: ERROR, exit 2" $?
 
+# --- 10b. config keys inside a [table] are ignored ---------------------------------
+r=$tmp/tablekey; mk_repo "$r"
+printf '[type_prefix]\nworktree_dir = ".wt"\n' > "$tmp/table.toml"
+mk_wt "$r" fix/T-10-a T-10-a merged; state fix/T-10-a MERGED
+YOUTRACK_TASK_CONFIG=$tmp/table.toml run "$r"
+[ "$rc" = 0 ] && hasre '^REMOVED=.*/\.worktrees/T-10-a' && [ ! -e "$r/.worktrees/T-10-a" ]
+check "[table] worktree_dir is ignored: default dir is still swept" $?
+
 # --- 11. safety by construction: no --force, no branch -D ---------------------------
 out=$(grep -vE '^[[:space:]]*#' "$script" | grep -nE -- '--force|branch +-D|push'); [ -z "$out" ]; rc=$?
 check "script never uses --force, git branch -D or push" $rc

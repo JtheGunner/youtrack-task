@@ -60,19 +60,13 @@ if [ "$GIT_DIR" != "$GIT_COMMON" ] && [ -z "$(git rev-parse --show-superproject-
 fi
 
 # ---- config -----------------------------------------------------------------
-CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
-cfg_scalar() { # $1 = key ; echoes value or nothing
-  [ -f "$CFG" ] || return 0
-  sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"?([A-Za-z0-9._/-]+)\"?.*/\1/p" "$CFG" | head -1
-}
-cfg_list() { # $1 = key ; echoes space-separated items
-  [ -f "$CFG" ] || return 0
-  sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\[(.*)\].*/\1/p" "$CFG" | head -1 | tr -d '"' | tr ',' ' '
-}
-WT_MODE_CFG=$(cfg_scalar worktree);            WT_MODE_CFG=${WT_MODE_CFG:-auto}
-WT_DIR=$(cfg_scalar worktree_dir);             WT_DIR=${WT_DIR:-.worktrees}
-WT_CLONE=$(cfg_list worktree_clone);           WT_CLONE=${WT_CLONE:-node_modules vendor}
-WT_LINK=$(cfg_list worktree_link);             WT_LINK=${WT_LINK:-.env}
+# One parser for the config file: read-config (it ignores [table] sections).
+READ_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-config"
+cfg() { "$READ_CONFIG" "$1"; }
+WT_MODE_CFG=$(cfg worktree)      || die "read-config-failed"
+WT_DIR=$(cfg worktree_dir)       || die "read-config-failed"
+WT_CLONE=$(cfg worktree_clone)   || die "read-config-failed"
+WT_LINK=$(cfg worktree_link)     || die "read-config-failed"
 [ -f "$REPO_ROOT/artisan" ] && case " $WT_CLONE " in *" storage "*) ;; *) WT_CLONE="$WT_CLONE storage" ;; esac
 
 # ---- base branch ----------------------------------------------------------

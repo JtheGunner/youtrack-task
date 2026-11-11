@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.8 — 2026-11-11
+
+- **Refactor: one config parser.** `setup-workspace`, `sweep-worktrees`,
+  `worktree-detach` and `hooks/require-review` no longer parse `config.toml` with
+  their own `sed`; they call `scripts/read-config <key>`, which prints one resolved
+  value (new single-key mode; unknown key → `ERROR=unknown-key`, exit 2). Before,
+  a key under `[type_prefix]` was read as a top-level setting by those four
+  consumers when the real key was missing, so the model and the scripts could see
+  different values (for example `sweep-worktrees` deciding which directory it may
+  clean). The hook still never blocks by accident: a missing or failing
+  `read-config` lets the push through. Tests cover the single-key mode and, for
+  each consumer, a key that exists only in a `[table]`.
+
 ## 0.16.7 — 2026-11-11
 
 - **Docs: the reviewer-isolation claim is best effort.** `reference/review.md`,

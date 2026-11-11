@@ -42,16 +42,15 @@ cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null) || exit 0
 case "$cmd" in *git*push* | *gh*pr*create*) ;; *) exit 0 ;; esac
 
 # --- config ------------------------------------------------------------------
-cfg_file="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
-cfg() { # cfg <key> <default>
-  local v=""
-  [ -f "$cfg_file" ] && v=$(sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"?([A-Za-z0-9_-]+)\"?.*/\\1/p" "$cfg_file" | head -1)
-  printf '%s' "${v:-$2}"
-}
-[ "$(cfg review_gate_hook off)" = on ] || exit 0
-[ "$(cfg review_before_pr always)" != never ] || exit 0
+# One parser for the config file: the skill's read-config. Any failure (missing
+# or broken script) lets the push through - this hook must never block by accident.
+stamp_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-task/scripts"
+read_config="$stamp_dir/read-config"
+[ -x "$read_config" ] || exit 0
+[ "$("$read_config" review_gate_hook 2>/dev/null)" = on ] || exit 0
+[ "$("$read_config" review_before_pr 2>/dev/null)" != never ] || exit 0
 
-stamp_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-task/scripts/review-stamp"
+stamp_script="$stamp_dir/review-stamp"
 [ -x "$stamp_script" ] || exit 0
 
 # --- find the pushing / PR-creating segments ----------------------------------

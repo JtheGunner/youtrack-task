@@ -91,6 +91,13 @@ check "unknown argument: ERROR, exit 2" $?
 run "$tmp"; [ "$rc" = 2 ] && has "ERROR=not-in-git-repo"
 check "outside a git repo: ERROR=not-in-git-repo" $?
 
+# --- 9b. config keys inside a [table] are ignored ----------------------------------
+r=$tmp/tablekey; mk_repo "$r"; mk_wt "$r" fix/T-9-a T-9-a
+printf '[type_prefix]\nworktree_dir = ".wt"\n' > "$tmp/table.toml"
+YOUTRACK_TASK_CONFIG=$tmp/table.toml run "$r" --id T-9
+[ "$rc" = 0 ] && hasre '^REMOVED=.*/\.worktrees/T-9-a$' && [ ! -e "$r/.worktrees/T-9-a" ]
+check "[table] worktree_dir is ignored: worktree in the default dir is found" $?
+
 # --- 10. safety by construction: no --force, no branch deletion ------------------------------
 out=$(grep -vE '^[[:space:]]*#' "$script" | grep -nE -- '--force|branch +-[dD]|push'); [ -z "$out" ]; rc=$?
 check "script never uses --force, branch deletion or push" $rc
