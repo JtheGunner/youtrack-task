@@ -368,5 +368,5 @@ are never run unattended.
 
 ## Notes
 
-- Every YouTrack write is one MCP call; on a 403 report which call failed and keep going.
+- Every YouTrack write is one MCP call; on a 403 report which call failed and keep going (in the primary flow the branch already exists).
 - Re-resolve the state field per project and never invent custom-field names — read the schema first.

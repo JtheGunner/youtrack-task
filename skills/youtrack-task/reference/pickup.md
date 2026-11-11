@@ -4,9 +4,9 @@ Loaded by the primary-flow dispatch row of `SKILL.md`; this is the detail of its
 step 4 (and the resume check that steps 5–7 follow). Bound by the **Guardrails**
 there. The branch-name question is gated by the table in `SKILL.md` step 4.
 
-proceed?" question. Then run the bundled script — **do not hand-roll the branch /
-worktree logic**, the script is the source of truth
-(spec: `reference/worktrees.md`):
+Run the bundled script — **do not hand-roll the branch / worktree logic**, the
+script is the source of truth (spec: `reference/worktrees.md`). `<prefix>` and
+`<slug>` are the ones computed in step 4 of `SKILL.md`:
 
 ```
 <skill-dir>/scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> \

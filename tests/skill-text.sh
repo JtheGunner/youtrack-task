@@ -114,5 +114,12 @@ for h in '^## new$' '^## pr$' '^## link$' '^## log$' '^## comment$' '^## worktre
   grep -qE "$h" "$skill/SKILL.md" && bad "SKILL.md still has section $h" || ok "section moved out of SKILL.md: $h"
 done
 
+# Text moved out of SKILL.md starts on a clean sentence: no prose paragraph begins
+# mid-sentence (lowercase first letter right after a blank line).
+for f in "$skill"/reference/{new,pr,pickup,subcommands,scripts-fallback,projects}.md; do
+  frag=$(awk 'prev=="" && /^[a-z]/ && !/^(curl|git|gh|bash|npm)/ {print FILENAME": "NR": "$0} {prev=$0}' "$f")
+  [ -z "$frag" ] && ok "no mid-sentence fragment in $(basename "$f")" || bad "paragraph starts mid-sentence in $(basename "$f")" "$frag"
+done
+
 [ "$fail" = 0 ] && echo "ALL OK" || echo "FAILURES"
 exit "$fail"
