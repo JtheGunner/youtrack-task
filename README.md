@@ -44,8 +44,10 @@ No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP s
 - `git` on your `PATH`.
 - The [`gh` CLI](https://cli.github.com/) on your `PATH` if you want to use
   `/youtrack-task pr`. Not needed for anything else.
-- *(optional)* `jq` on your `PATH` — used by the plugin hooks (assignee check,
-  `all` agent guard, optional review enforcement); they do nothing if `jq` is missing.
+- `jq` on your `PATH` — **required for the plugin hooks' protections** (assignee
+  check, `all` agent guard incl. the worker's file-write limit, optional review
+  enforcement). Without it the hooks let every call through and print a warning
+  to stderr that they are inactive. The skill itself works without `jq`.
 - *(optional)* the [`superpowers`](https://github.com/obra/superpowers) plugin —
   when present, planning and implementation run through its skills. Everything
   works without it.
@@ -292,7 +294,9 @@ One command instead of briefing the agent by hand:
 > [!NOTE]
 > The plugin ships a `PreToolUse` hook that confines the worker and reviewer
 > agents (no pushes, merges or PR creation, no network tools, no history
-> rewriting such as `commit --amend` or `reset --hard`; read-only reviewer). It
+> rewriting such as `commit --amend` or `reset --hard`; read-only reviewer; the
+> worker's `Edit` / `Write` / `MultiEdit` calls may only touch files inside its
+> worktree and never anything under `.git`). It
 > needs `jq` and is a best-effort layer on top of the agents' instructions, not
 > isolation: interpreter one-liners (`python3 -c`, `node -e`) and package installs
 > are not blocked, and tests the reviewer runs execute code of the branch under
@@ -422,7 +426,7 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | A worker reports `BLOCKED` / `ESCALATE`                              | It hit ambiguity or architectural scope and stopped on purpose; its question is posted on the issue. Answer it and re-run `all <ID>` (the existing worktree is resumed), or take the issue interactively. |
 | A push or `gh pr create` is blocked with "Blocked by the youtrack-task review gate" | `review_gate_hook = "on"` is set and the exact commit has no review stamp. Run `/youtrack-task pr` (it reviews, then pushes), or waive on purpose with `/youtrack-task pr --no-review`, or set `review_gate_hook = "off"`. |
 | A reviewer command is rejected by the hook (e.g. a Gradle task)     | The reviewer is read-only and runs an allowlist. Gradle is allowed for check tasks by exact name only (`test`, `check`, `lint`, `detekt`, `ktlintCheck`, `spotlessCheck`, `lint(Debug\|Release\|Vital\|VitalRelease)`, `test<Variant>UnitTest`, optionally with a `:module:` path) and the options `--no-daemon`, `--offline`, `--tests <pattern>`, `-x <task>` and a few logging flags. Build, publish and clean tasks, `-D` / `-P`, `-I` / `-b` / `-c`, and globs in option values are denied. Task abbreviations such as `lintF` are denied on purpose (Gradle would expand them to `lintFix`). Needs plugin 0.15.4 or newer. |
-| A worker command is rejected by the hook                             | Working as intended: workers never push or merge and use no network tools; the main session pushes after review. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
+| A worker command or file write is rejected by the hook                             | Working as intended: workers never push or merge, use no network tools and write only inside their worktree; the main session pushes after review. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
 | `all` unavailable when installed as a skill only (e.g. the marketplace ZIP) | The `ticket-worker` / `ticket-reviewer` agents and the guard hook ship with the **plugin**. Without them `all` falls back to sequential work in the main session with a weaker, same-session review. |
 | "There is no project named …" although the project exists           | Fixed in 0.15.1: the skill now searches by repo name first and, if needed, pages through *all* projects (the YouTrack MCP server returns only 20 per page) before claiming a project is missing. Update the plugin (`/plugin marketplace update youtrack-task`, then `/plugin update youtrack-task@youtrack-task`) and restart Claude Code. A project whose name differs from the repo name can always be named with `--project KEY`. |
 | New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |

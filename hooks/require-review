@@ -29,7 +29,10 @@
 # protection.
 set -uf
 
-command -v jq >/dev/null 2>&1 || exit 0
+if ! command -v jq >/dev/null 2>&1; then
+  echo "youtrack-task hook require-review: jq is not installed, so the review-gate check is INACTIVE. Install jq to enable it." >&2
+  exit 0
+fi
 
 input=$(cat)
 agent=$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null) || exit 0

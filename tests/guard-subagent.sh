@@ -369,6 +369,72 @@ t 0 $W "gh pr view 5"
 t 0 $W "gh pr checks 5"
 t 0 $W "gh run list"
 
+# ---- file tools (Edit / Write / MultiEdit) ---------------------------------
+# Fixture: a repo with two linked worktrees, a symlink out of one of them, and a
+# directory that is not a git repo. mktemp is resolved with pwd -P (macOS /var).
+fx=$(cd "$(mktemp -d)" && pwd -P)
+trap 'rm -rf "$fx"' EXIT
+main=$fx/repo; wt=$main/.worktrees/YOU-1-a; wt2=$main/.worktrees/YOU-2-b
+mkdir -p "$main" "$fx/outside" "$fx/plain"
+git -C "$main" init -q -b main && git -C "$main" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+git -C "$main" worktree add -q -b b1 "$wt" && git -C "$main" worktree add -q -b b2 "$wt2"
+ln -s "$fx/outside" "$wt/escape"
+
+# tf <expected-exit> <agent or ""> <tool> <file_path> <cwd> [stderr-substring]
+tf() {
+  local exp=$1 agent=$2 tool=$3 file=$4 cwd=$5 want=${6:-} json err got
+  json=$(jq -nc --arg a "$agent" --arg t "$tool" --arg f "$file" --arg w "$cwd" \
+    '(if $a != "" then {agent_type:$a} else {} end) + {tool_name:$t,cwd:$w,tool_input:{file_path:$f}}')
+  err=$(printf '%s' "$json" | bash "$hook" 2>&1 >/dev/null); got=$?
+  if [ "$got" = "$exp" ] && { [ -z "$want" ] || printf '%s' "$err" | grep -qF -- "$want"; }; then
+    echo "ok   $exp  [${agent##*:}] $tool ${file#"$fx"/} (cwd ${cwd#"$fx"/})${want:+ reason '$want'}"
+  else echo "FAIL want $exp${want:+ '$want'} got $got ($err) [${agent##*:}] $tool $file (cwd $cwd)"; fail=1; fi
+}
+
+echo "# worker: file tools stay inside the worktree"
+tf 0 $W Write "$wt/src/new.txt" "$wt"
+tf 0 $W Edit "$wt/README.md" "$wt"
+tf 0 $W MultiEdit "$wt/src/a/b.txt" "$wt"
+tf 0 $W Write "src/rel.txt" "$wt"
+tf 0 $W Write "$wt/.github/workflows/ci.yaml" "$wt"
+tf 0 $W Write "$wt/.gitignore" "$wt"
+tf 2 $W Write "$main/README.md" "$wt" "outside"
+tf 2 $W Edit "$fx/outside/x" "$wt" "outside"
+tf 2 $W MultiEdit "$HOME/.config/youtrack-task/config.toml" "$wt" "outside"
+tf 2 $W Write "../rel-escape.txt" "$wt" "outside"
+tf 2 $W Write "$wt/sub/../../escape.txt" "$wt" "outside"
+tf 2 $W Write "$wt2/x" "$wt" "outside"
+tf 2 $W Write "$wt/escape/x" "$wt" "outside"
+mkdir -p "$wt-evil"
+tf 2 $W Write "$wt-evil/x" "$wt" "outside"
+
+echo "# worker: anything under .git is denied"
+tf 2 $W Write "$wt/.git" "$wt" ".git"
+tf 2 $W Write "$main/.git/hooks/pre-commit" "$wt" ".git"
+tf 2 $W Edit "$wt/.git/hooks/post-commit" "$wt" ".git"
+tf 2 $W Write "$wt/sub/../.git/config" "$wt" ".git"
+tf 2 $W Write "$wt/.git/x" "$fx/plain" ".git"
+tf 2 $W Write "$wt/.GIT/hooks/pre-commit" "$wt" ".git"
+tf 2 $W Edit "$wt/sub/.Git/config" "$wt" ".git"
+
+echo "# worker started in the main checkout: only linked worktrees are writable"
+tf 0 $W Write "$wt/a.txt" "$main"
+tf 0 $W Write "$wt2/a.txt" "$main"
+tf 2 $W Write "$main/README.md" "$main" "outside"
+tf 2 $W Write "$main/.worktrees/other/x" "$main" "outside"
+tf 2 $W Edit "$HOME/.config/youtrack-task/config.toml" "$main" "outside"
+
+echo "# worker without a git repo around: only the .git rule applies (best effort)"
+tf 0 $W Write "$fx/plain/x" "$fx/plain"
+
+echo "# file tools: main session, reviewer and incomplete input are untouched"
+tf 0 "" Write "$main/README.md" "$wt"
+tf 0 "" Edit "$wt/.git/hooks/x" "$wt"
+tf 0 $R Write "$main/README.md" "$wt"
+tf 0 $W Write "" "$wt"
+printf '{"agent_type":"%s","tool_name":"Write","cwd":"%s","tool_input":{}}' "$W" "$wt" | bash "$hook" >/dev/null 2>&1
+if [ $? = 0 ]; then echo "ok   0  file tool without file_path"; else echo "FAIL file tool without file_path"; fail=1; fi
+
 echo "# main session, empty and malformed input are untouched"
 t 0 "" "gh pr merge 5"
 t 0 "" "git push --force"
@@ -378,8 +444,8 @@ if [ $? = 0 ]; then echo "ok   0  malformed input"; else echo "FAIL malformed in
 # Fail open without jq: run with a PATH that has no jq.
 nojq=$(mktemp -d)
 for b in bash cat printf; do ln -s "$(command -v $b)" "$nojq/$b" 2>/dev/null; done
-printf '{"agent_type":"%s","tool_input":{"command":"gh pr merge 5"}}' "$W" | PATH="$nojq" "$(command -v bash)" "$hook" >/dev/null 2>&1
-if [ $? = 0 ]; then echo "ok   0  fails open without jq"; else echo "FAIL fail-open without jq"; fail=1; fi
+nojq_err=$(printf '{"agent_type":"%s","tool_input":{"command":"gh pr merge 5"}}' "$W" | PATH="$nojq" "$(command -v bash)" "$hook" 2>&1 >/dev/null); nojq_rc=$?
+if [ "$nojq_rc" = 0 ] && printf '%s' "$nojq_err" | grep -qi 'jq'; then echo "ok   0  without jq: passes and warns on stderr"; else echo "FAIL without jq: rc=$nojq_rc stderr='$nojq_err'"; fail=1; fi
 rm -rf "$nojq"
 
 exit $fail

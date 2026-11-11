@@ -6,10 +6,13 @@
 # The rejection text goes to stderr (exit 2) and is shown to the model, which
 # then retries with the token owner as assignee.
 #
-# Fails open: without jq, or on input it can't parse, the call goes through.
+# Fails open: without jq (a warning goes to stderr), or on input it can't parse, the call goes through.
 set -u
 
-command -v jq >/dev/null 2>&1 || exit 0
+if ! command -v jq >/dev/null 2>&1; then
+  echo "youtrack-task hook require-assignee: jq is not installed, so the assignee check is INACTIVE. Install jq to enable it." >&2
+  exit 0
+fi
 
 input=$(cat)
 

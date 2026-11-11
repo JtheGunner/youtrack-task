@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.0 — 2026-11-11
+
+- **Worker file writes are confined.** A new `PreToolUse` matcher
+  `Edit|Write|MultiEdit` runs `hooks/guard-subagent` for the `ticket-worker`: any
+  `file_path` outside the worktree (derived from the hook input's `cwd`) and any
+  path with a `.git` component (any letter case) is rejected. Paths are collapsed and symlinks
+  resolved first; with `cwd` in the main checkout only the repo's linked worktrees
+  are writable. Tests in `tests/guard-subagent.sh`.
+- **A missing `jq` is no longer silent.** `guard-subagent`, `require-assignee` and
+  `require-review` still let the call through, but print a warning on stderr that
+  they are inactive. The README lists `jq` as required for the hook protections.
+- **All hook entries have `timeout: 10`.**
+- **Agents:** `ticket-worker` and `ticket-reviewer` set `model: inherit` and a
+  `color`.
+
 ## 0.16.9 — 2026-11-11
 
 - **Fix: guardrail text matches the real protection.** `SKILL.md`,
