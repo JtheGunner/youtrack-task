@@ -36,7 +36,7 @@ position 0. Only move forward; never
 move an issue backward automatically — if the user asks for `testing` on an issue
 that is already `Done`, tell them and do nothing.
 
-State names are overridable in `~/.config/youtrack-task/config.toml`
+The ladder itself is fixed; only the state names are configurable. State names are overridable in `~/.config/youtrack-task/config.toml`
 (`in_progress_state`, `testing_state`, `done_state`).
 
 Perform the change with `update_issue`, setting the resolved state field to the

@@ -27,6 +27,7 @@ Every behaviour change — anything touching `SKILL.md`, `reference/*.md`,
 6. **Version** — the same new version in `.claude-plugin/plugin.json` and
    `.claude-plugin/marketplace.json` (`plugins[0].version`), following
    [SemVer](https://semver.org/): feature → minor, fix → patch, breaking → major.
+7. **Tag** — `git tag -a vX.Y.Z -m "…"` and push it together with the commit.
 
 Keep config keys and sub-command names identical across `SKILL.md`, `README.md`,
 `SPEC.md` and `config.example.toml`.
@@ -48,4 +49,4 @@ tests run offline: `tests/*.sh`, plus
   both together.
 - Nothing instance-specific in the repo: no real YouTrack URL or token.
 
-Releases are tagged `vMAJOR.MINOR.PATCH` by the maintainer.
+Releases are tagged `vMAJOR.MINOR.PATCH`, as in step 7 of the checklist.

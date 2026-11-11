@@ -163,5 +163,18 @@ grep -qF 'Branch:' "$ex/pickup.md" && grep -qF 'Implementation plan' "$ex/pickup
   && ok "examples/pickup.md shows the branch line, the plan comment and the review gate" \
   || bad "examples/pickup.md lacks the branch line, the plan comment or the review gate"
 
+# 8. Documented limits.
+grep -qiE 'arrays? .*(one line|single line)|single-line arrays' "$root/config.example.toml" \
+  && ok "config.example.toml says arrays must be single-line" \
+  || bad "config.example.toml does not say that arrays must be single-line"
+grep -qiE 'fixed' "$skill/reference/writeback.md" && grep -qiE 'ladder.*fixed|fixed.*ladder' "$root/README.md" \
+  && ok "the state ladder is documented as fixed (writeback.md, README.md)" \
+  || bad "the state ladder is not documented as fixed in writeback.md and README.md"
+grep -qE 'git tag' "$root/CONTRIBUTING.md" && ok "CONTRIBUTING.md has the tag step" || bad "CONTRIBUTING.md lacks the tag step"
+for k in list_query local_plan_copy default_new_type; do
+  sed -n '/Config overrides/,/^## /p' "$root/README.md" | grep -qF "$k" \
+    && ok "README Config overrides names $k" || bad "README Config overrides does not name $k"
+done
+
 [ "$fail" = 0 ] && echo "ALL OK" || echo "FAILURES"
 exit "$fail"

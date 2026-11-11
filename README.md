@@ -92,11 +92,15 @@ tools available (`/mcp` lists them).
 Only if your workflow differs from the defaults. Copy
 [`config.example.toml`](./config.example.toml) to
 `~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
-names, a different issue-list query, branch-prefix mapping, where the plan copy
-goes, the `use_superpowers` / `review_before_pr` / `review_rounds` / `review_gate_hook` toggles, `confirm_branch_name` (skip the branch-name question), `confirm_pr` (skip the push-and-PR question of `pr`), or the worktree
+names (`in_progress_state`, `testing_state`, `done_state`; the ladder order itself
+is fixed), a different issue-list query (`list_query`), branch-prefix mapping,
+where the plan copy goes (`local_plan_copy`), the type used by `new` when it can't
+infer one (`default_new_type`), the `use_superpowers` / `review_before_pr` / `review_rounds` / `review_gate_hook` toggles, `confirm_branch_name` (skip the branch-name question), `confirm_pr` (skip the push-and-PR question of `pr`), or the worktree
 settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`), or the
 `all` batch settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`;
-`batch_review_rounds` still works as an alias of `review_rounds`).
+`batch_review_rounds` still works as an alias of `review_rounds`). Arrays such as
+`worktree_clone` must be written on a single line; a multi-line array is ignored
+and the default applies.
 
 ---
 
@@ -337,7 +341,7 @@ One command instead of briefing the agent by hand:
 `comment` / `log` / `pr` / `link` / `testing` / `done` figure out the issue ID
 from your current branch name; pass an explicit `ID` as the first argument to
 override. State moves are forward-only along `Open → In Progress → Testing → Done`
-— asking to move an issue to a state it's already at or past does nothing.
+(the ladder is fixed; only the state names are configurable) — asking to move an issue to a state it's already at or past does nothing.
 
 ### The full lifecycle
 

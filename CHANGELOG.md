@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.2 — 2026-11-11
+
+- **Config limits documented.** `config.example.toml` and the README say that arrays
+  must be written on one line; a multi-line array falls back to the default.
+- **State ladder documented as fixed.** `reference/writeback.md`, the README and
+  `SPEC.md` state that only the state names are configurable, not the order.
+- **`CONTRIBUTING.md` has the tag step** of the change checklist.
+- **README *Config overrides*** names `list_query`, `local_plan_copy` and
+  `default_new_type`.
+
 ## 0.18.1 — 2026-11-11
 
 - **One definition per rule.** The language rule is worded only in `SKILL.md`;

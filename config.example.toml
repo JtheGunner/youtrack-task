@@ -6,6 +6,9 @@
 #
 # The YouTrack URL and API token are NOT configured here — they are environment
 # variables (YOUTRACK_MCP_URL, YOUTRACK_TOKEN) read by the bundled MCP server.
+#
+# Arrays (worktree_clone, worktree_link, batch_skip_tags) must be single-line arrays.
+# A multi-line array is not parsed and silently falls back to the default.
 
 # Query used to list candidate issues when you run `/youtrack-task` with no ID.
 # YouTrack search syntax.

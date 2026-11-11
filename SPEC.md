@@ -206,7 +206,7 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
                                                         # many issues in parallel + independent review
 ```
 
-State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
+State ladder: `Open → In Progress → Testing → Done` (fixed; only the state names are configurable). Pickup moves `Open → In
 Progress` automatically. `pr` is the only command that pushes (plus `all`, where the main session pushes reviewed branches) — it needs `gh`,
 prompts before pushing (unless `confirm_pr = false` / `--no-confirm-pr`), never force-pushes/deletes, merges only under `all --auto-merge`, and moves the issue to
 Testing. `pr` runs in this order: checks (repo, not the default branch, commits
