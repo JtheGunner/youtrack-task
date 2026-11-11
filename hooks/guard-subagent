@@ -299,7 +299,7 @@ while IFS= read -r segment; do
       && deny "git config is read-only for this agent (no aliases or hook paths)."
     printf '%s' "$segment" | grep -Eq '^git (commit|merge|am|rebase|cherry-pick|revert)( .*)? (-[a-zA-Z]*n[a-zA-Z]*|--no-ver[a-z-]*)( |$)' \
       && deny "never bypass git hooks (no --no-verify / -n)."
-    printf '%s' "$segment" | grep -Eq '^git (commit( .*)? --amend|reset( .*)? --hard|clean|rebase|update-ref|filter-branch)( |$)|^git worktree remove( .*)? (-f|--force)( |$)' \
+    printf '%s' "$segment" | grep -Eq '^git (commit( .*)? --am(e(n(d)?)?)?|reset( .*)? --h[a-z]*|clean|rebase|update-ref|filter-branch)( |=|$)|^git worktree remove( .*)? (-[a-zA-Z]*f[a-zA-Z]*|--f[a-z]*)( |$)' \
       && deny "no history rewriting or destructive commands (amend, reset --hard, clean, rebase, update-ref, filter-branch, worktree remove --force)."
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? -[a-zA-Z]*D' && deny "never force-delete a branch."
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? (-[a-zA-Z]*d|--delete)( .*)? (-[a-zA-Z]*f|--force)|^git branch( .*)? (-[a-zA-Z]*f|--force)( .*)? (-[a-zA-Z]*d|--delete)' \
