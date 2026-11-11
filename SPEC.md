@@ -61,7 +61,7 @@ youtrack-task/
 │           ├── issue-template.md # structure for `new` free-text generation
 │           ├── projects.md       # project resolution: the procedure, the 20-item `find_projects` cap + paging loop
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
-│           ├── review.md         # the review gate: one procedure for primary flow, `pr` and `all` (+ review-stamp contract)
+│           ├── review.md         # the review gate: one procedure for primary flow, `pr` and `all` (stamp contract and hook internals: this file)
 │           ├── batch.md          # contract for `all`: triage, workers, scheduling the review gate, PRs, merge
 │           └── worktrees.md      # contract for the two scripts
 ├── .github/workflows/
@@ -267,7 +267,7 @@ them → merge **only** with `--auto-merge`.
 
 ### Review gate (every flow)
 
-Full contract: `skills/youtrack-task/reference/review.md`; helper:
+Procedure: `skills/youtrack-task/reference/review.md`; contract below; helper:
 `<skill-dir>/scripts/review-stamp` (`<skill-dir>` = the directory of `SKILL.md`,
 called by absolute path with the target repo as working directory). One procedure, three callers: the primary flow's
 step 8 (`fixer = main-session`), `pr` (checks the stamp, runs the gate when it
@@ -280,16 +280,48 @@ pushed). `--no-review` / `review_before_pr = never` are the only ways to push
 without it; `pr` records a `SKIPPED` waiver stamp and the PR is labelled
 `Review: skipped`.
 
-Optional enforcement (`review_gate_hook = "on"`, default off):
-`hooks/require-review` blocks `git push` and `gh pr create` of an issue branch in
-the main session unless `review-stamp check --sha <exact commit>` is `PASS` or
-`SKIPPED`. It contains no review logic and checks a refspec by destination and
-source, and `--all` / `--mirror` / `--branches` / `:` per local issue branch; a
-commit spelled by SHA is gated when an issue branch tip is exactly that commit
-(exempt only if it is already reachable from a remote-tracking ref). It
-fails open on environment gaps, denies pushes whose arguments it cannot resolve
-(quoted, escaped, expanded or wildcard refspecs, remotes, directories), and leaves branches without an issue
-ID, deletions, pure tag pushes and subagent calls alone.
+#### Stamp contract (`<skill-dir>/scripts/review-stamp`)
+
+- Stored in `$(git rev-parse --git-common-dir)/youtrack-task/reviews/<ID>`: local,
+  shared by all worktrees of the repo, never pushed, never in the working tree.
+- `write` refuses unless `--sha` is the HEAD of `--dir` and the tree is clean.
+  It validates the ID (`^[A-Z][A-Z0-9_]*-[0-9]+$`), verdict and independence flag.
+- `check` reports; it never changes anything. An unreadable stamp is `MISSING`.
+  `check --sha <SHA>` asks about one exact commit (a branch tip, a pushed SHA)
+  instead of HEAD and ignores the working tree; the push hook uses it.
+- Verdicts: `PASS`, `FAILED`, `SKIPPED` (waiver, always `--independent no`).
+- It is a workflow guard, not a security boundary: anyone with shell access can
+  edit it. Branch protection on the server is the real boundary.
+- Change `reference/review.md` and the script together.
+
+#### Enforcement hook (`hooks/require-review`, optional)
+
+Off by default; `review_gate_hook = "on"` enables it. In the main session it blocks
+
+- `git push` of an issue branch (a refspec counts by its destination **and** by its
+  source branch, so `feat/PROJ-1-x:main` is gated too),
+- `git push --all` / `--branches` / `--mirror` and the matching refspec `:` (every
+  local issue branch is checked); a commit pushed by raw SHA or through another
+  ref name is gated when an issue branch's tip is exactly that commit (only a
+  commit already reachable from a remote-tracking ref that is not itself an issue
+  branch counts as published and is exempt; such refs are local data and can be
+  forged, so this is a convenience, not a boundary),
+- `gh pr create` for an issue branch,
+
+unless `review-stamp check --sha <the pushed commit or the PR's branch tip>` says
+`PASS` or `SKIPPED`. An issue branch is one whose name contains an issue ID. It
+also covers a plain `git push` and the user's own `/ship`. Passes untouched: other
+branches, deletions, pure `--tags` pushes, `review_before_pr = never`, and subagent
+calls (those belong to `hooks/guard-subagent`). Like that hook it is best effort.
+It fails open on environment gaps (no `jq`, a directory that is not a git repo) but
+**denies** what it cannot follow: a push with a quoted, escaped, `$`- / brace- /
+wildcard- / tilde-expanded remote or refspec, a refspec source that does not
+resolve locally, a `--head` of an issue branch that is not a local branch, or a
+quoted / expanded directory (`cd "$dir"`, `git -C "$dir"`). Residual gap: a raw
+SHA that is only an *ancestor* of an issue branch (not any branch tip) is not
+recognised. Quotes inside `gh pr create --title "..."` are fine. The hook only
+reads the stamp and contains no review logic; a deny message names the next step
+(`/youtrack-task pr`, or `pr --no-review` to waive).
 
 ### Worktrees (parallel tasks)
 

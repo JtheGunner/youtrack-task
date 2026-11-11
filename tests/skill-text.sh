@@ -121,6 +121,48 @@ for f in "$skill"/reference/{new,pr,pickup,subcommands,scripts-fallback,projects
   [ -z "$frag" ] && ok "no mid-sentence fragment in $(basename "$f")" || bad "paragraph starts mid-sentence in $(basename "$f")" "$frag"
 done
 
+# 7. One definition per rule, the rest point to it.
+# Language: defined in SKILL.md; the references carry no copy of the wording.
+copies=$(grep -rniE 'silently English|never mix them up' "$skill/reference" || true)
+[ -z "$copies" ] && ok "language rule is defined only in SKILL.md" \
+  || bad "language rule is restated in a reference file" "$copies"
+
+# Review gate: the developer docs (stamp contract, hook internals) live in SPEC.md.
+review=$skill/reference/review.md
+max_review_lines=130
+rl=$(wc -l < "$review" | tr -d ' ')
+[ "$rl" -le "$max_review_lines" ] && ok "review.md has $rl lines (max $max_review_lines)" \
+  || bad "review.md has $rl lines, max $max_review_lines"
+for h in '^## Stamp contract' '^## Enforcement hook'; do
+  grep -qE "$h" "$review" && bad "review.md still has section $h (belongs in SPEC.md)" \
+    || ok "section not in review.md: $h"
+done
+grep -qE '^#+ .*Stamp contract' "$root/SPEC.md" && ok "SPEC.md holds the stamp contract" \
+  || bad "SPEC.md has no stamp contract section"
+
+# The confirm tables lead with the effective value (flag over config), not a condition.
+for f in "$skill/SKILL.md" "$skill/reference/pr.md"; do
+  grep -qE '^ *\| Effective `confirm_(branch|pr)` \|' "$f" \
+    && ok "confirm table leads with the effective value in $(basename "$f")" \
+    || bad "confirm table in $(basename "$f") has no 'Effective' first column"
+done
+
+# The "scripts missing" path says it applies only then, and names what it cannot resolve.
+grep -qi 'only when' "$skill/reference/scripts-fallback.md" && grep -qF 'type_prefix' "$skill/reference/scripts-fallback.md" \
+  && ok "scripts-fallback.md is marked as the degraded path and names [type_prefix]" \
+  || bad "scripts-fallback.md lacks 'only when' or the [type_prefix] note"
+
+# Examples follow the spec.
+ex=$skill/examples
+grep -qF '## Context' "$ex/new.md" && grep -qF '## Scope' "$ex/new.md" \
+  && ok "examples/new.md shows Context and Scope" || bad "examples/new.md lacks Context or Scope"
+grep -qF 'moved to Testing.' "$ex/pr.md" && grep -qiE 'review' "$ex/pr.md" \
+  && ok "examples/pr.md shows the review gate and the comma form" \
+  || bad "examples/pr.md lacks the review gate or 'moved to Testing.'"
+grep -qF 'Branch:' "$ex/pickup.md" && grep -qF 'Implementation plan' "$ex/pickup.md" && grep -qiE 'review' "$ex/pickup.md" \
+  && ok "examples/pickup.md shows the branch line, the plan comment and the review gate" \
+  || bad "examples/pickup.md lacks the branch line, the plan comment or the review gate"
+
 # 8. Documented limits.
 grep -qiE 'arrays? .*(one line|single line)|single-line arrays' "$root/config.example.toml" \
   && ok "config.example.toml says arrays must be single-line" \
