@@ -103,5 +103,54 @@ YOUTRACK_TASK_CONFIG=$tmp/custom.toml run "$r" --id T-8 --slug s --prefix fix --
 [ "$rc" = 0 ] && has "MODE=existing-worktree" && printf "%s\n" "$out" | grep -q "^DIR=.*/\.wt/nested\.dir/T-8-s$"
 check "custom worktree_dir: second run resumes the existing worktree" $?
 
+# --- 9. dirty tree, in-place: ERROR=dirty-tree, nothing created ----------------
+r=$tmp/dirty; mk_repo "$r"
+echo a > "$r/f"; git -C "$r" add f; git -C "$r" commit -q -m "add f"
+echo b >> "$r/f"
+run "$r" --id T-9 --slug s --prefix fix --base main --mode inplace
+[ "$rc" = 2 ] && has "ERROR=dirty-tree" && ! git -C "$r" show-ref --verify -q refs/heads/fix/T-9-s \
+  && [ "$(git -C "$r" branch --show-current)" = main ]
+check "dirty tree, in-place: ERROR=dirty-tree, no branch, still on main" $?
+
+# --- 10. --allow-dirty carries the tracked change onto the new branch ----------
+run "$r" --id T-9 --slug s --prefix fix --base main --mode inplace --allow-dirty
+[ "$rc" = 0 ] && has "MODE=inplace" && [ "$(git -C "$r" branch --show-current)" = fix/T-9-s ] \
+  && grep -q '^b$' "$r/f" && [ "$(tip "$r" main)" = "$(tip "$r" HEAD)" ]
+check "--allow-dirty: branch created, change carried, nothing committed" $?
+
+# --- 11. a dirty tree does not block a worktree ----------------------------------
+r=$tmp/dirty-wt; mk_repo "$r"
+echo a > "$r/f"; git -C "$r" add f; git -C "$r" commit -q -m "add f"
+echo b >> "$r/f"
+run "$r" --id T-11 --slug s --prefix fix --base main --mode worktree
+[ "$rc" = 0 ] && has "MODE=worktree" && [ -d "$r/.worktrees/T-11-s" ]
+check "dirty tree, worktree mode: worktree is created" $?
+
+# --- 12. existing worktree for the issue is resumed ----------------------------
+run "$r" --id T-11 --slug s --prefix fix --base main --mode worktree
+[ "$rc" = 0 ] && has "MODE=existing-worktree" && has "BRANCH=fix/T-11-s" \
+  && printf '%s\n' "$out" | grep -q '^DIR=.*/\.worktrees/T-11-s$'
+check "existing worktree: MODE=existing-worktree, same branch" $?
+
+# --- 13. existing branch that is not checked out ---------------------------------
+r=$tmp/exbranch; mk_repo "$r"
+git -C "$r" branch fix/T-13-old
+run "$r" --id T-13 --slug new --prefix fix --base main --mode inplace
+[ "$rc" = 0 ] && has "MODE=existing-branch" && has "BRANCH=fix/T-13-old" \
+  && ! git -C "$r" show-ref --verify -q refs/heads/fix/T-13-new
+check "existing branch: MODE=existing-branch, no second branch" $?
+
+# --- 14. an issue ID is not a prefix of another one (T-1 vs T-12) --------------
+r=$tmp/collide; mk_repo "$r"
+git -C "$r" branch fix/T-12-other
+run "$r" --id T-1 --slug s --prefix fix --base main --mode worktree
+[ "$rc" = 0 ] && has "MODE=worktree" && has "BRANCH=fix/T-1-s"
+check "ID prefix collision: T-1 does not resume T-12's branch" $?
+r=$tmp/collide-wt; mk_repo "$r"
+run "$r" --id T-12 --slug other --prefix fix --base main --mode worktree
+run "$r" --id T-1 --slug s --prefix fix --base main --mode worktree
+[ "$rc" = 0 ] && has "MODE=worktree" && has "BRANCH=fix/T-1-s" && [ -d "$r/.worktrees/T-1-s" ]
+check "ID prefix collision: T-1 does not resume T-12's worktree" $?
+
 [ "$fail" = 0 ] && echo "ALL OK"
 exit "$fail"

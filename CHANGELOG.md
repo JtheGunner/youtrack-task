@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.6 — 2026-11-11
+
+- **Test: the worktree scripts are covered.** New `tests/sweep-worktrees.sh` (with
+  a stub `gh` in `PATH`) and `tests/worktree-detach.sh`, and `tests/setup-workspace.sh`
+  gains the cases `ERROR=dirty-tree`, `--allow-dirty`, `existing-worktree`,
+  `existing-branch` and the `YOU-1` vs `YOU-12` ID-prefix collision. They check
+  that a dirty worktree is kept, that a closed but unmerged branch is never force
+  deleted, and that the scripts contain no `--force`, `branch -D` or `push`. The
+  manual rows 8t–8ae in `tests/README.md` point to them. No change to the scripts.
+
 ## 0.16.4 — 2026-11-11
 
 - **Test: `tests/read-config.sh` covers every config key.** The ten keys that had
