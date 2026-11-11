@@ -7,7 +7,8 @@ Illustrative run. Branch, issue and URL are placeholders.
 ```
 
 **1. Checks** — inside a git repo, not on the default branch, commits ahead of the
-base, clean tree (a dirty tree only produces a warning).
+base. Then a clean tree (a dirty one is committed or stashed first — asked once)
+and the review gate, so the diffstat below already includes any review fixes.
 
 **2. Confirmation before pushing**
 
@@ -28,13 +29,14 @@ Push chore/PROJ-42-rotate-expired-api-tokens and open a PR? (yes/no)
 - `gh pr create` with an English title `PROJ-42: Rotate expired API tokens` and an
   English body that links the issue and lists the commits. An already open PR for
   the branch is reused, not duplicated.
-- Comment on the issue and state change `In Progress` → `Testing`:
+- State change `In Progress` → `Testing` first, then the comment on the issue (its
+  suffix reports what actually happened):
 
 ```markdown
-🔗 PR opened: https://github.com/example-org/api/pull/17 — moved to Testing
+🔗 PR opened: https://github.com/example-org/api/pull/17, moved to Testing.
 ```
 
-- `scripts/sweep-worktrees --exclude <this-branch>` removes other worktrees whose
+- `<skill-dir>/scripts/sweep-worktrees --exclude <this-branch>` removes other worktrees whose
   PR is already merged or closed. The current worktree stays until the PR merges
   and `/youtrack-task done` runs.
 

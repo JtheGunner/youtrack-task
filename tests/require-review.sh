@@ -134,6 +134,15 @@ t 0 "command mentioning push in a quoted string passes" "$wt" "git commit -m 'do
 t 0 "echo of a push passes" "$wt" "echo \"git push\""
 t 0 "unrelated command passes" "$wt" "ls -la"
 
+# a key with a digit (P2X-5): the gate must look up P2X-5, never X-5
+git -C "$repo" worktree add -q -b fix/P2X-5-demo "$tmp/wt2" >/dev/null 2>&1
+git -C "$tmp/wt2" commit -q --allow-empty -m "fix: work"
+t 2 "P2X-5 branch without a stamp: push denied (names P2X-5)" "$tmp/wt2" "git push" "P2X-5"
+bash "$stamp" write --id X-5 --sha "$(git -C "$tmp/wt2" rev-parse HEAD)" --verdict PASS --independent yes --dir "$tmp/wt2" >/dev/null 2>&1
+t 2 "P2X-5 branch with only an X-5 stamp: still denied" "$tmp/wt2" "git push" "has no review"
+bash "$stamp" write --id P2X-5 --sha "$(git -C "$tmp/wt2" rev-parse HEAD)" --verdict PASS --independent yes --dir "$tmp/wt2" >/dev/null
+t 0 "P2X-5 branch with a P2X-5 stamp: push allowed" "$tmp/wt2" "git push"
+
 printf 'review_gate_hook = "on"\nreview_before_pr = "never"\n' > "$cfg"
 t 0 "review_before_pr = never: passes" "$wt" "git push"
 printf 'review_gate_hook = "on"\n' > "$cfg"

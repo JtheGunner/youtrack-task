@@ -6,7 +6,7 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
 > **Why a gate.** A review only counts if the reviewer judges the code without
 > the implementer's story. The reviewer is therefore always a **fresh
 > `ticket-reviewer` subagent** with a minimal briefing, and the result is bound to
-> one exact commit (`SHA_review`) through `scripts/review-stamp`.
+> one exact commit (`SHA_review`) through `<skill-dir>/scripts/review-stamp`.
 
 ## When it applies
 
@@ -16,6 +16,8 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
   `never` (standing opt-out). `--no-review` skips it for one run; `--review` is
   accepted and does nothing extra.
 - `pr` treats a skipped review as an exception, not a default — see `SKILL.md` "pr".
+  Both ways of skipping (the flag and `never`) leave the same trace: a `SKIPPED`
+  stamp on the commit and the label `Review: skipped` — see "Waiver".
 
 ## Inputs
 
@@ -62,7 +64,7 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
      available (verify each finding before acting; do not implement blindly).
    - `ticket-worker`: the original briefing plus the reviewer's `FINDINGS`.
 6. **Stamp.** On an accepted `PASS`:
-   `scripts/review-stamp write --id <ID> --sha <SHA_review> --verdict PASS --independent yes --round <n> --dir <dir>`.
+   `<skill-dir>/scripts/review-stamp write --id <ID> --sha <SHA_review> --verdict PASS --independent yes --round <n> --dir <dir>`.
    After the last round still failing: write `--verdict FAILED`, stop, and give the
    user the open findings. Never loop silently.
 7. **Result for the caller:** `PASS` (stamped) or `FAILED` (open findings).
@@ -72,7 +74,7 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
 `pr` and `all` do not review twice. They ask the stamp:
 
 ```
-scripts/review-stamp check --id <ID> --dir <dir>
+<skill-dir>/scripts/review-stamp check --id <ID> --dir <dir>
 ```
 
 | `REVIEW=` | Means | Caller does |
@@ -81,7 +83,7 @@ scripts/review-stamp check --id <ID> --dir <dir>
 | `STALE` | HEAD moved or tree dirty since the stamp | run the gate again |
 | `MISSING` | never reviewed (or unreadable stamp) | run the gate |
 | `FAILED` | reviewed, still failing on this HEAD | stop, show the findings, no push |
-| `SKIPPED` | the user waived the review for this commit (`pr --no-review`) | proceed, labelled `Review: skipped` |
+| `SKIPPED` | the review was waived for this commit (`pr --no-review`, or `review_before_pr = never`) | proceed, labelled `Review: skipped` |
 
 `INDEPENDENT=` tells whether the review ran in a subagent. Only `yes` satisfies
 `all --auto-merge`; a `SKIPPED` waiver never does.
@@ -91,11 +93,20 @@ instead of HEAD and ignores the working tree; the push hook below uses it.
 
 ## Waiver
 
-`pr --no-review` is the one deliberate way past the gate. After the user confirms
-the risk, record it so the choice is visible and the push hook lets the push
-through: `scripts/review-stamp write --id <ID> --sha <HEAD> --verdict SKIPPED
---independent no --dir <dir>` (needs a clean tree, like any stamp). The waiver
-belongs to that commit; a later commit is `STALE` again.
+Skipping the review is recorded, never silent. Two ways lead there, and both end
+the same way — `pr` writes
+`<skill-dir>/scripts/review-stamp write --id <ID> --sha <HEAD> --verdict SKIPPED
+--independent no --dir <dir>` (needs a clean tree, like any stamp) and labels the
+PR and the issue comment `Review: skipped (not independently reviewed)`:
+
+| Way | Question first? |
+| --- | --- |
+| `pr --no-review` (one run) | yes — explicit confirmation naming the risk; a `SKIPPED` stamp already on this commit counts as that confirmation |
+| `review_before_pr = never` (standing config) | no |
+
+The waiver belongs to that commit; a later commit is `STALE` again. The push hook
+accepts a `SKIPPED` stamp; under `review_before_pr = never` it does not check at
+all.
 
 ## Without subagent support
 
@@ -110,7 +121,7 @@ This is also the mode outside Claude Code (for example the Agensi.io package): o
 the same minimal briefing if the agent has one; otherwise review in the main
 session. Either way the stamp says `--independent no`.
 
-## Stamp contract (`scripts/review-stamp`)
+## Stamp contract (`<skill-dir>/scripts/review-stamp`)
 
 - Stored in `$(git rev-parse --git-common-dir)/youtrack-task/reviews/<ID>`: local,
   shared by all worktrees of the repo, never pushed, never in the working tree.
