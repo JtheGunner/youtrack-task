@@ -114,8 +114,9 @@ ran, and anything the user still needs to do (e.g. `npm run build`).
 - If a native tool to enter an existing worktree is available (Claude Code's
   `EnterWorktree` with a `path`), use it so the session's harness state stays
   consistent.
-- Otherwise `cd` into the worktree and use absolute paths rooted there for the
-  rest of the flow (plan, implement, `pr`).
+- Otherwise a `cd` does not persist between Bash calls: run each command with the
+  worktree as its working directory (`git -C <path> …`, `(cd <path> && …)`) and
+  use absolute paths rooted there for the rest of the flow (plan, implement, `pr`).
 
 Everything after this — write-back, planning, implementation, `pr` — happens in
 the worktree. The other sub-commands (`comment` / `log` / `testing` / `done`)
@@ -127,29 +128,28 @@ unchanged from inside any worktree.
 A worktree with **uncommitted changes is never removed** by the plugin — it is
 reported and left for the user. No "remove anyway?" prompt.
 
-`/youtrack-task done` — after the state change, if the issue's branch lives in a
-worktree under `<worktree_dir>` and (`gh pr view <branch>` shows) its PR is merged
-or gone:
-- clean → offer:
-  ```bash
-  git worktree remove "<path>"     # never --force
-  git branch -d "<branch>"         # -d only; never -D
-  ```
-- dirty → report the path + that it has uncommitted changes; do nothing.
+`/youtrack-task done` — after the state change it runs `<skill-dir>/scripts/sweep-worktrees`
+(unless the issue's branch has no merged PR yet, then it only says so). The script
+removes **automatically**, without asking, every plugin worktree under
+`<worktree_dir>` whose PR (`gh pr view <branch>`) is merged or closed:
+- clean → `git worktree remove "<path>"` (never `--force`), then
+  `git branch -d "<branch>"` (`-d` only; never `-D`; an unmerged branch survives).
+- dirty → reported as `KEPT_DIRTY` with its path; nothing is removed.
+- PR still open → reported as `KEPT_OPEN`.
 
 `/youtrack-task worktree` sub-command:
 - `list` — `git worktree list` filtered to this plugin's worktrees, each with its
   issue's current YouTrack state.
-- `prune` — `scripts/sweep-worktrees`. For every plugin worktree whose PR is
+- `prune` — `<skill-dir>/scripts/sweep-worktrees`. For every plugin worktree whose PR is
   merged / closed **and** clean: `git worktree remove` → `git branch -d` (`-d`
   refuses an unmerged branch, the safe outcome) → `git worktree prune`. Dirty
   ones and open PRs are listed, not touched.
-- `take <ID>` — `scripts/worktree-detach --id <ID> --switch`. The branch is
+- `take <ID>` — `<skill-dir>/scripts/worktree-detach --id <ID> --switch`. The branch is
   checked out in a worktree and you want it in your current checkout: remove that
   worktree (**branch kept**), then `git switch <branch>` here (skipped if the
   current checkout has tracked changes). `ERROR=dirty` if the worktree isn't
   clean — commit / stash in it first.
-- `remove <ID>` — `scripts/worktree-detach --id <ID>`. Same, without the switch.
+- `remove <ID>` — `<skill-dir>/scripts/worktree-detach --id <ID>`. Same, without the switch.
 
 Never `git worktree remove --force`, never `git branch -D`, never remove a
 worktree that has uncommitted changes. `take` / `remove` keep the branch — only

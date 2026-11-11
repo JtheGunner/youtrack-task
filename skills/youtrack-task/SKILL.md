@@ -34,8 +34,8 @@ Do not attempt REST calls or `curl` as a fallback.
 
 ## Guardrails
 
-This skill sets up work and drives planning; once a plan is approved it may go on
-to implement, following the normal development workflow. Throughout, these are
+This skill sets up work and drives planning; with `--implement` it goes on to
+implement the plan, following the normal development workflow. Throughout, these are
 hard limits — never cross them without the user explicitly approving that
 specific action. For the `all` agents these limits are enforced as **best
 effort** by `hooks/guard-subagent` plus server-side protection (branch
@@ -78,7 +78,7 @@ interpreter one-liners (`python3 -c`, `node -e`) or package installs:
   `git worktree remove --force` and never `git branch -D`. A worktree with
   uncommitted changes is left alone and reported, not removed.
 - The only YouTrack writes are: the pickup state change + comment, the plan
-  comment, an optional one-line completion comment, in `all` the worker-plan,
+  comment, the completion comment (template in `reference/writeback.md`), in `all` the worker-plan,
   question (`BLOCKED` / `ESCALATE`), status and per-issue completion comments
   written by the main session, and the explicit
   `new` (create + its Type / Priority / Assignee fields) / `comment` / `log` /
@@ -86,7 +86,6 @@ interpreter one-liners (`python3 -c`, `node -e`) or package installs:
 - **Language** — git artifacts are always English, YouTrack-side text always
   follows the user's / the issue's language. See "Language" below; it is a hard
   rule, not a style preference.
-
 - **Assignee** — an issue is never created unassigned. The assignee is the
   issue's creator (the API-key owner, `get_current_user`) unless the user named
   someone else. This holds for **every** `create_issue` call, including ones made
@@ -127,7 +126,16 @@ text is sent verbatim, as the user wrote it.
 ## Scripts
 
 This skill bundles helpers in its `scripts/` directory — run them, don't
-reimplement their logic:
+reimplement their logic.
+
+**`<skill-dir>`** is the directory that holds this `SKILL.md`: `${CLAUDE_SKILL_DIR}`
+in Claude Code, in other agents the base directory the skill was loaded from.
+Call every script by its absolute path, `<skill-dir>/scripts/<name>`, with the
+**working directory set to the target repo** (or its worktree): the scripts find
+the repo from the working directory (`git rev-parse --show-toplevel`), so never
+`cd` into `scripts/` first. A `cd` does not persist between Bash calls — set the
+directory inside the call: `(cd <repo-or-worktree> && <skill-dir>/scripts/<name> …)`.
+
 - `read-config` — step 0 of every invocation: resolves the config below with
   defaults applied. Never decide a config value without it.
 - `setup-workspace` — step 4: the worktree-vs-in-place decision, branch / worktree
@@ -142,9 +150,17 @@ reimplement their logic:
 All echo `KEY=VALUE` lines; the contract is in `reference/worktrees.md`
 (`review-stamp`: `reference/review.md`).
 
-**If `scripts/` isn't on disk** (the skill was loaded through a connection that
-doesn't materialise bundled files), do not write the scripts out yourself. Degrade
-to plain git, in place, never forcing anything:
+**Are the scripts on disk?** Step 0 asks first:
+`test -x <skill-dir>/scripts/read-config && echo SCRIPTS=present || echo SCRIPTS=missing`
+(the skill may have been loaded through a connection that doesn't materialise
+bundled files). Then:
+
+| Result | Do this |
+| --- | --- |
+| `SCRIPTS=present` | use the scripts as written everywhere in this document |
+| `SCRIPTS=missing` | never write the scripts out yourself; degrade to plain git, in place, never forcing anything, as listed below |
+
+Without the scripts:
 - `setup-workspace` → `git switch -c <prefix>/<ID>-<slug> <base>` from a clean tree
   (ask before stashing); report `MODE=inplace`. No worktree.
 - `read-config` → read `~/.config/youtrack-task/config.toml` with the Read tool
@@ -162,7 +178,7 @@ Optional file `~/.config/youtrack-task/config.toml`; every key is optional.
 
 **Load it first, on every invocation, before any decision that depends on it**
 (step 0 of the primary flow and of every sub-command): run
-`scripts/read-config` (from this skill's `scripts/` directory) and use its
+`<skill-dir>/scripts/read-config` and use its
 `KEY=VALUE` output as the only source of config values. The Defaults column below
 is documentation, not something to apply from memory — a value you did not get
 from `read-config` (or, without `scripts/`, from reading the file) is unknown.
@@ -183,7 +199,7 @@ file themselves. Defaults:
 | `review_rounds` | `2` — max fix / re-review rounds per issue in the review gate (`batch_review_rounds` is accepted as an alias) |
 | `worktree` | `auto` — `auto` (worktree when the checkout is dirty, on a non-default branch, or a plugin worktree already exists; parallel work wants `always`) \| `off` \| `always` |
 | `confirm_branch_name` | `true` — `false` accepts the computed branch name without asking (it is still shown; `--confirm-branch` / `--no-confirm-branch` override per run) |
-| `confirm_pr` | `true` — `false` makes `pr` push and open the PR without the confirmation question (commits and diffstat are still shown; `--confirm-pr` / `--no-confirm-pr` override per run) |
+| `confirm_pr` | `true` — `false` makes `pr` push and open the PR without the confirmation question (commits and diffstat are still shown; `--confirm-pr` / `--no-confirm-pr` override per run). Applies to `pr` only: `all` always asks its one batch confirmation |
 | `worktree_dir` | `.worktrees` — dir under the repo root that holds worktrees |
 | `worktree_clone` | `["node_modules", "vendor"]` — dirs CoW-copied into a new worktree (`+ "storage"` for Laravel repos) |
 | `worktree_link` | `[".env"]` — paths symlinked from the main checkout into a new worktree |
@@ -222,13 +238,25 @@ The 20-item cap and the paging loop are spelled out in `reference/projects.md`.
 A project key the user typed (`--project KEY`) skips 1–3 and goes straight to
 `get_project`. An issue ID's prefix is authoritative for that issue's project.
 
+## Issue IDs
+
+`ISSUE_ID_RE` is `[A-Z][A-Z0-9_]*-[0-9]+`. It is the one form used by this skill,
+`reference/*.md`, the scripts and the hooks (`review-stamp`, `hooks/require-review`);
+`tests/skill-text.sh` keeps them identical. Never write a variant of it.
+
+| Where an ID is needed | Rule |
+| --- | --- |
+| an argument is "an issue ID" | the whole token matches `^ISSUE_ID_RE$` |
+| the ID of the current branch | the **first** match of `ISSUE_ID_RE` in `git branch --show-current` (`fix/P2X-5-foo` → `P2X-5`, never `X-5`) |
+| leading token of `comment` / `log` / `pr` / `link` / `testing` / `done` | a token that matches `^ISSUE_ID_RE$` **is** the issue ID and the rest is the text; any other first token means there is no ID argument — the ID comes from the branch (else ask) and the whole remainder is the text |
+
 ## Dispatch on the first argument
 
 | First arg | Action |
 | --- | --- |
-| *(none)*, an issue ID (`^[A-Z][A-Z0-9_]+-\d+$`), or a bare number | **Primary flow** (below) |
+| *(none)*, an issue ID (`^ISSUE_ID_RE$`), or a bare number | **Primary flow** (below) |
 | `new` | create a new issue — see "new" below |
-| `comment` | `add_issue_comment` with the rest of the line, to the current branch's issue |
+| `comment` | `add_issue_comment` with the text, to the leading issue ID or else the current branch's issue |
 | `log` | time logging — see "log" below |
 | `pr` | push the branch, open a PR, link it on the issue, move to Testing — see "pr" below |
 | `link` | attach an existing PR URL to the issue as a comment — see "link" below |
@@ -237,13 +265,14 @@ A project key the user typed (`--project KEY`) skips 1–3 and goes straight to
 | `worktree` | `list` / `prune` / `take` / `remove` this plugin's worktrees — see "worktree" below |
 | `all` | work through several issues in parallel with independent review — see "all" below |
 
-**Every invocation, whatever the first argument, starts with step 0:** run
-`scripts/read-config` (see **Config**) before anything that depends on a config
-value. The sub-commands below do not repeat it.
+**Every invocation, whatever the first argument, starts with step 0:** check
+that the scripts are on disk and run `<skill-dir>/scripts/read-config` (see
+**Scripts** and **Config**) before anything that depends on a config value. The
+sub-commands below do not repeat it.
 
 For `comment` / `log` / `pr` / `link` / `testing` / `done`, resolve the issue ID
-from an explicit leading `ISSUE-ID` argument if given, else extract `[A-Z]+-\d+`
-from `git branch --show-current`, else ask the user.
+per "Issue IDs": a leading ID argument if there is one, else the branch's ID,
+else ask the user.
 
 ---
 
@@ -252,7 +281,7 @@ from `git branch --show-current`, else ask the user.
 ```
 /youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
                [--worktree | --no-worktree] [--checkpoints] [--review | --no-review]
-               [--confirm-branch | --no-confirm-branch]
+               [--confirm-branch | --no-confirm-branch] [--implement]
 ```
 
 - `--no-move` — don't change the issue state on pickup (keep the pickup comment).
@@ -265,6 +294,9 @@ from `git branch --show-current`, else ask the user.
   branch name is OK in step 4 (default: config `confirm_branch_name`, itself
   `true`). The flag wins over the config. Without the question the name is
   accepted as computed and only shown.
+- `--implement` — run step 8 (implement and review) after the plan is written back.
+  Without it the flow ends after step 7. On an existing worktree it continues
+  from the plan comment that is already on the issue.
 - `--checkpoints` — step 8 executes an architectural plan with
   `superpowers:executing-plans` (review stop after each phase) instead of
   `subagent-driven-development`.
@@ -274,20 +306,22 @@ from `git branch --show-current`, else ask the user.
 
 ### 0. Load config
 
-Run `scripts/read-config` and keep its output for the whole run (see **Config**).
-No other step reads or guesses config values.
+Check that the scripts are on disk (see **Scripts**), then run
+`<skill-dir>/scripts/read-config` and keep its output for the whole run (see
+**Config**). No other step reads or guesses config values.
 
 ### 1. Resolve the issue ID
 
 Resolve in this order:
 
-1. **Arg is a full ID** (`^[A-Z][A-Z0-9_]+-\d+$`) → use it verbatim.
+1. **Arg is a full ID** (`^ISSUE_ID_RE$`) → use it verbatim.
 2. **Arg is a bare number** `N` → qualify it with the current repo's project key
-   (see below): the issue is `<PROJECT>-N`. Echo one line —
+   (see below): the issue is `<PROJECT>-N`. Read it first with `get_issue` (that
+   is also step 2's fetch), then echo one line —
    *"→ `<PROJECT>-N`: <summary>. Continue?"* — and proceed only on yes. If the
    project key can't be determined, ask for a full ID instead.
-3. **No arg** → `git branch --show-current`; if it contains `[A-Z]+-\d+`, extract
-   that ID and ask *"Continue on `<ID>` (from branch `<branch>`)?"* — proceed
+3. **No arg** → `git branch --show-current`; if it contains an `ISSUE_ID_RE`
+   match, take the first one as the ID and ask *"Continue on `<ID>` (from branch `<branch>`)?"* — proceed
    only on yes.
 4. **Still nothing** → `mcp__youtrack__search_issues` with `list_query` and show
    the candidates as:
@@ -296,9 +330,8 @@ Resolve in this order:
    the reply is treated exactly like rule 2 (→ `<PROJECT>-N`), **never** as a
    position in the list. Empty list → say so, ask for an explicit ID.
 
-**Current repo's project key:** resolve it with "Resolving a project" above, or
-take the dominant project prefix among the issues returned by `list_query` for
-this repo. This is the same project used for the sanity check in step 3.
+**Current repo's project key:** resolve it with "Resolving a project" above and
+nothing else. The sanity check in step 3 uses the same project.
 
 ### 2. Fetch context
 
@@ -335,10 +368,10 @@ worktree logic**, the script is the source of truth
 (spec: `reference/worktrees.md`):
 
 ```
-scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> \
+<skill-dir>/scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> \
     [--base <branch>] [--mode worktree|inplace]
 ```
-(run it from this skill's `scripts/` directory). `--mode worktree` for
+(run it with the repo root as working directory, see **Scripts**). `--mode worktree` for
 `--worktree`, `--mode inplace` for `--no-worktree`; omit otherwise — the script
 reads `config` `worktree`, does the dirty / branch / existing-worktree checks,
 creates or resumes, and bootstraps a new worktree.
@@ -348,9 +381,24 @@ Act on its `KEY=VALUE` output:
 | `MODE=` | do this |
 | --- | --- |
 | `inplace` | you're on `BRANCH` in the repo root. Report `BRANCH` / `BASE`. |
-| `worktree` | `cd` to `NEXT_CD` (or `EnterWorktree` that path). Report `BRANCH` `BASE` `DIR` `CLONED` `LINKED` + any `NOTE=` lines. Steps 5–8 run there. |
-| `existing-worktree` | a worktree for this issue already exists → `cd` to `NEXT_CD` (or `EnterWorktree`). Announce *"Resuming `<ID>` in `<DIR>`."* **Skip step 5.** In step 6 reuse the existing plan comment — don't re-brainstorm unless asked, don't re-post it in step 7. |
-| `existing-branch` | a branch for this issue exists but isn't checked out. Ask the user: `git switch <BRANCH>`, or `git worktree add <repo>/<worktree_dir>/<ID>-<slug> <BRANCH>` then enter it. **Skip step 5.** Reuse the plan comment as above. |
+| `worktree` | enter `NEXT_CD` (see below). Report `BRANCH` `BASE` `DIR` `CLONED` `LINKED` + any `NOTE=` lines. Steps 5–8 run there. |
+| `existing-worktree` | a worktree for this issue already exists → enter `NEXT_CD`. Announce *"Resuming `<ID>` in `<DIR>`."* Steps 5–7 follow the **resume check** below. |
+| `existing-branch` | a branch for this issue exists but isn't checked out. Ask the user: `git switch <BRANCH>`, or `git worktree add <repo>/<worktree_dir>/<ID>-<slug> <BRANCH>` then enter it. Steps 5–7 follow the **resume check** below. |
+
+**Entering a worktree:** use `EnterWorktree` with that `path` when it is
+available. Otherwise a `cd` does not carry over to the next Bash call, so run
+every later command with the worktree as working directory in the same call —
+`git -C <DIR> …`, `(cd <DIR> && …)` — and use absolute paths for files.
+
+**Resume check** (`existing-worktree` / `existing-branch`): look in the comments
+read in step 2 for the two template headings of `reference/writeback.md`.
+
+| Comments contain | Do this |
+| --- | --- |
+| `📌 Picked up in Claude Code` | skip step 5 |
+| no pickup comment | step 5 runs normally |
+| `## 📝 Implementation plan` | step 6 reuses that plan (no re-brainstorm unless asked); skip step 7 |
+| no plan comment | steps 6 and 7 run normally |
 
 `ERROR=dirty-tree` (exit 2) → tracked changes present, in-place branch wanted.
 Ask the user: stash (`git stash push -u`, re-run, then pop or keep) or carry
@@ -359,8 +407,8 @@ commit on the base branch. Any other `ERROR=` → stop and show it.
 
 ### 5. Write-back on pickup
 
-Skip this whole step if `--no-writeback` was passed, or if step 4 returned
-`existing-worktree` / `existing-branch` (the pickup already happened).
+Skip this whole step if `--no-writeback` was passed, or if the resume check found
+the pickup comment (the pickup already happened).
 
 Follow `reference/writeback.md`:
 - resolve the state field via `get_issue_fields_schema`
@@ -388,24 +436,33 @@ or **architectural**; step 8 depends on it.
 
 ### 7. Write-back the plan
 
-Only after the user approves the plan:
+Only after the user approves the plan (and not when the resume check found the
+plan comment):
 - `mcp__youtrack__add_issue_comment` with the plan rendered as Markdown, using the
-  plan template from `reference/writeback.md`.
+  plan template from `reference/writeback.md`. The comment is YouTrack-side text:
+  it follows the issue's language.
 - **Local copy.** If step 6's superpowers path already wrote a plan / design
   document locally (the architectural case — `docs/superpowers/specs/…` or
   `docs/plans/<ID>-plan.md`), that file **is** the local copy: do not write a
-  second one; just name its path. Otherwise apply `local_plan_copy`:
+  second one; just name its path. Otherwise apply `local_plan_copy`. A local
+  copy is a git artifact, so it is **always English** — the same plan as the
+  comment, translated if the comment is not English:
   - `auto` (default): if the repo already has a `docs/` directory, write
     `docs/plans/<ID>.md`. No `docs/` → skip, don't create it.
   - `always`: always write `docs/plans/<ID>.md` (create `docs/plans/` if needed).
   - `never`: never write a local file.
 
 Then summarise what landed where (branch, YouTrack state, comment URL if the MCP
-result includes one, local file if written).
+result includes one, local file if written). Step 8 follows from `--implement`.
 
-### 8. Implement (optional)
+### 8. Implement (`--implement`)
 
-Only if the user wants to proceed now. Bound by the **Guardrails** above.
+| `--implement` | Do this |
+| --- | --- |
+| given | run this step; no question, the flag is the go-ahead |
+| absent | the flow ends after step 7. Print one line — *"Plan is on `<ID>`. Run `/youtrack-task <ID> --implement` to implement it."* — and stop. No question |
+
+Bound by the **Guardrails** above.
 
 **superpowers path** — follow `reference/superpowers.md` step 8:
 - bounded → implement directly with `superpowers:test-driven-development`.
@@ -425,7 +482,7 @@ to every task with commits, bounded or architectural. `--no-review` or config
 `review_before_pr = never` skips it. A `FAILED` gate stops here with the open
 findings; do not post a completion comment that claims the work is done.
 
-Then post one short completion comment (`add_issue_comment`, template in
+Then post the completion comment (`add_issue_comment`, template in
 `reference/writeback.md`) listing the branch, the files touched and the review
 result (`Review: PASS @ <short-sha>`, or `Review: skipped`). Do not push,
 open a PR, or move the issue here — tell the user the branch is ready and that
@@ -435,7 +492,7 @@ open a PR, or move the issue here — tell the user the branch is ready and that
 
 ## State sub-commands (`testing`, `done`)
 
-1. Resolve the issue ID (arg → branch → ask).
+1. Resolve the issue ID (leading ID argument → branch → ask; see "Issue IDs").
 2. Resolve the state field via `get_issue_fields_schema`.
 3. Determine ladder positions. Target: `testing_state` for `testing`,
    `done_state` for `done`.
@@ -448,8 +505,7 @@ open a PR, or move the issue here — tell the user the branch is ready and that
    - if a local branch for this issue still exists and `gh pr view <branch>`
      shows no merged PR, add one line — *"Branch `<branch>` isn't merged yet —
      `/youtrack-task pr` or `/ship` to integrate it."* No git action.
-   - otherwise run `scripts/sweep-worktrees` (from this skill's `scripts/` dir)
-     and report its `REMOVED` / `KEPT_DIRTY` / `KEPT_OPEN` lines. It removes only
+   - otherwise run `<skill-dir>/scripts/sweep-worktrees` and report its `REMOVED` / `KEPT_DIRTY` / `KEPT_OPEN` lines. It removes only
      clean worktrees whose PR is merged/closed — never `--force`, never `-D`,
      never a dirty one.
 
@@ -461,7 +517,7 @@ switch branches.
 
 `/youtrack-task log [ISSUE-ID] <duration> [description...]`
 
-1. Resolve issue ID (explicit arg, else from branch, else ask).
+1. Resolve issue ID (a leading ID token, else from branch, else ask; see "Issue IDs").
 2. `<duration>` is the next token, in YouTrack period format (`1h`, `30m`,
    `1h30m`, `2d`). If it doesn't parse as a period, stop and show the format.
 3. Everything after `<duration>` is the work description (optional).
@@ -470,9 +526,11 @@ switch branches.
 
 ## comment
 
-`/youtrack-task comment <text...>`
+`/youtrack-task comment [ISSUE-ID] <text...>`
 
-1. Resolve issue ID from the current branch (else ask).
+1. Resolve the issue ID per "Issue IDs": a first token that is an ID is the issue
+   and the rest is the text; otherwise the ID comes from the current branch (else
+   ask) and everything after `comment` is the text.
 2. `mcp__youtrack__add_issue_comment` with the verbatim text (no emoji prefix
    added — the user's words stand as-is).
 3. Confirm.
@@ -602,44 +660,43 @@ move the issue to Testing. This is the one place the skill is allowed to push.
 Requires `gh` on `PATH` (`gh --version`); if missing, stop and tell the user to
 push + open the PR themselves, then run `/youtrack-task link <url>`.
 
-1. Resolve the issue ID (leading arg → branch → ask).
-2. Checks, all must pass or stop:
+1. Resolve the issue ID (leading ID argument → branch → ask; see "Issue IDs").
+2. **Checks**, all must pass or stop:
    - inside a git repo, and **not** on the default branch (resolve the default
      the same way as `reference/branching.md`; `--base` overrides).
    - the branch has commits ahead of the base (`git rev-list --count <base>..HEAD`
      > 0), else *"no commits on this branch"*.
-   - clean working tree. If dirty, warn that uncommitted changes won't be in the
-     PR and ask whether to continue. Recording a waiver (last bullet) needs a clean
-     tree, so on that path commit or stash first.
-   - **reviewed** (not checked when `review_before_pr = never` or `--no-review`,
-     see the last bullet): run
-     `scripts/review-stamp check --id <ID>` per `reference/review.md`.
-     `PASS` with `INDEPENDENT=yes` → continue. `STALE` / `MISSING` → run the review
-     gate now (`fixer = main-session`; it needs a clean tree, so a dirty tree is
-     committed or the user is asked first), then continue on `PASS`. `FAILED` →
-     stop and show the open findings. `PASS` with `INDEPENDENT=no` → say the review
-     was not independent and continue only on explicit confirmation.
-   - `--no-review` and `review_before_pr = never` are the only ways past the gate.
-     With the flag, ask for explicit confirmation naming the risk (*"this branch
-     has no independent review"*); with the standing config no extra question is
-     needed. Either way record the waiver (`review-stamp write --verdict SKIPPED
-     --independent no`, see `reference/review.md`), and add the line `Review:
-     skipped (not independently reviewed)` to the PR body and to the YouTrack PR
-     comment. Never skip silently. A `SKIPPED` stamp already on this commit counts
-     as that confirmation.
-3. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`
+3. **Clean tree, then review**, in this order (the review may add fix commits,
+   which is why the diffstat comes only after it):
+   1. **Working tree.** `git status --porcelain` empty → go on. Otherwise ask
+      **once**: commit (English conventional message, never on the default
+      branch), stash (`git stash push -u -m "<unique-tag>"`), or stop.
+      Uncommitted changes would not be in the PR, and every review stamp — the
+      waiver included — needs a clean tree.
+   2. **Review gate**, decided from the step-0 output and the flags:
+
+      | `--no-review`, or `REVIEW_BEFORE_PR=never` | do this |
+      | --- | --- |
+      | neither | run `<skill-dir>/scripts/review-stamp check --id <ID>` per `reference/review.md`. `PASS` with `INDEPENDENT=yes` → continue. `STALE` / `MISSING` → run the review gate now (`fixer = main-session`), then continue on `PASS`. `FAILED` → stop and show the open findings. `PASS` with `INDEPENDENT=no` → say the review was not independent and continue only on explicit confirmation. `SKIPPED` → continue, labelled skipped (below) |
+      | `--no-review` | ask for explicit confirmation naming the risk (*"this branch has no independent review"*), then record the waiver. A `SKIPPED` stamp already on this commit counts as that confirmation |
+      | `REVIEW_BEFORE_PR=never`, no flag | no question; record the waiver |
+
+      Recording the waiver: `review-stamp write --verdict SKIPPED --independent no`
+      (see `reference/review.md`). Then add the line `Review: skipped (not
+      independently reviewed)` to the PR body and to the YouTrack PR comment.
+      Never skip silently.
+4. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`
    (always), then decide from the step-0 output:
 
    | `--no-confirm-pr`, or `CONFIRM_PR=false` without `--confirm-pr` | do this |
    | --- | --- |
-   | yes | print one line `→ Pushing <branch> and opening a PR (confirm_pr off)` and go on to step 4. **No question.** |
+   | yes | print one line `→ Pushing <branch> and opening a PR (confirm_pr off)` and go on to step 5. **No question.** |
    | no | **ask for confirmation** before pushing. |
 
-   This table gates only the push-and-PR question. The checks in step 2 (default
-   branch, commits ahead, dirty tree, review gate, `--no-review` confirmation) are
+   This table gates only the push-and-PR question. The checks in steps 2–3 are
    unaffected and still stop or ask as written there.
-4. `git push -u origin <branch>` (plain push; never `--force`).
-5. Open the PR:
+5. `git push -u origin <branch>` (plain push; never `--force`).
+6. Open the PR and capture its URL:
    - If `gh pr view <branch> --json url,state` already shows an open PR, reuse its
      URL — don't create a second one.
    - Else `gh pr create --base <base> --head <branch> --title "<ID>: <clean-summary>"
@@ -654,16 +711,21 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
      (`<YOUTRACK_MCP_URL without /mcp>/issue/<ID>`), a one-line summary, and a
      short bullet list of the commits. The merge commit inherits this title, so
      it must not carry non-English text.
-6. Capture the PR URL from the command output.
-7. YouTrack write-back:
-   - `add_issue_comment`: the `pr` template from `reference/writeback.md`
-     (`🔗 PR opened: <url>` — add `, moved to Testing` when step 8 moves it).
-   - Unless `--no-move`: if the issue is before `testing_state` on the ladder,
-     `update_issue` → `testing_state`. Skip silently if already at Testing/Done.
-8. Run `scripts/sweep-worktrees --exclude <this-branch>` (from this skill's
-   `scripts/` dir) to clear worktrees whose PR has already merged/closed. Report
-   its `REMOVED` lines. **This** worktree stays — the PR is open, review fixes go
-   here; `/youtrack-task done` (or `worktree prune`) removes it once merged.
+7. **YouTrack write-back**, in this order:
+   1. Unless `--no-move`: if the issue is before `testing_state` on the ladder,
+      `update_issue` → `testing_state`. Skip silently if already at Testing/Done.
+      Note whether the state actually changed.
+   2. `add_issue_comment` with the `pr` template from `reference/writeback.md`,
+      its suffix chosen from that result:
+
+      | State change in 7.1 | Comment |
+      | --- | --- |
+      | done | `🔗 PR opened: <url>, moved to Testing.` |
+      | skipped (`--no-move`, already Testing/Done) or failed | `🔗 PR opened: <url>` (`🔗 PR: <url>` if the PR already existed) |
+8. Run `<skill-dir>/scripts/sweep-worktrees --exclude <this-branch>` to clear
+   worktrees whose PR has already merged/closed. Report its `REMOVED` lines.
+   **This** worktree stays — the PR is open, review fixes go here;
+   `/youtrack-task done` (or `worktree prune`) removes it once merged.
 9. Report: PR URL, whether it was newly created or already existed, the state
    change, what `sweep-worktrees` cleaned up, and that `/youtrack-task done` is
    the step after the PR merges.
@@ -675,7 +737,7 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
 Attach an already-existing PR (from `/ship`, `gh`, or the web UI) to the issue.
 Does not push and does not change state.
 
-1. Parse args: if the first token is an issue ID, the second is the URL; otherwise
+1. Parse args: if the first token is an issue ID (`^ISSUE_ID_RE$`), the second is the URL; otherwise
    the first token is the URL and the issue ID comes from the branch (else ask).
 2. Sanity-check the URL is `http(s)://…`; warn (don't block) if it isn't a
    `…/pull/<n>` GitHub URL.
@@ -689,18 +751,17 @@ Does not push and does not change state.
 - **`list`** — `git worktree list` filtered to worktrees under `worktree_dir`
   whose name looks like `<ID>-<slug>`; for each, show the branch and the issue's
   current YouTrack state (`get_issue`).
-- **`prune`** — run `scripts/sweep-worktrees` (from this skill's `scripts/` dir)
-  and report every line. It removes clean worktrees whose PR is merged/closed and
+- **`prune`** — run `<skill-dir>/scripts/sweep-worktrees` and report every line. It removes clean worktrees whose PR is merged/closed and
   `git branch -d`s the merged branch, then `git worktree prune`; dirty ones and
   still-open PRs are listed, not touched. Never `--force`, never `git branch -D`.
 - **`take <ISSUE-ID>`** — you want that issue's branch in your *current* checkout
-  but a worktree still holds it. Run `scripts/worktree-detach --id <ID> --switch`:
+  but a worktree still holds it. Run `<skill-dir>/scripts/worktree-detach --id <ID> --switch`:
   it removes that worktree (branch kept) and `git switch`es to the branch here.
   A dirty worktree is refused (`ERROR=dirty` — commit/stash in it first); the
   switch is skipped if the current checkout has tracked changes. Report `REMOVED`
   / `SWITCHED` / any `NOTE`.
 - **`remove <ISSUE-ID>`** — just drop the worktree, don't switch:
-  `scripts/worktree-detach --id <ID>`. Same safety; the branch survives.
+  `<skill-dir>/scripts/worktree-detach --id <ID>`. Same safety; the branch survives.
 
 ## all
 
@@ -738,8 +799,9 @@ Flow, in short:
    each reviewed branch).
 7. **Merge** only with `--auto-merge`.
 
-Only the main session writes to YouTrack, pushes and merges; workers commit
-locally. Issues tagged with one of
+`confirm_pr` does not apply to `all`: its one batch confirmation in step 6 is
+always asked. Only the main session writes to YouTrack, pushes and merges;
+workers commit locally. Issues tagged with one of
 `batch_skip_tags`, or that look like server / network / secret / data-store work,
 are never run unattended.
 
