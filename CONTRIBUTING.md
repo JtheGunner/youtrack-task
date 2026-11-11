@@ -34,7 +34,9 @@ Keep config keys and sub-command names identical across `SKILL.md`, `README.md`,
 ## Testing
 
 Run the affected rows of [`tests/README.md`](tests/README.md) against a real
-YouTrack instance, using a throwaway or low-stakes issue.
+YouTrack instance, using a throwaway or low-stakes issue. The script and hook
+tests run offline: `tests/*.sh`, plus
+`shellcheck -S warning hooks/guard-subagent hooks/require-review hooks/require-assignee skills/youtrack-task/scripts/*`.
 
 ## Conventions
 

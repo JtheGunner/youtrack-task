@@ -60,6 +60,7 @@ stamp_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-t
 # visible as an argument that cannot be resolved.
 Q='__Q__'
 masked=$(printf '%s' "$cmd" | sed -E "s/\"([^\"\\\\]|\\\\.)*\"/$Q/g; s/'[^']*'/$Q/g")
+# shellcheck disable=SC2020 # intentional: tr maps single characters to newline
 segments=$(printf '%s' "$masked" | tr ';&|()\n' '\n\n\n\n\n\n')
 
 deny() {
@@ -98,6 +99,7 @@ check_commit() {
 # unresolvable <text>: still holds a quoted, escaped, expanded or wildcard part we
 # cannot follow (placeholder for a quote, $, `, \, {, *, ?, [, ~).
 unresolvable() {
+  # shellcheck disable=SC1003 # intentional: match a literal backslash
   case "$1" in
     *"$Q"* | *'$'* | *'`'* | *'\'* | *'{'* | *'*'* | *'?'* | *'['* | *'~'*) return 0 ;;
     *) return 1 ;;

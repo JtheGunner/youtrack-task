@@ -93,5 +93,15 @@ run "$tmp/clone" --id T-7 --slug s --prefix fix --mode worktree
 [ "$rc" = 0 ] && has "BASE=main" && [ "$(tip "$tmp/clone" fix/T-7-s)" = "$want" ]
 check "default base: new branch starts at origin/main" $?
 
+# --- 8. resume detection with a custom worktree_dir (awk gets it via -v) -------
+r=$tmp/custom-dir; mk_repo "$r"
+printf 'worktree_dir = ".wt/nested.dir"\n' > "$tmp/custom.toml"
+YOUTRACK_TASK_CONFIG=$tmp/custom.toml run "$r" --id T-8 --slug s --prefix fix --base main --mode worktree
+[ "$rc" = 0 ] && has "MODE=worktree" && [ -d "$r/.wt/nested.dir/T-8-s" ]
+check "custom worktree_dir: first run creates the worktree there" $?
+YOUTRACK_TASK_CONFIG=$tmp/custom.toml run "$r" --id T-8 --slug s --prefix fix --base main --mode worktree
+[ "$rc" = 0 ] && has "MODE=existing-worktree" && printf "%s\n" "$out" | grep -q "^DIR=.*/\.wt/nested\.dir/T-8-s$"
+check "custom worktree_dir: second run resumes the existing worktree" $?
+
 [ "$fail" = 0 ] && echo "ALL OK"
 exit "$fail"

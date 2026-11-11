@@ -14,6 +14,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   trailing comment, a multi-entry list with an inline comment, and a same-named
   key in a `[table]` that must not leak. No change to `read-config` itself.
 
+## 0.16.3 — 2026-11-11
+
+- **Chore: ShellCheck is clean on every hook and script.** `shellcheck -S warning`
+  (and `-S style`) reports nothing on `hooks/*` (without `hooks.json`) and
+  `skills/youtrack-task/scripts/*`. Empty-string assignments use `VAR=''`
+  (SC1007), the `A && ! B || C` test in `guard-subagent` is an explicit `if`
+  (SC2015), and intentional patterns carry a
+  `# shellcheck disable=… # reason` comment. No behaviour change.
+- **`setup-workspace` passes `worktree_dir` to awk with `-v`** instead of splicing
+  it into the awk program text. Covered by two new cases in
+  `tests/setup-workspace.sh` (create and resume with a custom `worktree_dir`).
+
 ## 0.16.2 — 2026-11-11
 
 - **Fix: `setup-workspace` silently branched from HEAD when the base had no

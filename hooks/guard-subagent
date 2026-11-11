@@ -46,6 +46,7 @@ deny() {
 }
 
 # --- constructs that hide the real command: refuse, don't parse -------------
+# shellcheck disable=SC2016 # intentional: match the literal characters $( ` <( >(
 case "$cmd" in
   *'$('* | *'`'* | *'<('* | *'>('*) deny "no command substitution or process substitution." ;;
 esac
@@ -120,6 +121,7 @@ if [ "$role" = reviewer ]; then
   case "$cmd" in *'<<'*) deny "the reviewer is read-only (no heredocs)." ;; esac
   # A backslash before a newline joins two lines in the real shell but is validated as two
   # separate segments here, which would let an option hide in the second one.
+  # shellcheck disable=SC1003 # intentional: match a literal backslash followed by a newline
   case "$cmd" in *'\'$'\n'* | *'\'$'\r'*) deny "the reviewer is read-only (no line continuations with a trailing backslash)." ;; esac
   body=$cmd
 else
@@ -141,6 +143,7 @@ masked=$(clean "$masked")
 emptied=$(clean "$emptied")
 case "$masked" in *'@@BAD@@'*) deny "no shell comments, \$'...' quoting or unterminated quotes; run plain commands." ;; esac
 
+# shellcheck disable=SC2020 # intentional: each tr maps single characters to newline
 segments() { printf '%s\n' "$1" | tr ';&|' '\n\n\n' | tr -s ' \t' ' ' | sed -E 's/^ +//; s/ +$//'; }
 
 [ "$(segments "$masked" | wc -l)" -le 80 ] || deny "too many chained commands (max 80); split the work into smaller steps."
@@ -180,7 +183,9 @@ gradle_allows() {
   for tok in ${1#* }; do
     if [ "$expect_value" = 1 ]; then
       expect_value=0
-      printf '%s' "$tok" | grep -Eq '^[A-Za-z0-9_.:#,-]+$' && ! printf '%s' "$tok" | grep -Eq '^-' || { set +f; return 1; }
+      if ! printf '%s' "$tok" | grep -Eq '^[A-Za-z0-9_.:#,-]+$' || printf '%s' "$tok" | grep -Eq '^-'; then
+        set +f; return 1
+      fi
       continue
     fi
     case "$tok" in
