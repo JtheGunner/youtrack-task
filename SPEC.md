@@ -218,8 +218,11 @@ them → merge **only** with `--auto-merge`.
 - Only the main session writes to YouTrack and merges (subagents cannot spawn
   subagents; one writer keeps the language and assignee rules in one place).
 - Workers commit locally and never push; the main session pushes a branch only
-  after a `PASS` and the single PR confirmation. Reviewers are read-only
-  (allowlist; test runners such as Gradle check tasks are allowed) and do not see commit messages or PR text.
+  after a `PASS` and the single PR confirmation. Reviewers are confined to a
+  read-only allowlist as a best-effort measure (test runners such as Gradle check
+  tasks are allowed; the code they run is outside the guard) and are instructed
+  not to read commit messages or PR text — `git log` / `git show` are denied, but
+  a few other allowed commands can still show them.
   `hooks/guard-subagent` enforces this via the hook input's `agent_type` — a
   best-effort layer; branch protection and a limited token are the real
   boundary.
