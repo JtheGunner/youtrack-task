@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.0 — 2026-11-11
+
+- **`SKILL.md` loads only what the call needs.** It shrank from 813 to 372 lines:
+  `new`, `pr`, the small sub-commands (`testing`, `done`, `log`, `comment`, `link`,
+  `worktree`), the project-resolution procedure, the "scripts missing" fallback
+  and the workspace set-up of the primary flow moved to `reference/new.md`,
+  `pr.md`, `subcommands.md`, `projects.md`, `scripts-fallback.md` and
+  `pickup.md`; `all` points to `batch.md`. Guardrails, Language, Config, Issue IDs,
+  the dispatch table and the primary flow stay in `SKILL.md`. Text moved, rules did
+  not change.
+- **Hard read instructions.** Every dispatch row names its reference file with
+  "read `reference/X.md` before acting"; `pr` and `all` carry it in the table.
+- **Shorter description, triggers only.** 355 characters instead of about 590; no
+  workflow summary, with triggers for a pasted issue URL or ID, booking time,
+  status changes, attaching a PR and batch runs.
+- `tests/skill-text.sh` checks the size limit, the description, that every
+  dispatch row names an existing reference file, that the Guardrails stay in
+  `SKILL.md`, and that the moved sections are gone from it.
+
 ## 0.17.2 — 2026-11-11
 
 - **New logo.** A dark metallic tile with the branch-and-check mark in front of two

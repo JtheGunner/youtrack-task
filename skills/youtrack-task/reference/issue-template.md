@@ -73,6 +73,6 @@ Unknowns to resolve during planning.
 - **Assignee** is not part of the description. Only an explicit assignment in
   the input (*"assign to max.muster"*, *"für max.muster"*, *"@max.muster"*) is
   taken as the requested assignee; a merely mentioned name is not. Nothing
-  explicit → the API-key owner (SKILL.md `new` step 1).
+  explicit → the API-key owner (`reference/new.md` step 1).
 - Show the full generated title + description and let the user edit before the
   issue is created.

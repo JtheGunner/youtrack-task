@@ -41,7 +41,8 @@ matches on the base name (`get_issue`).
 ```
 
 More sub-commands: `comment`, `log`, `link`, `testing`, `worktree`. See `SKILL.md`
-for the full reference and `examples/` for sample runs.
+for the dispatch table (it names the `reference/` file each command reads) and
+`examples/` for sample runs.
 
 ## What the bundled scripts do
 
