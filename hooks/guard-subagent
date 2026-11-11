@@ -8,6 +8,9 @@
 #                   `gh pr merge`, `gh api`, network tools (curl, wget, ssh, …),
 #                   hook bypass (`git commit --no-verify` / `-n`), forced branch
 #                   deletion, `git config` writes (aliases), global git options,
+#                   history rewriting (`commit --amend`, `reset --hard`, `clean`,
+#                   `rebase`, `update-ref`, `filter-branch`, `worktree remove
+#                   --force`), `gh repo|release|secret|pr create`,
 #                   shell wrappers / `-c` / `eval`, command substitution.
 #   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
 #                   runners with per-command argument limits; no heredocs, no
@@ -18,9 +21,11 @@
 # trigger a deny rule (a commit message may mention "git push").
 #
 # This is a best-effort guard layered on the agents' own instructions, not a
-# security boundary: shell syntax is too rich to police completely. The real
-# protection is server-side — branch protection on the default branch and a
-# token without merge / force-push rights. Where a construct can hide the real
+# security boundary: shell syntax is too rich to police completely. Known limits
+# the worker is NOT stopped from: interpreter one-liners (python3 -c, node -e,
+# php -r) and package installs, which can run arbitrary code or reach the
+# network. The real protection is server-side — branch protection on the
+# default branch and a token without merge / force-push rights. Where a construct can hide the real
 # command it is rejected outright instead of parsed.
 #
 # The rejection text goes to stderr (exit 2) and is shown to the model.
@@ -279,6 +284,10 @@ while IFS= read -r segment; do
     && deny "no sourcing scripts, aliases, traps or shell function/option tricks."
   printf '%s' "$segment" | grep -Eq '^gh api( |$)' && deny "gh api is not allowed for this agent."
   printf '%s' "$segment" | grep -Eq '^gh pr merge( |$)' && deny "merging is done by the main session only."
+  printf '%s' "$segment" | grep -Eq '^gh (repo|release|secret)( |$)' \
+    && deny "no gh repo / release / secret commands; those change things outside the branch."
+  printf '%s' "$segment" | grep -Eq '^gh pr create( |$)' \
+    && deny "pull requests are opened by the main session only."
   if printf '%s' "$segment" | grep -Eq '^git( |$)'; then
     printf '%s' "$segment" | grep -Eq '^git -' && deny "no git options before the subcommand (other than -C <dir>)."
     printf '%s' "$segment" | grep -Eq '^git (send-pack|http-push|remote (add|set-url))( |$)|^git (fetch|pull|clone|ls-remote|archive)( .*)? (--upload-pack|--receive-pack|--exec)' \
@@ -290,6 +299,8 @@ while IFS= read -r segment; do
       && deny "git config is read-only for this agent (no aliases or hook paths)."
     printf '%s' "$segment" | grep -Eq '^git (commit|merge|am|rebase|cherry-pick|revert)( .*)? (-[a-zA-Z]*n[a-zA-Z]*|--no-ver[a-z-]*)( |$)' \
       && deny "never bypass git hooks (no --no-verify / -n)."
+    printf '%s' "$segment" | grep -Eq '^git (commit( .*)? --amend|reset( .*)? --hard|clean|rebase|update-ref|filter-branch)( |$)|^git worktree remove( .*)? (-f|--force)( |$)' \
+      && deny "no history rewriting or destructive commands (amend, reset --hard, clean, rebase, update-ref, filter-branch, worktree remove --force)."
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? -[a-zA-Z]*D' && deny "never force-delete a branch."
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? (-[a-zA-Z]*d|--delete)( .*)? (-[a-zA-Z]*f|--force)|^git branch( .*)? (-[a-zA-Z]*f|--force)( .*)? (-[a-zA-Z]*d|--delete)' \
       && deny "never force-delete a branch."

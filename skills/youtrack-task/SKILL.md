@@ -37,7 +37,10 @@ Do not attempt REST calls or `curl` as a fallback.
 This skill sets up work and drives planning; once a plan is approved it may go on
 to implement, following the normal development workflow. Throughout, these are
 hard limits — never cross them without the user explicitly approving that
-specific action:
+specific action. For the `all` agents these limits are enforced as **best
+effort** by `hooks/guard-subagent` plus server-side protection (branch
+protection, a token without merge / force-push rights); the hook does not stop
+interpreter one-liners (`python3 -c`, `node -e`) or package installs:
 
 - **Never commit to the repository's default branch.** Pre-existing uncommitted
   changes are handled per `reference/branching.md` (stash or carry onto the
