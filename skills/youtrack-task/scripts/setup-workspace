@@ -62,11 +62,11 @@ fi
 # ---- config -----------------------------------------------------------------
 # One parser for the config file: read-config (it ignores [table] sections).
 READ_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-config"
-cfg() { "$READ_CONFIG" "$1" || die "read-config-failed"; }
-WT_MODE_CFG=$(cfg worktree)
-WT_DIR=$(cfg worktree_dir)
-WT_CLONE=$(cfg worktree_clone)
-WT_LINK=$(cfg worktree_link)
+cfg() { "$READ_CONFIG" "$1"; }
+WT_MODE_CFG=$(cfg worktree)      || die "read-config-failed"
+WT_DIR=$(cfg worktree_dir)       || die "read-config-failed"
+WT_CLONE=$(cfg worktree_clone)   || die "read-config-failed"
+WT_LINK=$(cfg worktree_link)     || die "read-config-failed"
 [ -f "$REPO_ROOT/artisan" ] && case " $WT_CLONE " in *" storage "*) ;; *) WT_CLONE="$WT_CLONE storage" ;; esac
 
 # ---- base branch ----------------------------------------------------------

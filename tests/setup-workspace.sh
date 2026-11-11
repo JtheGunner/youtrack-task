@@ -159,5 +159,14 @@ YOUTRACK_TASK_CONFIG=$tmp/table.toml run "$r" --id T-13 --slug s --prefix fix --
 [ "$rc" = 0 ] && has "MODE=worktree" && [ -d "$r/.worktrees/T-13-s" ] && [ ! -e "$r/.wt" ]
 check "[table] worktree_dir is ignored: worktree lands in the default dir" $?
 
+# --- 14. a failing read-config stops the script instead of yielding garbage values -------
+r=$tmp/no-rc; mk_repo "$r"
+mkdir "$tmp/bin-no-rc" && cp "$script" "$tmp/bin-no-rc/setup-workspace"   # no read-config next to it
+script_saved=$script; script=$tmp/bin-no-rc/setup-workspace
+run "$r" --id T-14 --slug s --prefix fix --base main --mode worktree
+script=$script_saved
+[ "$rc" = 2 ] && has "ERROR=read-config-failed" && ! git -C "$r" show-ref --verify -q refs/heads/fix/T-14-s && [ ! -e "$r/.worktrees" ]
+check "missing read-config: ERROR=read-config-failed, exit 2, nothing created" $?
+
 [ "$fail" = 0 ] && echo "ALL OK"
 exit "$fail"
