@@ -434,6 +434,12 @@ Issues and pull requests are welcome. Every behaviour change also updates the
 README, changelog, spec, config example and manual test checklist — see
 [CONTRIBUTING.md](./CONTRIBUTING.md) for the full checklist.
 
+Every pull request and every push to `main` runs the `ci` workflow: the test
+suites in `tests/`, ShellCheck on the hooks and scripts, a JSON syntax check and a
+check that `plugin.json` and `marketplace.json` have the same version. The release
+workflow runs the same checks before it builds the package. To use `ci` as a
+required check, add it under *Settings → Branches → Branch protection*.
+
 ## 📜 Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md). Versioning follows [SemVer](https://semver.org/);
