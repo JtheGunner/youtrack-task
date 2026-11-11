@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.4 — 2026-11-11
+
+- **Test: `tests/read-config.sh` covers every config key.** The ten keys that had
+  no assertion (`in_progress_state`, `testing_state`, `done_state`,
+  `local_plan_copy`, `default_new_type`, `review_before_pr`, `review_gate_hook`,
+  `worktree_dir`, `worktree_link`, `batch_max_parallel`) are now tested with
+  their default and a set value, including values with spaces, a bare value with a
+  trailing comment, a multi-entry list with an inline comment, and a same-named
+  key in a `[table]` that must not leak. No change to `read-config` itself.
+
 ## 0.16.2 — 2026-11-11
 
 - **Fix: `setup-workspace` silently branched from HEAD when the base had no

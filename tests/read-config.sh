@@ -84,4 +84,53 @@ printf '[type_prefix]\nconfirm_pr = false\n' > "$tmp/pr-table.toml"
 run "$tmp/pr-table.toml"
 expect "confirm_pr in a [table] does not leak" "CONFIRM_PR=true"
 
+# --- every remaining key: default without a file, then a set value -----------
+run "$tmp/missing.toml"
+expect "default in_progress_state"             "IN_PROGRESS_STATE=In Progress"
+expect "default testing_state"                 "TESTING_STATE=Testing"
+expect "default done_state"                    "DONE_STATE=Done"
+expect "default local_plan_copy"               "LOCAL_PLAN_COPY=auto"
+expect "default default_new_type is empty"     "DEFAULT_NEW_TYPE="
+expect "default use_superpowers"               "USE_SUPERPOWERS=auto"
+expect "default review_before_pr"              "REVIEW_BEFORE_PR=always"
+expect "default review_gate_hook"              "REVIEW_GATE_HOOK=off"
+expect "default worktree_dir"                  "WORKTREE_DIR=.worktrees"
+expect "default worktree_link"                 "WORKTREE_LINK=.env"
+expect "default batch_max_parallel"            "BATCH_MAX_PARALLEL=3"
+expect "default batch_skip_tags"               "BATCH_SKIP_TAGS=manual"
+
+cat > "$tmp/all-keys.toml" <<'EOF'
+in_progress_state = "Doing"
+testing_state = "In Review"
+done_state = Closed          # bare value with a trailing comment
+local_plan_copy = "always"
+default_new_type = "Task"
+review_before_pr = "never"
+review_gate_hook = "on"
+worktree_dir = ".trees"
+worktree_link = [".env", ".env.local", "config/secrets.php"]   # linked, not copied
+batch_max_parallel = 5
+EOF
+run "$tmp/all-keys.toml"
+expect "set in_progress_state (with a space)"  "IN_PROGRESS_STATE=Doing"
+expect "set testing_state (with a space)"      "TESTING_STATE=In Review"
+expect "set done_state, bare + comment"        "DONE_STATE=Closed"
+expect "set local_plan_copy"                   "LOCAL_PLAN_COPY=always"
+expect "set default_new_type"                  "DEFAULT_NEW_TYPE=Task"
+expect "set review_before_pr"                  "REVIEW_BEFORE_PR=never"
+expect "set review_gate_hook"                  "REVIEW_GATE_HOOK=on"
+expect "set worktree_dir"                      "WORKTREE_DIR=.trees"
+expect "list with several entries + comment"  "WORKTREE_LINK=.env .env.local config/secrets.php"
+expect "set batch_max_parallel (bare number)"  "BATCH_MAX_PARALLEL=5"
+
+# Same-named keys in a [table] must not leak for any of the new keys.
+printf '[type_prefix]\nin_progress_state = "X"\ntesting_state = "X"\ndone_state = "X"\nworktree_dir = "x"\nworktree_link = ["x"]\nbatch_max_parallel = 9\n' > "$tmp/table-all.toml"
+run "$tmp/table-all.toml"
+expect "[table] in_progress_state does not leak" "IN_PROGRESS_STATE=In Progress"
+expect "[table] testing_state does not leak"     "TESTING_STATE=Testing"
+expect "[table] done_state does not leak"        "DONE_STATE=Done"
+expect "[table] worktree_dir does not leak"      "WORKTREE_DIR=.worktrees"
+expect "[table] worktree_link does not leak"     "WORKTREE_LINK=.env"
+expect "[table] batch_max_parallel does not leak" "BATCH_MAX_PARALLEL=3"
+
 exit $fail
