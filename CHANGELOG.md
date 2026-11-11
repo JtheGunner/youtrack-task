@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.3 — 2026-11-11
+
+- **Fix: no improvised go-ahead question before the pickup.** The rule "the
+  invocation authorizes the pickup" lived only in step 4, so a wrong input in step 1
+  (a mistyped project key such as `BUS-187`) made the model ask *"Shall I continue
+  with …?"* even with `confirm_branch_name = false`. It is now a Guardrail ("No
+  unlisted confirmation questions"), and step 1 stops on an ID that does not exist,
+  names it and the likely intended `<PROJECT>-<number>`, and asks nothing.
+- **`→ Branch: <name>` is printed in both rows of the step 4 table**, so the applied
+  setting is always visible.
+- **`reference/branching.md` defers to the step 4 table.** Its unconditional wording
+  ("proceed only after the user has seen it") contradicted `confirm_branch_name = false`.
+- `tests/skill-text.sh` checks the new rules; the `SKILL.md` line limit is 390.
+
 ## 0.18.2 — 2026-11-11
 
 - **Config limits documented.** `config.example.toml` and the README say that arrays

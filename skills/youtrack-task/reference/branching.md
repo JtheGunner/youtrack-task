@@ -54,16 +54,14 @@ until it fits. Never shorten the prefix or the ID.
 
 ## Confirm the name
 
-Show the computed branch name and let the user accept it or supply their own
-(e.g. a tighter English name like `fix/ADMIN-6-row-tint-hover`). Proceed with the
-computed name only after the user has seen it.
-
-Whether the question is asked is decided by the table in `SKILL.md` step 4
-(`confirm_branch_name` / `--confirm-branch`, resolved by `scripts/read-config`,
-never from memory). Only this question is skippable: `setup-workspace` outcomes
-(`ERROR=dirty-tree`, `existing-branch`) are asked as before, `all` never asks for
-a branch name, and no other gate is added — the invocation already authorizes the
-pickup.
+Whether the name is shown for accept / rename or only printed as `→ Branch: <name>`
+is decided by the table in `SKILL.md` step 4 (`confirm_branch_name` /
+`--confirm-branch`, resolved by `scripts/read-config`, never from memory). A name
+the user supplies replaces the computed one (e.g. a tighter English name like
+`fix/ADMIN-6-row-tint-hover`). Only this question is skippable: `setup-workspace`
+outcomes (`ERROR=dirty-tree`, `existing-branch`) are asked as before, `all` never
+asks for a branch name, and no other gate is added — the invocation already
+authorizes the pickup.
 
 ## Base branch
 
