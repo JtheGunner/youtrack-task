@@ -11,6 +11,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `assets/logo.png` (512 px, RGBA) is exported from it and replaces the previous
   logo in the README header.
 
+## 0.17.1 — 2026-11-11
+
+- **Fix: one issue-ID regex.** `ISSUE_ID_RE` (`[A-Z][A-Z0-9_]*-[0-9]+`) is defined
+  once in `SKILL.md` ("Issue IDs") and is the only form in the skill, `reference/`,
+  SPEC, README, `review-stamp` and `hooks/require-review`. Before, a branch like
+  `fix/P2X-5-foo` read as `X-5` in the sub-commands, so a comment or state change
+  could land on the wrong issue. New `tests/skill-text.sh` keeps the forms
+  identical; `P2X-5` cases added to `tests/review-stamp.sh` and
+  `tests/require-review.sh`.
+- **Fix: scripts are called by absolute path.** `<skill-dir>` (`${CLAUDE_SKILL_DIR}`
+  in Claude Code) is defined once; scripts run as `<skill-dir>/scripts/<name>`
+  with the target repo as working directory instead of "from this skill's
+  `scripts/` directory". Step 0 checks `test -x <skill-dir>/scripts/read-config`
+  (`SCRIPTS=present|missing`) to decide on the plain-git fallback.
+- **Fix: `pr` order.** Checks → clean tree (commit / stash, asked once) → review
+  gate or waiver → diffstat and confirmation → push → PR → state change → comment.
+  The comment's `, moved to Testing.` suffix now reflects whether the state really
+  changed. `review_before_pr = never` and `--no-review` both record a `SKIPPED`
+  waiver (only the flag asks first).
+- **Fix: first-token parsing.** For `comment` / `log` / `pr` / `link` / `testing` /
+  `done` a leading token matching the ID form is the issue, anything else is text
+  and the issue comes from the branch.
+- **Fix: resume.** On `existing-worktree` / `existing-branch` the skill checks the
+  comments for the pickup and plan headings and only skips steps 5 and 7 when
+  those comments exist.
+- **Fix: bare issue numbers** read the issue before asking for confirmation, so
+  the question shows the title.
+- **Removed** the "dominant project prefix" guess; only "Resolving a project"
+  applies.
+- **Changed: step 8 needs `--implement`.** The "proceed now?" question is gone.
+  Without the flag the flow ends after the plan write-back and prints the command
+  to continue.
+- **Changed: the local plan copy is always English** (a git artifact); the
+  YouTrack comment follows the issue's language.
+- **Docs:** `confirm_pr` applies to `pr` only (`all` always asks its batch
+  confirmation); worktrees are entered with `EnterWorktree` or per-call working
+  directories instead of `cd`; `worktrees.md` describes `done`'s automatic
+  sweep; the completion comment is described one way everywhere.
+
 ## 0.17.0 — 2026-11-11
 
 - **Worker file writes are confined.** A new `PreToolUse` matcher

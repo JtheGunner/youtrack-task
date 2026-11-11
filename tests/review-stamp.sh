@@ -95,6 +95,14 @@ run "$repo" check --id X-1;                         expect "check -> SKIPPED"   
 git -C "$repo" commit -q --allow-empty -m "fix: fourth"
 run "$repo" check --id X-1;                         expect "waiver is stale after a commit" 0 "REVIEW=STALE"
 
+# project keys with a digit (P2X-5) are whole IDs, not X-5
+git -C "$repo" worktree add -q -b fix/P2X-5-demo "$tmp/wt2" >/dev/null 2>&1
+sha2=$(head_sha "$tmp/wt2")
+run "$tmp/wt2" write --id P2X-5 --sha "$sha2" --verdict PASS --independent yes --dir "$tmp/wt2"
+expect "write PASS for a key with a digit (P2X-5)"   0 "WROTE=P2X-5"
+run "$tmp/wt2" check --id P2X-5 --dir "$tmp/wt2";   expect "check P2X-5 -> PASS"          0 "REVIEW=PASS"
+run "$tmp/wt2" check --id X-5 --dir "$tmp/wt2";     expect "X-5 is a different issue -> MISSING" 0 "REVIEW=MISSING"
+
 # the stamp lives inside the git dir, never in the working tree
 git -C "$repo" status --porcelain | grep -q . && { echo "FAIL stamp leaked into working tree"; fail=1; } || echo "ok   working tree untouched"
 

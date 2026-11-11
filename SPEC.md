@@ -171,14 +171,16 @@ Primary:
 ```
 /youtrack-task [ISSUE-ID | N] [--no-move] [--no-writeback] [--base <branch>]
                [--worktree | --no-worktree] [--checkpoints] [--review | --no-review]
-               [--confirm-branch | --no-confirm-branch]
+               [--confirm-branch | --no-confirm-branch] [--implement]
 ```
 
 `--worktree` / `--no-worktree` force / skip an isolated git worktree (default
 `worktree` config = `auto`). `--confirm-branch` / `--no-confirm-branch` ask /
 skip the "is this branch name OK?" question (default `confirm_branch_name`
 config = `true`; flag wins; the name is still printed when skipped).
-`--checkpoints` runs an architectural plan's
+`--implement` runs step 8 (implement + review) after the plan is written back;
+without it the flow ends after step 7 and prints the command to continue — no
+question is asked. `--checkpoints` runs an architectural plan's
 execution with review stops (`superpowers:executing-plans`). `--no-review`
 skips the review gate for this run (`pr` then asks before pushing); `--review`
 is accepted and changes nothing.
@@ -188,7 +190,7 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 ```
 /youtrack-task new "<free text>"   |   new [--project KEY] [--title …] [--description …] [--priority N] [--type N]
                                         [--assignee LOGIN|EMAIL]   # both modes
-/youtrack-task comment <text>                           # add_issue_comment to the current branch's issue
+/youtrack-task comment [ISSUE-ID] <text>                # add_issue_comment; issue = leading ID token, else the current branch's
 /youtrack-task log [ISSUE-ID] <duration> [description]  # log_work; issue inferred from branch if omitted
 /youtrack-task pr [ISSUE-ID] [--no-move] [--base <b>] [--draft] [--no-review] [--confirm-pr | --no-confirm-pr]  # review check + push + gh PR + link on issue + → Testing
 /youtrack-task link [ISSUE-ID] <pr-url>                 # attach an existing PR URL as a comment
@@ -202,7 +204,12 @@ Sub-commands (same skill, dispatched on first arg). All ship in v1.
 State ladder: `Open → In Progress → Testing → Done`. Pickup moves `Open → In
 Progress` automatically. `pr` is the only command that pushes (plus `all`, where the main session pushes reviewed branches) — it needs `gh`,
 prompts before pushing (unless `confirm_pr = false` / `--no-confirm-pr`), never force-pushes/deletes, merges only under `all --auto-merge`, and moves the issue to
-Testing. `testing` / `done` are pure state transitions (no git). `done` is always
+Testing. `pr` runs in this order: checks (repo, not the default branch, commits
+ahead) → clean tree (commit / stash, asked once) → review gate or waiver →
+commits + diffstat and the confirmation → push → PR → state change → comment (its
+`, moved to Testing.` suffix reflects whether the state really changed) → sweep.
+`confirm_pr` applies to `pr` only; `all` always asks its one batch confirmation.
+`testing` / `done` are pure state transitions (no git). `done` is always
 last: it means "merged and accepted". When `ISSUE-ID` is omitted for any
 sub-command it is taken from the current branch name; if that fails, the skill
 asks.
@@ -256,7 +263,8 @@ them → merge **only** with `--auto-merge`.
 ### Review gate (every flow)
 
 Full contract: `skills/youtrack-task/reference/review.md`; helper:
-`scripts/review-stamp`. One procedure, three callers: the primary flow's
+`<skill-dir>/scripts/review-stamp` (`<skill-dir>` = the directory of `SKILL.md`,
+called by absolute path with the target repo as working directory). One procedure, three callers: the primary flow's
 step 8 (`fixer = main-session`), `pr` (checks the stamp, runs the gate when it
 is `STALE` / `MISSING`, stops on `FAILED`) and `all` step 4
 (`fixer = ticket-worker`). A fresh `ticket-reviewer` per review gets only the
@@ -381,10 +389,15 @@ single unpaged call can miss an existing project; names also differ from keys
 
 ### 1. Resolve the issue ID
 
-- Arg is a full ID (`^[A-Z][A-Z0-9_]+-\d+$`) → use it.
+- `ISSUE_ID_RE` is `[A-Z][A-Z0-9_]*-[0-9]+`, the one form in the skill, scripts
+  and hooks (`tests/skill-text.sh` keeps them identical). A leading token that
+  matches `^ISSUE_ID_RE$` is an ID; otherwise the ID is the first match in the
+  branch name (`fix/P2X-5-foo` → `P2X-5`).
+- Arg is a full ID (`^ISSUE_ID_RE$`) → use it.
 - Arg is a bare number `N` → qualify with the current repo's project key
-  (*Project resolution*) → `<PROJECT>-N`, echo it, proceed on yes.
-- No arg → `git branch --show-current`; a `[A-Z]+-\d+` in it → extract, confirm.
+  (*Project resolution* only, no other heuristic) → `<PROJECT>-N`, read it with
+  `get_issue`, echo it with its title, proceed on yes.
+- No arg → `git branch --show-current`; an `ISSUE_ID_RE` match in it → extract, confirm.
 - Still nothing → `search_issues` with `list_query` (config-overridable), list
   candidates as `<ID> — <summary> — <state>` (no row numbers). Reply is an issue
   ID; a bare number there is `<PROJECT>-N`, never a list position.
@@ -409,18 +422,23 @@ priority, state, subsystem if present, and the gist of the description.
 
 Compute `<prefix>` / `<slug>` per `reference/branching.md` (English, type word
 stripped, 40-char cap), show the branch name for accept/rename (skipped when `CONFIRM_BRANCH_NAME=false`
-from `scripts/read-config`, or `--no-confirm-branch`: print it and continue; no other go-ahead gate
+from `<skill-dir>/scripts/read-config`, or `--no-confirm-branch`: print it and continue; no other go-ahead gate
 is added, the invocation authorizes the pickup), then **run
-`scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> [--base …]
+`<skill-dir>/scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> [--base …]
 [--mode worktree|inplace]`** and act on its `KEY=VALUE` output (see the Worktrees
 section and `reference/worktrees.md`):
 
 | `MODE=` | caller action |
 | --- | --- |
 | `inplace` | on `BRANCH` in the repo root; report `BRANCH` / `BASE` |
-| `worktree` | `cd` to `NEXT_CD` (or `EnterWorktree`); report `BRANCH` `BASE` `DIR` `CLONED` `LINKED` `NOTE`; steps 5–8 run there |
-| `existing-worktree` | resume: enter `NEXT_CD`, **skip step 5**, reuse the existing plan comment |
-| `existing-branch` | branch exists but isn't checked out → ask the user `git switch` vs `git worktree add`; skip step 5 |
+| `worktree` | enter `NEXT_CD` (`EnterWorktree`, else per-call working directory — a `cd` does not persist); report `BRANCH` `BASE` `DIR` `CLONED` `LINKED` `NOTE`; steps 5–8 run there |
+| `existing-worktree` | resume: enter `NEXT_CD`, then the resume check below |
+| `existing-branch` | branch exists but isn't checked out → ask the user `git switch` vs `git worktree add`; then the resume check below |
+
+Resume check: the comments read in step 2 are searched for the pickup heading
+(`📌 Picked up in Claude Code`) and the plan heading (`## 📝 Implementation plan`).
+Pickup found → skip step 5, else run it. Plan found → reuse it in step 6 and skip
+step 7, else run both.
 
 `ERROR=dirty-tree` (exit 2) → resolve stash-or-carry per `reference/branching.md`,
 re-run. Never commit on the base branch. The script owns base resolution,
@@ -450,22 +468,26 @@ re-run. Never commit on the base branch. The script owns base resolution,
 ### 7. Write-back the plan (on user confirmation)
 
 - After the user approves the plan, `add_issue_comment` with the plan rendered as
-  Markdown, prefixed `## Implementation plan (Claude Code)` and dated.
+  Markdown, prefixed `## Implementation plan (Claude Code)` and dated, in the
+  issue's language.
 - If — and only if — the repo already contains a `docs/` directory, also write
   `docs/plans/<ID>.md` with the same content. No `docs/` → no local file, no
   directory creation. Controlled by config `local_plan_copy` (`auto` default /
-  `always` / `never`). superpowers architectural plans prefer an existing
+  `always` / `never`). The local copy is a git artifact: always English.
+  superpowers architectural plans prefer an existing
   `docs/superpowers/specs/` convention when the repo has one.
 
-### 8. Implement (optional, on user go)
+### 8. Implement (`--implement`)
 
-Bound by the Guardrails. superpowers path (`reference/superpowers.md`):
+Without `--implement` the flow ends after step 7 with one line naming the command
+to continue (`/youtrack-task <ID> --implement`); no question. With it, no
+go-ahead question either. Bound by the Guardrails. superpowers path (`reference/superpowers.md`):
 bounded → `test-driven-development` directly; architectural → execute the plan
 with `subagent-driven-development` (or `executing-plans` under `--checkpoints`),
 TDD per task. Both paths → `verification-before-completion` on the acceptance
 criteria, then the **review gate** (`reference/review.md`): a fresh
 `ticket-reviewer` subagent with a minimal briefing, result stamped on the exact
-commit by `scripts/review-stamp` (`--no-review` / `review_before_pr = never`
+commit by `<skill-dir>/scripts/review-stamp` (`--no-review` / `review_before_pr = never`
 skip it), then the completion comment. No superpowers → the normal dev workflow
 + a manual verification pass. Never pushes / PRs / moves state — that's `pr` /
 the user.

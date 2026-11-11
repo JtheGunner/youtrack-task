@@ -55,12 +55,12 @@ Use `add_issue_comment`. Markdown body. One comment per event.
 | --- | --- |
 | pickup | `📌 Picked up in Claude Code\n\nBranch `<branch>` off `<base>`.` |
 | plan | `## 📝 Implementation plan (Claude Code)\n\n_Generated <ISO-date>_\n\n<plan markdown>` |
-| completion | `## ✅ Implemented (Claude Code)\n\nBranch `<branch>`. Files touched:\n<bullet list>\n\nReview: <PASS @ <short-sha> (<n> round(s)) \| skipped \| not independent>.\n\nNot pushed; no PR.` — one comment, only when step 8 actually implemented something and the review gate did not end `FAILED` |
+| completion | `## ✅ Implemented (Claude Code)\n\nBranch `<branch>`. Files touched:\n<bullet list>\n\nReview: <PASS @ <short-sha> (<n> round(s)) \| skipped \| not independent>.\n\nNot pushed; no PR.` — one comment, only when step 8 (`--implement`) actually implemented something and the review gate did not end `FAILED` |
 | worker plan (`all`) | `## 📝 Worker plan (summary, Claude Code)\n\n<PLAN lines>` — a post-hoc summary for audit; in `all` the triage confirmation replaces per-issue plan approval |
 | completion (`all`, `PASS` only) | `## ✅ Implemented and reviewed (Claude Code)\n\nBranch `<branch>`. Independent review: PASS (<n> round(s)). Files touched:\n<bullet list>\n\nNot yet pushed or merged.` — the wording follows what actually happened (after `pr`: *PR opened*; after an auto-merge: *merged*) |
 | status (`all`, not `PASS`) | `## ⏸ Needs attention (Claude Code)\n\n<reason: question / architectural / open review findings>` — never claims anything was implemented |
 | `log` | handled by `log_work`; add a comment only if the user passed a description |
-| `pr` | `🔗 PR opened: <url>` — append `, moved to Testing.` when `pr` also moves the state; if the PR already existed, `🔗 PR: <url>`; when the review was skipped add a second line `Review: skipped (not independently reviewed)` |
+| `pr` | `🔗 PR opened: <url>` — written **after** the state change; append `, moved to Testing.` only when that change actually happened (not with `--no-move`, not when the issue was already at Testing/Done, not when it failed); if the PR already existed, `🔗 PR: <url>`; when the review was skipped add a second line `Review: skipped (not independently reviewed)` |
 | `link` | `🔗 PR: <url>` |
 | `testing` | `🧪 Moved to Testing by Claude Code.` + optional user note |
 | `done` | `✅ Moved to Done by Claude Code.` + optional user note |

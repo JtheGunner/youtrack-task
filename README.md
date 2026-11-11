@@ -141,8 +141,12 @@ Claude, the scripts and the hook always see the same value for a key (keys under
    review and iterate until it's right.
 6. **Write back the plan** — once you approve, the plan is posted to the issue as
    a Markdown comment (*📝 Implementation plan (Claude Code)*). If the repo has a
-   `docs/` directory, a copy is also saved to `docs/plans/‹ID›.md`.
-7. **Implement** *(optional, if you say go)* — with `superpowers` present:
+   `docs/` directory, a copy is also saved to `docs/plans/‹ID›.md` (always in
+   English, like every git artifact; the comment follows the issue's language).
+   Without `--implement` the flow stops here. Resuming an existing worktree
+   checks the issue's comments first: a plan comment that is already there is
+   reused and not posted again.
+7. **Implement** *(only with `--implement`)* — with `superpowers` present:
    `test-driven-development` throughout, `subagent-driven-development` (or
    `executing-plans` with `--checkpoints`) for a written plan, and
    `verification-before-completion` against the issue's acceptance criteria.
@@ -161,6 +165,7 @@ Flags:
 | `--base ‹branch›`              | branch from `‹branch›` instead of the detected default                                                                         |
 | `--worktree` / `--no-worktree` | force / skip an isolated git worktree for this pickup (default: `worktree` config, itself `auto`)                              |
 | `--confirm-branch` / `--no-confirm-branch` | ask / don't ask whether the computed branch name is OK; with `--no-confirm-branch` the name is accepted and just shown (default: `confirm_branch_name` config, itself `true`) |
+| `--implement`                  | run step 7 (implement, then the review gate) after the plan is written back. Without it the flow ends once the plan is on the issue, and prints the command to continue; on an existing worktree it carries on from the plan comment already there |
 | `--checkpoints`                | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
 | `--confirm-pr` / `--no-confirm-pr` | `pr` only: ask / don't ask "push and open a PR?" (default: `confirm_pr` config, itself `true`; the flag wins). The commits and diffstat are still shown and the review gate still applies |
 | `--no-review`                  | skip the review gate for this run; `pr` then asks before pushing and labels the PR *Review: skipped* (default: every task with commits is reviewed; `--review` is accepted and does nothing) |
@@ -318,6 +323,7 @@ One command instead of briefing the agent by hand:
 
 ```
 /youtrack-task comment <text>          # add a comment to the current branch's issue
+/youtrack-task comment INFRA-42 <text> # ...or to a specific issue (a leading issue ID is the issue)
 /youtrack-task log 1h30m <what>         # log time on the current branch's issue
 /youtrack-task log INFRA-42 45m <what>  # ...or on a specific issue
 /youtrack-task pr                       # push branch + open PR + link it + move to Testing
@@ -347,7 +353,9 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 > `pr` is the only command that pushes — apart from `all`, whose main session
 > pushes the branches of reviewed issues after one confirmation — and it asks
 > first (shows the commits and diffstat) unless you set `confirm_pr = false`
-> or pass `--no-confirm-pr`. It needs the
+> or pass `--no-confirm-pr` (that setting never applies to `all`, which always
+> asks its one batch confirmation). `pr` first makes the tree clean (commit or
+> stash, asked once), then runs the review, then shows the diffstat. It needs the
 > [`gh` CLI](https://cli.github.com/). It never force-pushes and never deletes
 > remote branches, and it merges only under `all --auto-merge`. Branch names, commit messages and the
 > PR title/body are always English — even for a German (or other non-English)
@@ -411,6 +419,9 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | "YouTrack MCP server isn't connected"                                | `YOUTRACK_MCP_URL` / `YOUTRACK_TOKEN` not set in the shell that launched Claude Code, or `/mcp` blocked by your proxy. Check `curl -H "Authorization: Bearer $YOUTRACK_TOKEN" "$YOUTRACK_MCP_URL"`. |
 | MCP connects but writes fail with 403                                | The token's user lacks permission on that project, or the token scope is wrong.                                                                                                                     |
 | State change skipped with a warning                                  | The skill couldn't identify the state field from the project schema. Set `in_progress_state` / `testing_state` / `done_state` in the config to match your project's field values.                   |
+| The flow stops after the plan and nothing is implemented            | By design: implementing needs the `--implement` flag (`/youtrack-task ‹ID› --implement`; on an existing worktree it continues from the plan comment on the issue). There is no go-ahead question. |
+| `comment` / `testing` / `done` picked the wrong issue                | A leading token that looks like an issue ID (`PROJ-12`, `P2X-5`) is taken as the issue; anything else is text and the issue comes from the branch name (its first ID match). Pass the ID explicitly when the branch name has several. |
+| Scripts reported as missing (`SCRIPTS=missing`)                      | The skill was loaded without its `scripts/` directory, so it falls back to plain git in place. Install it as a plugin (or copy the whole skill directory) so `‹skill-dir›/scripts/read-config` exists. |
 | Branch name too long                                                 | Slugs are capped; if it's still awkward, rename with `git branch -m`.                                                                                                                               |
 | Asked every time "push and open a PR?" by `pr`                     | Set `confirm_pr = false` in the config, or pass `--no-confirm-pr` for one run. `--confirm-pr` asks again when the config says `false`. The review gate and the other `pr` checks are not affected. |
 | Asked every time whether the branch name is OK                       | Set `confirm_branch_name = false` in the config, or pass `--no-confirm-branch` for one run. `--confirm-branch` asks again when the config says no. Still asked with `false` set? Check that the transcript shows `scripts/read-config` running first, and that the key sits at the top level of the file, not under a `[table]`.                                                                                                                               |

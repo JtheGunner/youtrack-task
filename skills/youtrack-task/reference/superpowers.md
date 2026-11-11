@@ -58,11 +58,14 @@ step 8.
 ## Step 7 — write-back
 
 Post the design or the plan-document contents as the plan comment
-(`reference/writeback.md`). If `writing-plans` wrote a plan file here, that file
-is the local copy — name its path, and do **not** let SKILL.md step 7's
+(`reference/writeback.md`), in the issue's language. If `writing-plans` wrote a
+plan file here, that file is the local copy — it is a git artifact, so it is
+written in **English** — name its path, and do **not** let SKILL.md step 7's
 `local_plan_copy` write a second `docs/plans/<ID>.md`.
 
-## Step 8 — implement
+## Step 8 — implement (only with `--implement`)
+
+Without the flag the primary flow stops after step 7 (SKILL.md step 8).
 
 Bound by the Guardrails. Path from step 6:
 
@@ -86,7 +89,7 @@ Bound by the Guardrails. Path from step 6:
   session's context, the gate's `ticket-reviewer` does not. `--no-review` and
   `review_before_pr = never` skip it. Findings are applied with
   `superpowers:receiving-code-review`.
-- Then post the one-line completion comment (`reference/writeback.md`), list the
+- Then post the completion comment (`reference/writeback.md`), list the
   branch + files touched + review result, and stop. Do **not** push, open a PR, or move the
   issue — `/youtrack-task pr` or the user's own ship flow is next.
 - Do not invoke `superpowers:finishing-a-development-branch`; integration is the

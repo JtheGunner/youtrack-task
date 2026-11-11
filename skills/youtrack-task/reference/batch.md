@@ -92,7 +92,7 @@ or the agents instructions.
 Per confirmed issue, one after another (parallel `git worktree add` races on
 `index.lock`):
 
-1. `scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> --mode worktree`
+1. `<skill-dir>/scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> --mode worktree`
    (slug and prefix per `reference/branching.md`). Keep `DIR`, `BRANCH`, `BASE`.
    **If the result is not `MODE=worktree` / `existing-worktree` (for example the
    script is missing and the in-place fallback ran), stop `all`** — parallel
@@ -163,14 +163,16 @@ move issue states here — `pr` moves to Testing.
 
 Only `PASS` issues are eligible (with `--no-review` there are none: say so and
 offer `/youtrack-task pr <ID>` per issue instead). Show the list (branch,
-commits, diffstat) and ask **one** confirmation covering all of them. Then, per
+commits, diffstat) and ask **one** confirmation covering all of them. This
+question is always asked: config `confirm_pr` / `--no-confirm-pr` apply to `pr`
+only, never to `all`. Then, per
 issue, from the main session:
 
 0. `<BRANCH>` must not be `<BASE>`, the default branch or a protected name,
    else skip the issue. Run `gh pr list --head <BRANCH> --state all`: if any PR
    exists, skip push and merge for that issue and report it (it may carry commits
    nobody reviewed);
-1. `scripts/review-stamp check --id <ID> --dir <DIR>` must say `REVIEW=PASS`
+1. `<skill-dir>/scripts/review-stamp check --id <ID> --dir <DIR>` must say `REVIEW=PASS`
    with `INDEPENDENT=yes`; take `SHA_review` from its `SHA=` line. Anything else
    (`STALE`: HEAD moved or tree dirty) sends the issue back through the review
    gate (one round) — do not push it;
@@ -217,7 +219,7 @@ if **all** hold, checked fresh immediately before each merge:
 
 Merge sequentially. After each merge, `git fetch` and re-check the remaining PRs
 from the top (a merge changes the base; a PR that is no longer `CLEAN` is
-reported, not forced). Afterwards run `scripts/sweep-worktrees` (it removes only
+reported, not forced). Afterwards run `<skill-dir>/scripts/sweep-worktrees` (it removes only
 clean worktrees of merged/closed PRs and `git branch -d`s the merged **local**
 branch — the existing `done` behaviour; this flow never deletes remote branches); then
 offer `/youtrack-task done <ID>` per merged issue (state changes stay explicit).
