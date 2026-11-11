@@ -26,6 +26,9 @@
 # On a condition the script must not decide, it prints ERROR=... and exits 2:
 #   ERROR=dirty-tree  -> in-place wanted but working tree is dirty; caller
 #                        resolves stash/carry (branching.md), then re-runs.
+#   ERROR=cannot-resolve-base
+#                     -> neither origin/<base> nor a local <base> exists; the
+#                        script never falls back to HEAD (the caller trusts BASE=).
 #   ERROR=...         -> other hard stop.
 set -uo pipefail
 
@@ -80,6 +83,17 @@ if [ -z "$BASE" ]; then
   [ -z "$BASE" ] && die "cannot-resolve-base"
 fi
 
+# Start point for a new branch, resolved once: origin/<base>, else local <base>,
+# else a hard stop. There is deliberately no fallback to HEAD — the caller trusts
+# BASE= for the review diff and the PR base.
+START=
+resolve_start() {
+  if git show-ref --verify -q "refs/remotes/origin/$BASE"; then START="origin/$BASE"
+  elif git show-ref --verify -q "refs/heads/$BASE"; then START="$BASE"
+  else die "cannot-resolve-base"
+  fi
+}
+
 BRANCH="$PREFIX/$ID-$SLUG"
 WT_PATH="$REPO_ROOT/$WT_DIR/$ID-$SLUG"
 
@@ -124,7 +138,8 @@ want_worktree() {
 if $IN_LINKED_WT; then
   # already isolated — never nest
   { $DIRTY && ! $ALLOW_DIRTY; } && die "dirty-tree"
-  git switch -c "$BRANCH" "origin/$BASE" 2>/dev/null || git switch -c "$BRANCH"
+  resolve_start
+  git switch -c "$BRANCH" "$START" || die "git-switch-failed"
   echo "MODE=inplace"; echo "BRANCH=$BRANCH"; echo "BASE=$BASE"
   echo "DIR=$REPO_ROOT"; echo "NEXT_CD=$REPO_ROOT"
   echo "NOTE=already inside a linked worktree; branched in place, no nesting"
@@ -132,13 +147,14 @@ if $IN_LINKED_WT; then
 fi
 
 git fetch --quiet origin "$BASE" 2>/dev/null || echo "NOTE=git fetch origin $BASE failed; using local ref"
+resolve_start
 
 if ! want_worktree; then
   { $DIRTY && ! $ALLOW_DIRTY; } && die "dirty-tree"
   if git show-ref --verify -q "refs/heads/$BRANCH"; then
     git switch "$BRANCH"
   else
-    git switch -c "$BRANCH" "origin/$BASE" 2>/dev/null || git switch -c "$BRANCH"
+    git switch -c "$BRANCH" "$START" || die "git-switch-failed"
   fi
   echo "MODE=inplace"; echo "BRANCH=$BRANCH"; echo "BASE=$BASE"
   echo "DIR=$REPO_ROOT"; echo "NEXT_CD=$REPO_ROOT"
@@ -153,8 +169,7 @@ if ! git check-ignore -q "$WT_DIR" 2>/dev/null; then
 fi
 [ -e "$WT_PATH" ] && die "worktree-path-exists: $WT_PATH"
 
-add_wt() { git worktree add "$WT_PATH" -b "$BRANCH" "origin/$BASE" 2>/dev/null \
-           || git worktree add "$WT_PATH" -b "$BRANCH"; }
+add_wt() { git worktree add "$WT_PATH" -b "$BRANCH" "$START"; }
 if ! add_wt; then
   sleep 2
   add_wt || die "git-worktree-add-failed (index.lock? another op running)"

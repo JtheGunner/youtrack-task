@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.2 — 2026-11-11
+
+- **Fix: `setup-workspace` silently branched from HEAD when the base had no
+  `origin/` ref.** The three creation paths (in place, linked worktree, new
+  worktree) ended in `… "origin/$BASE" || … <no start point>`, so a base that
+  existed only locally produced a branch at the current HEAD while the output
+  still said `BASE=<base>`; review diff and PR base then disagreed with the
+  branch. The start point is now resolved once — `origin/<base>`, else the local
+  `<base>`, else `ERROR=cannot-resolve-base` (exit 2, nothing created) — and used
+  by all three paths. Covered by `tests/setup-workspace.sh`.
+
 ## 0.16.1 — 2026-11-08
 
 - **Fix: `/youtrack-task all` without IDs found nothing.** Three causes, all in how
