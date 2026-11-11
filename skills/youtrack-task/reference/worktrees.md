@@ -46,8 +46,8 @@ GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 
 - `GIT_DIR != GIT_COMMON` **and** `git rev-parse --show-superproject-working-tree`
   is empty → already inside a linked worktree. Do **not** nest another. Just
-  create/switch the branch here (`git switch -c <branch> origin/<base>`) and
-  continue.
+  create/switch the branch here (`git switch -c <branch> <start>`, start point
+  below) and continue.
 - otherwise → a normal checkout; proceed below.
 
 ## Step 1 — locate and create
@@ -64,10 +64,16 @@ lands a surprise `chore: ignore …` commit on whatever branch the user happens 
 be on, and it works even when the tree is dirty. (If the repo already ignores
 `<worktree_dir>` via a committed `.gitignore`, leave it — the guard just passes.)
 
+**Start point (all three creation paths — in place, linked worktree, new
+worktree):** resolved once, in this order: `origin/<base>`, else the local
+`<base>` branch, else `ERROR=cannot-resolve-base` (exit 2, nothing created).
+There is no fallback to the current HEAD: the caller trusts `BASE=` for the
+review diff and the PR base, so a branch must really start there.
+
 **Create:**
 ```bash
 git fetch origin <base>
-git worktree add "<repo-root>/<worktree_dir>/<ID>-<slug>" -b "<prefix>/<ID>-<slug>" "origin/<base>"
+git worktree add "<repo-root>/<worktree_dir>/<ID>-<slug>" -b "<prefix>/<ID>-<slug>" "<start>"
 ```
 If the branch already exists, attach it instead: `git worktree add <path> <branch>`
 (no `-b`). If the target path exists, stop and ask.

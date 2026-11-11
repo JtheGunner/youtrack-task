@@ -277,7 +277,8 @@ commit; `git worktree add` retried once on `index.lock`) and bootstraps it
 `worktree_link`, run `.claude/youtrack-worktree-setup.sh`). It prints
 `MODE=inplace|worktree|existing-worktree|existing-branch` + `BRANCH` / `BASE` /
 `DIR` / `NEXT_CD` / `CLONED` / `LINKED` / `NOTE`, or `ERROR=dirty-tree` (exit 2)
-for the caller to resolve stash-or-carry.
+for the caller to resolve stash-or-carry. A new branch starts at `origin/<base>`,
+else the local `<base>`, else `ERROR=cannot-resolve-base` (exit 2) — never at HEAD.
 
 `worktree = always` (or `--worktree`) for genuinely parallel work; under `auto`
 the first pickup in a clean, on-default repo stays in place. `comment` / `log` /
