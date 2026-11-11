@@ -441,6 +441,9 @@ single unpaged call can miss an existing project; names also differ from keys
   candidates as `<ID> — <summary> — <state>` (no row numbers). Reply is an issue
   ID; a bare number there is `<PROJECT>-N`, never a list position.
 - Nothing found / ambiguous → stop and ask.
+- A full ID or `<PROJECT>-N` that `get_issue` does not find → stop: print the ID and,
+  if it exists, the repo project's `<PROJECT>-<number>` as the likely intended one.
+  No pickup, no go-ahead question, no automatic substitution.
 
 ### 2. Fetch context
 
@@ -460,8 +463,8 @@ priority, state, subsystem if present, and the gist of the description.
 ### 4. Set up the workspace
 
 Compute `<prefix>` / `<slug>` per `reference/branching.md` (English, type word
-stripped, 40-char cap), show the branch name for accept/rename (skipped when `CONFIRM_BRANCH_NAME=false`
-from `<skill-dir>/scripts/read-config`, or `--no-confirm-branch`: print it and continue; no other go-ahead gate
+stripped, 40-char cap), print `→ Branch: <name>` and, with `CONFIRM_BRANCH_NAME=true`, ask accept/rename (no question when
+`CONFIRM_BRANCH_NAME=false` from `<skill-dir>/scripts/read-config`, or `--no-confirm-branch`; no other go-ahead gate
 is added, the invocation authorizes the pickup), then **run
 `<skill-dir>/scripts/setup-workspace --id <ID> --slug <slug> --prefix <prefix> [--base …]
 [--mode worktree|inplace]`** and act on its `KEY=VALUE` output (see the Worktrees
@@ -606,6 +609,8 @@ plan is approved, but never crosses these without explicit per-action approval:
   the flow and is reported.
 - No writes to databases / seed data / fixtures / credentials — including for QA.
 - No servers/daemons started without asking.
+- No unlisted confirmation questions: only the questions the spec lists are asked; a
+  wrong input stops with an explanation, never a "Shall I continue?" gate.
 - No push or PR without a stamped review `PASS` on the exact HEAD (only the labelled
   `--no-review` / `review_before_pr = never` paths bypass it).
 - Push + PR only in the explicit `pr` sub-command (or the user's own ship flow),

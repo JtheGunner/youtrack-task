@@ -58,6 +58,10 @@ interpreter one-liners (`python3 -c`, `node -e`) or package installs:
   batch after **one** confirmation listing them; workers and reviewers never push.
   **Never force-push.** Never delete a remote branch; local deletion is only the
   safe `git branch -d` of a merged branch by `sweep-worktrees`.
+- **No unlisted confirmation questions.** The invocation authorizes the work it
+  names. Ask only the questions this document specifies, each in a step or a
+  table over a resolved value. Never *"Shall I continue?"* / *"OK to proceed?"*,
+  and not after a wrong input either: stop and say what is wrong.
 - **No push or PR without a review.** Before a branch is pushed or a PR opened
   (`pr`, and `all` step 6) the review gate in `reference/review.md` must have
   stamped `PASS` on the exact HEAD. The only exceptions are the explicit
@@ -263,6 +267,11 @@ First match wins:
    <state>` per line, ask for an issue ID. A bare number in the reply is rule 2,
    **never** a position in the list. Empty list → ask for an explicit ID.
 
+**ID not found** — when `get_issue` finds no issue for the ID from rule 1 or 2,
+stop: print the ID, and name `<PROJECT>-<number>` of this repo's project as the
+likely intended one if that issue exists. The user runs it again with the right
+ID. No pickup, no go-ahead question, no automatic substitution.
+
 ### 2. Fetch context
 
 `get_issue` and `get_issue_comments`. Show a short brief: ID, title, Type,
@@ -288,7 +297,7 @@ one was given (`--confirm-branch` = `true`, `--no-confirm-branch` = `false`), el
 | Effective `confirm_branch` | do this |
 | --- | --- |
 | `false` | print one line `→ Branch: <name>` and go straight on. **No question, no go-ahead gate.** |
-| `true` | show the name for accept/rename, then go on. Ask only about the name. |
+| `true` | print `→ Branch: <name>`, ask accept/rename, then go on. Ask only about the name. |
 
 Either way, the pickup (workspace, state change, pickup comment, planning) is
 already authorized by the invocation: never bundle it into an extra "OK to
