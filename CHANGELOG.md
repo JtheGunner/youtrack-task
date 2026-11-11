@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.3 — 2026-11-11
+
+- **Chore: ShellCheck is clean on every hook and script.** `shellcheck -S warning`
+  (and `-S style`) reports nothing on `hooks/*` (without `hooks.json`) and
+  `skills/youtrack-task/scripts/*`. Empty-string assignments use `VAR=''`
+  (SC1007), the `A && ! B || C` test in `guard-subagent` is an explicit `if`
+  (SC2015), and intentional patterns carry a
+  `# shellcheck disable=… # reason` comment. No behaviour change.
+- **`setup-workspace` passes `worktree_dir` to awk with `-v`** instead of splicing
+  it into the awk program text. Covered by two new cases in
+  `tests/setup-workspace.sh` (create and resume with a custom `worktree_dir`).
+
 ## 0.16.2 — 2026-11-11
 
 - **Fix: `setup-workspace` silently branched from HEAD when the base had no

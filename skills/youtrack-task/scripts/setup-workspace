@@ -34,7 +34,7 @@ set -uo pipefail
 
 die() { echo "ERROR=$*"; exit 2; }
 
-ID= SLUG= PREFIX= BASE= MODE=default ALLOW_DIRTY=false
+ID='' SLUG='' PREFIX='' BASE='' MODE=default ALLOW_DIRTY=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --id)          ID=$2; shift 2 ;;
@@ -98,9 +98,9 @@ BRANCH="$PREFIX/$ID-$SLUG"
 WT_PATH="$REPO_ROOT/$WT_DIR/$ID-$SLUG"
 
 # ---- resume: existing workspace for this issue ---------------------------
-EX_WT=$(git worktree list --porcelain | awk -v id="$ID-" '
+EX_WT=$(git worktree list --porcelain | awk -v id="$ID-" -v wtdir="$WT_DIR" '
   /^worktree /{p=substr($0,10)}
-  /^branch /{b=$2; if (index(p, "/'"$WT_DIR"'/"id) || index(b, "/"id)) {print p; exit}}')
+  /^branch /{b=$2; if (index(p, "/" wtdir "/" id) || index(b, "/" id)) {print p; exit}}')
 if [ -n "$EX_WT" ]; then
   EX_BR=$(git -C "$EX_WT" branch --show-current)
   echo "MODE=existing-worktree"
@@ -176,7 +176,7 @@ if ! add_wt; then
 fi
 
 MAIN="$REPO_ROOT"
-CLONED= LINKED=
+CLONED='' LINKED=''
 for d in $WT_CLONE; do
   [ -e "$MAIN/$d" ] || continue
   mkdir -p "$(dirname "$WT_PATH/$d")"
