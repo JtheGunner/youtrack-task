@@ -32,9 +32,9 @@ youtrack-task/
 │   └── marketplace.json     # so `/plugin marketplace add JtheGunner/youtrack-task` works
 ├── .mcp.json                # YouTrack HTTP MCP server, values from env vars
 ├── hooks/
-│   ├── hooks.json           # PreToolUse: YouTrack `create_issue`; Bash from `all` subagents
+│   ├── hooks.json           # PreToolUse: YouTrack `create_issue`; Bash, Edit, Write, MultiEdit from `all` subagents (timeout 10 s)
 │   ├── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
-│   ├── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only)
+│   ├── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only; worker file writes only inside its worktree)
 │   └── require-review       # opt-in (review_gate_hook): no push / gh pr create of an issue branch without a review stamp
 ├── agents/
 │   ├── ticket-worker.md     # `all`: implements one issue in its worktree, headless
@@ -231,8 +231,14 @@ them → merge **only** with `--auto-merge`.
   boundary. For the worker it also denies history rewriting (`git commit
   --amend`, `reset --hard`, `clean`, `rebase`, `update-ref`, `filter-branch`,
   `worktree remove --force`) and the `gh` verbs `repo`, `release`, `secret`,
-  `pr create`. Known limit, documented rather than blocked: interpreter
-  one-liners and package installs.
+  `pr create`. For the worker's `Edit` / `Write` / `MultiEdit` calls (matcher
+  `Edit|Write|MultiEdit`) it rejects any `file_path` outside the worktree derived
+  from the hook input's `cwd` and any path with a `.git` component (paths are
+  collapsed and symlinks resolved first); with `cwd` in the main checkout only
+  the repo's linked worktrees are writable. Known limit, documented rather than
+  blocked: interpreter one-liners and package installs. All hooks need `jq`;
+  without it they pass every call and warn on stderr. Every hook entry has
+  `timeout: 10`.
 - `--auto-merge`: PR created by this run (a reused PR is never auto-merged), head
   commit equal to the SHA the reviewer passed, at least one required check and
   all green, `CLEAN`, no file overlap with another issue of the run, plain
@@ -341,7 +347,7 @@ Field resolution:
   (`hooks/require-assignee`, matcher `mcp__.*youtrack.*__create_issue`) rejects a
   call whose `customFields` has no `Assignee` (exit 2 + reason on stderr); the
   model retries with `get_current_user`'s login, or `Unassigned` when the user
-  asked for that. It fails open without `jq`. The skill description also lists
+  asked for that. It fails open without `jq` (with a stderr warning). The skill description also lists
   create/file/log triggers (incl. German) so the skill loads for such requests.
 
 Flow: resolve/generate fields → `get_issue_fields_schema` for exact spellings →

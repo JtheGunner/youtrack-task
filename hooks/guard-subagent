@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
-# PreToolUse hook (Bash) for the `all` sub-command's agents.
+# PreToolUse hook (Bash, Edit, Write, MultiEdit) for the `all` sub-command's agents.
 #
 # Only acts when the call comes from a `ticket-worker` or `ticket-reviewer`
 # subagent (hook input carries `agent_type`); every other call passes untouched.
+#
+#   File tools (Edit / Write / MultiEdit) of the ticket-worker may only write
+#                   inside the worktree derived from the hook input's `cwd`
+#                   (the linked worktree `cwd` is in; when `cwd` is the main
+#                   checkout, any linked worktree of the repo) and never to a
+#                   path with a `.git` component. Paths are collapsed (`..`) and
+#                   symlinks resolved before the check. Without a git repo around
+#                   `cwd` only the `.git` rule applies. Known limit: when `cwd` is
+#                   the main checkout the worker may still write into the
+#                   worktree of another issue.
 #
 #   ticket-worker   develops and commits locally. Denied: any `git push`,
 #                   `gh pr merge`, `gh api`, network tools (curl, wget, ssh, …),
@@ -29,13 +39,18 @@
 # command it is rejected outright instead of parsed.
 #
 # The rejection text goes to stderr (exit 2) and is shown to the model.
-# Fails open: without jq, or on input it can't parse, the call goes through.
+# Fails open: without jq (a warning goes to stderr), or on input it can't parse,
+# the call goes through.
 set -u
 
-command -v jq >/dev/null 2>&1 || exit 0
+if ! command -v jq >/dev/null 2>&1; then
+  echo "youtrack-task hook guard-subagent: jq is not installed, so the ticket-worker / ticket-reviewer guard is INACTIVE. Install jq to enable it." >&2
+  exit 0
+fi
 
 input=$(cat)
 agent=$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null) || exit 0
+tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null) || exit 0
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
 
 case "$agent" in
@@ -43,12 +58,98 @@ case "$agent" in
   *ticket-reviewer) role=reviewer ;;
   *) exit 0 ;;
 esac
-[ -n "$cmd" ] || exit 0
 
 deny() {
-  printf 'Command blocked for the %s agent: %s\n' "$role" "$1" >&2
+  printf 'Call blocked for the %s agent: %s\n' "$role" "$1" >&2
   exit 2
 }
+
+# --- file tools: the worker writes only inside its worktree -------------------
+# Collapse "." / ".." / empty components of an absolute path.
+collapse_path() {
+  printf '%s' "$1" | awk -F/ '{
+    n = 0
+    for (i = 1; i <= NF; i++) {
+      if ($i == "" || $i == ".") continue
+      if ($i == "..") { if (n > 0) n--; continue }
+      s[++n] = $i
+    }
+    out = ""
+    for (i = 1; i <= n; i++) out = out "/" s[i]
+    print (out == "" ? "/" : out)
+  }'
+}
+
+# Resolve symlinks of the deepest existing part of an absolute path (the file may
+# not exist yet). A symlink to a file is followed too (bounded depth).
+physical_path() {
+  local p d rest="" base target depth=${2:-0}
+  p=$(collapse_path "$1")
+  [ "$depth" -le 8 ] || { printf '%s' "$p"; return; }
+  d=$p
+  while [ ! -e "$d" ] && [ ! -L "$d" ] && [ "$d" != / ]; do
+    rest="/${d##*/}$rest"
+    d=${d%/*}
+    [ -n "$d" ] || d=/
+  done
+  if [ -d "$d" ]; then
+    d=$(cd "$d" 2>/dev/null && pwd -P) || d=$p
+    [ "$d" = / ] && d=""
+    printf '%s%s' "$d" "$rest"
+  elif [ -L "$d" ]; then
+    target=$(readlink "$d")
+    case "$target" in /*) ;; *) target="${d%/*}/$target" ;; esac
+    physical_path "$target$rest" $((depth + 1))
+  else
+    base=${d##*/}
+    d=$(cd "${d%/*}" 2>/dev/null && pwd -P) || d=${d%/*}
+    [ "$d" = / ] && d=""
+    printf '%s/%s%s' "$d" "$base" "$rest"
+  fi
+}
+
+case "$tool" in
+  Edit | Write | MultiEdit)
+    [ "$role" = worker ] || exit 0
+    file=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || exit 0
+    cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null) || exit 0
+    [ -n "$file" ] || exit 0
+    [ -n "$cwd" ] || cwd=$PWD
+    case "$file" in /*) ;; *) file="$cwd/$file" ;; esac
+
+    lexical=$(collapse_path "$file")
+    physical=$(physical_path "$file")
+    for candidate in "$lexical" "$physical"; do
+      case "$candidate/" in
+        */.git/*) deny "never write inside .git (hooks, config, refs): $file" ;;
+      esac
+    done
+
+    top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || exit 0
+    top=$(physical_path "$top")
+    gitdir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null) || exit 0
+    common=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+    if [ "$(physical_path "$gitdir")" = "$(physical_path "$common")" ]; then
+      # cwd is the main checkout: only the repo's linked worktrees are writable.
+      roots=$(git -C "$top" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+      main_root=$top
+    else
+      roots=$top
+      main_root=
+    fi
+    while IFS= read -r root; do
+      [ -n "$root" ] || continue
+      root=$(physical_path "$root")
+      [ "$root" != "$main_root" ] || continue
+      case "$physical" in "$root"/*) exit 0 ;; esac
+    done <<EOF_ROOTS
+$roots
+EOF_ROOTS
+    deny "file tools may only write inside the worktree (derived from cwd $cwd); $file is outside."
+    ;;
+esac
+
+[ -n "$cmd" ] || exit 0
 
 # --- constructs that hide the real command: refuse, don't parse -------------
 # shellcheck disable=SC2016 # intentional: match the literal characters $( ` <( >(

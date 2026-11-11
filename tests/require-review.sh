@@ -147,5 +147,11 @@ printf 'review_gate_hook = "on"\n' > "$cfg"
 
 printf '{"tool_input":' | bash "$hook" >/dev/null 2>&1; [ $? = 0 ] && echo "ok   0  malformed input fails open" || { echo "FAIL malformed input"; fail=1; }
 
+nojq=$(mktemp -d)
+for b in bash cat printf; do ln -s "$(command -v $b)" "$nojq/$b" 2>/dev/null; done
+nojq_err=$(printf '{}' | PATH="$nojq" "$(command -v bash)" "$hook" 2>&1 >/dev/null); nojq_rc=$?
+rm -rf "$nojq"
+if [ "$nojq_rc" = 0 ] && printf '%s' "$nojq_err" | grep -qi 'jq'; then echo "ok   0  without jq: passes and warns on stderr"; else echo "FAIL without jq: rc=$nojq_rc stderr='$nojq_err'"; fail=1; fi
+
 [ "$fail" = 0 ] && echo "ALL OK" || echo "FAILURES"
 exit "$fail"
