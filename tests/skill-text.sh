@@ -68,5 +68,51 @@ for f in "$skill/SKILL.md" "$root/README.md" "$root/SPEC.md"; do
   grep -qF -- '--implement' "$f" && ok "--implement documented in $(basename "$f")" || bad "--implement missing in $(basename "$f")"
 done
 
+# 6. SKILL.md stays small and loads only what the invocation needs.
+# The target is about 350 lines; the Guardrails, Language, Config table and the
+# primary flow have to stay whole, so there is a little headroom.
+max_lines=375
+lines=$(wc -l < "$skill/SKILL.md" | tr -d ' ')
+[ "$lines" -le "$max_lines" ] && ok "SKILL.md has $lines lines (max $max_lines)" \
+  || bad "SKILL.md has $lines lines, max $max_lines"
+
+desc=$(sed -n '2,/^---$/p' "$skill/SKILL.md" | sed -n 's/^description: //p')
+[ -n "$desc" ] || bad "SKILL.md has no one-line description in its frontmatter"
+[ "${#desc}" -lt 500 ] && ok "description has ${#desc} characters (max 499)" \
+  || bad "description has ${#desc} characters, max 499"
+printf '%s' "$desc" | grep -qi 'fetches the issue' \
+  && bad "description summarises the workflow (triggers only)" || ok "description lists triggers only"
+
+# Every reference file SKILL.md names exists.
+refs=$(grep -oE 'reference/[a-z-]+\.md' "$skill/SKILL.md" | sort -u)
+for r in $refs; do
+  [ -f "$skill/$r" ] && ok "referenced file exists: $r" || bad "SKILL.md names a missing file: $r"
+done
+
+# Every Dispatch row (except the primary flow) names the reference file to read first.
+dispatch=$(sed -n '/^## Dispatch on the first argument/,/^\*\*Every invocation/p' "$skill/SKILL.md" \
+  | grep -E '^\| `(new|comment|log|pr|link|testing|done|worktree|all)`')
+for cmd in new comment log pr link testing 'done' worktree all; do
+  row=$(printf '%s\n' "$dispatch" | grep -E "^\| \`$cmd\` ")
+  if printf '%s' "$row" | grep -qE 'read `reference/[a-z-]+\.md` before acting'; then
+    ok "dispatch row '$cmd' says to read its reference file first"
+  else
+    bad "dispatch row '$cmd' lacks 'read \`reference/X.md\` before acting'" "$row"
+  fi
+done
+
+# The Guardrails stay in SKILL.md, whole.
+for g in 'Never commit to the repository' 'Never bypass or fight git hooks' 'Never mutate application state' \
+  'Never start servers' 'Pushing and opening a PR happen only' 'No push or PR without a review' \
+  'Merging a PR happens only' 'Worktree removal' 'The only YouTrack writes are' 'Language' 'Assignee'; do
+  sed -n '/^## Guardrails/,/^## Language/p' "$skill/SKILL.md" | grep -qF -- "$g" \
+    && ok "guardrail kept in SKILL.md: $g" || bad "guardrail missing from SKILL.md: $g"
+done
+
+# Moved sections are not duplicated back into SKILL.md.
+for h in '^## new$' '^## pr$' '^## link$' '^## log$' '^## comment$' '^## worktree$' '^## State sub-commands'; do
+  grep -qE "$h" "$skill/SKILL.md" && bad "SKILL.md still has section $h" || ok "section moved out of SKILL.md: $h"
+done
+
 [ "$fail" = 0 ] && echo "ALL OK" || echo "FAILURES"
 exit "$fail"

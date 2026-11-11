@@ -15,7 +15,7 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
 - Config `review_before_pr`: `always` (default; `auto` is accepted as a synonym) or
   `never` (standing opt-out). `--no-review` skips it for one run; `--review` is
   accepted and does nothing extra.
-- `pr` treats a skipped review as an exception, not a default — see `SKILL.md` "pr".
+- `pr` treats a skipped review as an exception, not a default — see `reference/pr.md`.
   Both ways of skipping (the flag and `never`) leave the same trace: a `SKIPPED`
   stamp on the commit and the label `Review: skipped` — see "Waiver".
 

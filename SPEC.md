@@ -41,7 +41,7 @@ youtrack-task/
 │   └── ticket-reviewer.md   # review gate: read-only, independent review of one branch
 ├── skills/
 │   └── youtrack-task/
-│       ├── SKILL.md         # the workflow, user-invocable as /youtrack-task
+│       ├── SKILL.md         # guardrails, language, config, dispatch table and the primary flow; user-invocable as /youtrack-task. Per-command detail is loaded from reference/ on demand
 │       ├── README.md        # skill-level readme: requirements, per-agent MCP setup, script ops
 │       ├── examples/        # sample runs: pickup.md, new.md, pr.md
 │       ├── scripts/
@@ -52,9 +52,14 @@ youtrack-task/
 │       │   └── review-stamp      # review gate: write|check "PASS on this exact commit"
 │       └── reference/
 │           ├── branching.md      # branch-name + type→prefix rules
+│           ├── pickup.md         # primary flow step 4: setup-workspace call, MODE handling, resume check
+│           ├── new.md            # `new`: fields, confirmation, create (structure of the text: issue-template.md)
+│           ├── pr.md             # `pr`: checks, review gate, push, PR, write-back
+│           ├── subcommands.md    # `testing`, `done`, `log`, `comment`, `link`, `worktree`
+│           ├── scripts-fallback.md # what to do when `scripts/` is not on disk
 │           ├── writeback.md      # state-transition + comment rules
 │           ├── issue-template.md # structure for `new` free-text generation
-│           ├── projects.md       # project resolution: the 20-item `find_projects` cap + paging loop
+│           ├── projects.md       # project resolution: the procedure, the 20-item `find_projects` cap + paging loop
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
 │           ├── review.md         # the review gate: one procedure for primary flow, `pr` and `all` (+ review-stamp contract)
 │           ├── batch.md          # contract for `all`: triage, workers, scheduling the review gate, PRs, merge
@@ -358,8 +363,10 @@ Field resolution:
   (`hooks/require-assignee`, matcher `mcp__.*youtrack.*__create_issue`) rejects a
   call whose `customFields` has no `Assignee` (exit 2 + reason on stderr); the
   model retries with `get_current_user`'s login, or `Unassigned` when the user
-  asked for that. It fails open without `jq` (with a stderr warning). The skill description also lists
-  create/file/log triggers (incl. German) so the skill loads for such requests.
+  asked for that. It fails open without `jq` (with a stderr warning). The skill description is a list of
+  triggers only (a pasted issue URL or ID, create / file, book time, status, attach a
+  PR, batch — incl. German) so the skill loads for such requests and for nothing else;
+  it carries no summary of the workflow, which models would read instead of the body.
 
 Flow: resolve/generate fields → `get_issue_fields_schema` for exact spellings →
 show the assembled issue, editable, one confirmation → `create_issue` (Type /

@@ -49,7 +49,7 @@ project the user is assigned in, so it is scoped and paged before use:
 | `batch_query` has a `project:` clause | Do |
 | --- | --- |
 | yes | use it verbatim |
-| no | resolve the current repo's project with "Resolving a project" in `SKILL.md` (needs a confirmed key; ambiguous or none → ask for `--project`-style input, never guess), then search `project: {KEY} <batch_query>` |
+| no | resolve the current repo's project with the procedure in `reference/projects.md` (needs a confirmed key; ambiguous or none → ask for `--project`-style input, never guess), then search `project: {KEY} <batch_query>` |
 
 `search_issues` returns **at most 20 issues per call**. Page with `offset` 0, 20,
 40, … until a page returns fewer than 20 items, and use the union. One call is

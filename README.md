@@ -389,6 +389,9 @@ published on [Agensi.io](https://www.agensi.io). What changes there:
    stamped `independent=no`, `pr` asks for confirmation, and `all --auto-merge`
    stays disabled.
 
+The ZIP contains the whole skill folder, so the `reference/*.md` files that
+`SKILL.md` points to travel with it.
+
 Build the upload ZIP yourself with `tools/package-agensi` (output:
 `dist/agensi/youtrack-task.zip`). Pushing a version tag also builds it in CI and attaches it to the GitHub
 Release; the upload to Agensi itself is still manual (no documented API). The skill-level readme is
@@ -404,7 +407,7 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | API token                                                                     | `YOUTRACK_TOKEN` env var                                                  |          🚫          |
 | Which project an issue is in                                                  | encoded in the issue ID (`INFRA-42`)                                      |          🚫          |
 | State names, list query, prefix map, branch-name and PR confirmation, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
-| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach, review stamp) | `skills/youtrack-task/`                                                   |          ✅          |
+| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach, review stamp). `SKILL.md` holds the guardrails and the primary flow; each sub-command's detail sits in `reference/` and is read only when that command runs | `skills/youtrack-task/`                                                   |          ✅          |
 | Review agent (`ticket-reviewer`, used by every flow), `all` worker (`ticket-worker`) and the guard hook | `agents/`, `hooks/guard-subagent` (plugin install only)                   |          ✅          |
 | `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`; review rounds via `review_rounds`) | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
 | Logo (`logo.svg` source, transparent `logo.png` export used in the header)     | `assets/`                                                                 |          ✅          |
