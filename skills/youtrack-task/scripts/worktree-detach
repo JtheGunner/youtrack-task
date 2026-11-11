@@ -16,7 +16,7 @@
 set -uo pipefail
 die() { echo "ERROR=$*"; exit 2; }
 
-ID= SWITCH=false WT=
+ID='' SWITCH=false WT=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --id)     ID=$2; shift 2 ;;
