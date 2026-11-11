@@ -8,7 +8,15 @@ Illustrative run. Branch, issue and URL are placeholders.
 
 **1. Checks** — inside a git repo, not on the default branch, commits ahead of the
 base. Then a clean tree (a dirty one is committed or stashed first — asked once)
-and the review gate, so the diffstat below already includes any review fixes.
+and the review gate, so the diffstat below already includes any review fixes:
+
+```text
+REVIEW=PASS   INDEPENDENT=yes   (stamped on this exact HEAD)
+```
+
+`STALE` / `MISSING` runs the gate first (a fresh `ticket-reviewer`); `FAILED` stops
+with the open findings. With `confirm_pr = false` (or `--no-confirm-pr`) step 2
+becomes one line, `→ Pushing <branch> and opening a PR (confirm_pr off)`.
 
 **2. Confirmation before pushing**
 

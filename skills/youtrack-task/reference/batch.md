@@ -164,8 +164,7 @@ move issue states here — `pr` moves to Testing.
 Only `PASS` issues are eligible (with `--no-review` there are none: say so and
 offer `/youtrack-task pr <ID>` per issue instead). Show the list (branch,
 commits, diffstat) and ask **one** confirmation covering all of them. This
-question is always asked: config `confirm_pr` / `--no-confirm-pr` apply to `pr`
-only, never to `all`. Then, per
+question is always asked (`confirm_pr` does not apply to `all`, see `SKILL.md`). Then, per
 issue, from the main session:
 
 0. `<BRANCH>` must not be `<BASE>`, the default branch or a protected name,
@@ -234,6 +233,4 @@ runs in the weaker, never-independent mode described in `reference/review.md`
 
 ## Language
 
-Same contract as `SKILL.md`: git artifacts English (workers and reviewers are
-told so); every comment this flow writes to YouTrack follows the issue's
-language.
+`SKILL.md` "Language" applies; tell workers and reviewers that git artifacts are English.

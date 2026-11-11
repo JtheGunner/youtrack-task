@@ -21,8 +21,7 @@ and the **Language** rules there; comment templates are in
      shows no merged PR, add one line — *"Branch `<branch>` isn't merged yet —
      `/youtrack-task pr` or `/ship` to integrate it."* No git action.
    - otherwise run `<skill-dir>/scripts/sweep-worktrees` and report its `REMOVED` / `KEPT_DIRTY` / `KEPT_OPEN` lines. It removes only
-     clean worktrees whose PR is merged/closed — never `--force`, never `-D`,
-     never a dirty one.
+     clean worktrees whose PR is merged/closed (limits: Guardrails).
 
 Never move an issue backward. `testing` / `done` change YouTrack state and, via
 `sweep-worktrees`, only ever *remove* finished worktrees — they never create or
@@ -73,7 +72,7 @@ Does not push and does not change state.
   current YouTrack state (`get_issue`).
 - **`prune`** — run `<skill-dir>/scripts/sweep-worktrees` and report every line. It removes clean worktrees whose PR is merged/closed and
   `git branch -d`s the merged branch, then `git worktree prune`; dirty ones and
-  still-open PRs are listed, not touched. Never `--force`, never `git branch -D`.
+  still-open PRs are listed, not touched.
 - **`take <ISSUE-ID>`** — you want that issue's branch in your *current* checkout
   but a worktree still holds it. Run `<skill-dir>/scripts/worktree-detach --id <ID> --switch`:
   it removes that worktree (branch kept) and `git switch`es to the branch here.

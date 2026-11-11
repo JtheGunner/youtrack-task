@@ -38,12 +38,14 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
       independently reviewed)` to the PR body and to the YouTrack PR comment.
       Never skip silently.
 4. Show `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD`
-   (always), then decide from the step-0 output:
+   (always), then decide. The effective value is the flag if one was given
+   (`--confirm-pr` = `true`, `--no-confirm-pr` = `false`), else `CONFIRM_PR` from
+   the step-0 output:
 
-   | `--no-confirm-pr`, or `CONFIRM_PR=false` without `--confirm-pr` | do this |
+   | Effective `confirm_pr` | do this |
    | --- | --- |
-   | yes | print one line `→ Pushing <branch> and opening a PR (confirm_pr off)` and go on to step 5. **No question.** |
-   | no | **ask for confirmation** before pushing. |
+   | `false` | print one line `→ Pushing <branch> and opening a PR (confirm_pr off)` and go on to step 5. **No question.** |
+   | `true` | **ask for confirmation** before pushing. |
 
    This table gates only the push-and-PR question. The checks in steps 2–3 are
    unaffected and still stop or ask as written there.

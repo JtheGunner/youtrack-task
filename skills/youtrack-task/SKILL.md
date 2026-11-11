@@ -281,12 +281,14 @@ Never hard-block.
 ### 4. Set up the workspace
 
 Compute `<prefix>` and `<slug>` per `reference/branching.md` (English, leading
-type word stripped, 40-char cap). Then decide from the step-0 output:
+type word stripped, 40-char cap). Then decide. The effective value is the flag if
+one was given (`--confirm-branch` = `true`, `--no-confirm-branch` = `false`), else
+`CONFIRM_BRANCH_NAME` from the step-0 output:
 
-| `--no-confirm-branch`, or `CONFIRM_BRANCH_NAME=false` without `--confirm-branch` | do this |
+| Effective `confirm_branch` | do this |
 | --- | --- |
-| yes | print one line `→ Branch: <name>` and go straight on. **No question, no go-ahead gate.** |
-| no | show the name for accept/rename, then go on. Ask only about the name. |
+| `false` | print one line `→ Branch: <name>` and go straight on. **No question, no go-ahead gate.** |
+| `true` | show the name for accept/rename, then go on. Ask only about the name. |
 
 Either way, the pickup (workspace, state change, pickup comment, planning) is
 already authorized by the invocation: never bundle it into an extra "OK to

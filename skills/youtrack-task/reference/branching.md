@@ -58,20 +58,12 @@ Show the computed branch name and let the user accept it or supply their own
 (e.g. a tighter English name like `fix/ADMIN-6-row-tint-hover`). Proceed with the
 computed name only after the user has seen it.
 
-The question can be skipped, so the computed name is accepted automatically:
-
-- config `confirm_branch_name = false` (default `true`), or
-- the flag `--no-confirm-branch` for one run.
-
-`--confirm-branch` forces the question back on for one run. Precedence: flag,
-then config, then the default (`true`). The config value comes from
-`scripts/read-config` (step 0), never from memory: an unread config is not
-"default `true`", it is unknown. The name is still shown as one line
-(`→ Branch: <name>`) so the pickup stays traceable. Only this question is
-skipped; `setup-workspace` outcomes (`ERROR=dirty-tree`, `existing-branch`)
-are asked as before. `all` never asks for a branch name. No other gate is added
-either: the invocation already authorizes the pickup, so the name is never
-bundled with "OK to move the issue and post the comment?".
+Whether the question is asked is decided by the table in `SKILL.md` step 4
+(`confirm_branch_name` / `--confirm-branch`, resolved by `scripts/read-config`,
+never from memory). Only this question is skippable: `setup-workspace` outcomes
+(`ERROR=dirty-tree`, `existing-branch`) are asked as before, `all` never asks for
+a branch name, and no other gate is added — the invocation already authorizes the
+pickup.
 
 ## Base branch
 
@@ -83,8 +75,8 @@ from `origin/<base>` so the branch starts at the current remote tip.
 
 `scripts/setup-workspace` and `sweep-worktrees` enforce the git-level guards
 (no branch on the default, ignore-guard via `.git/info/exclude`, `index.lock`
-retry, never `--force` / `git branch -D`, dirty worktrees untouched). What stays
-with the skill:
+retry; the never-force / never-`-D` / dirty-worktree limits are the Guardrails in
+`SKILL.md`). What stays with the skill:
 
 - **Never commit anything to the default branch.** When `setup-workspace` returns
   `ERROR=dirty-tree`, ask the user which:
@@ -94,5 +86,4 @@ with the skill:
      (the script `git switch -c`s and the changes are carried onto the feature
      branch — never a commit on the base branch).
   Do not offer "commit it on `<base>` first".
-- Never `git commit --no-verify`, never amend or rewrite existing commits. If a
-  pre-commit hook fails, stop and report it.
+- The hook and amend limits are the Guardrails in `SKILL.md`.
