@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./assets/logo.png" alt="youtrack-task logo" width="96" height="96">
+<img src="./assets/logo.png" alt="youtrack-task logo" width="128" height="128">
 
 # 🎯 youtrack-task
 
@@ -399,6 +399,7 @@ Release; the upload to Agensi itself is still manual (no documented API). The sk
 | The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach, review stamp) | `skills/youtrack-task/`                                                   |          ✅          |
 | Review agent (`ticket-reviewer`, used by every flow), `all` worker (`ticket-worker`) and the guard hook | `agents/`, `hooks/guard-subagent` (plugin install only)                   |          ✅          |
 | `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`; review rounds via `review_rounds`) | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
+| Logo (`logo.svg` source, transparent `logo.png` export used in the header)     | `assets/`                                                                 |          ✅          |
 | Marketplace upload ZIP (built, not committed)                                 | `dist/agensi/youtrack-task.zip` via `tools/package-agensi`                |          🚫          |
 
 ---

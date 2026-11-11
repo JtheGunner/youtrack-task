@@ -64,6 +64,9 @@ youtrack-task/
 │   └── release-package.yml  # on a v* tag: needs ci, tag == both manifests, builds + attaches the ZIP
 ├── tools/
 │   └── package-agensi       # builds dist/agensi/youtrack-task.zip (marketplace upload)
+├── assets/
+│   ├── logo.svg             # logo source: dark metallic tile, pink shapes, transparent background
+│   └── logo.png             # 512 px RGBA export of logo.svg, shown in the README header
 ├── config.example.toml      # documents every optional override, dummy values only
 ├── README.md                # setup: 2 env vars + token, then /plugin install
 ├── LICENSE                  # MIT
