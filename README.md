@@ -19,473 +19,193 @@ Capture, pick up, branch, plan, open the PR, and walk the state ladder — all f
 
 ---
 
-A Claude Code plugin for working [JetBrains YouTrack](https://www.jetbrains.com/youtrack/)
-issues from inside any project repo:
+## ✨ What it does
 
-|    | Command                                      | What it does                                                                                                                                                                                                                   |
-|:--:|----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 📝 | **`/youtrack-task new "<free text>"`**       | capture an issue; Claude turns your text into a titled, structured issue                                                                                                                                                       |
-| 🌿 | **`/youtrack-task <ID>`**                    | pick one up: fetch it, branch, move it to **In Progress**, plan the work (through the [`superpowers`](https://github.com/obra/superpowers) plugin when present), write the plan back as a comment, and optionally implement it |
-| 🚀 | **`/youtrack-task pr` / `testing` / `done`** | check the independent review, open the PR (and link it on the issue), then walk the state ladder as the work lands                                                                                                                                           |
-| 🌲 | **`/youtrack-task worktree …`**              | run several tasks at once, each in its own isolated git worktree; `list` / `prune` / `take` / `remove` to manage them                                                                                                          |
-| 🤖 | **`/youtrack-task all`**                     | work through many issues in one command: parallel workers in isolated worktrees, an independent reviewer per result, PRs, and — only if you pass `--auto-merge` — merging                                                      |
+A Claude Code plugin that works [JetBrains YouTrack](https://www.jetbrains.com/youtrack/)
+issues from inside any project repo. No PhpStorm YouTrack plugin needed: it talks to
+YouTrack's own remote MCP server.
 
-No PhpStorm YouTrack plugin required — it talks to YouTrack's own remote MCP server.
-
----
-
-## 📋 Requirements
-
-- Claude Code with plugin support.
-- YouTrack **2025.3 or newer** (Cloud or Server) with the remote MCP server
-  reachable at `https://<your-host>/mcp`. If YouTrack sits behind a reverse proxy
-  / SSO (Authelia, Authentik, oauth2-proxy…), allow the `/mcp` path through with
-  bearer-token auth.
-- `git` on your `PATH`.
-- The [`gh` CLI](https://cli.github.com/) on your `PATH` if you want to use
-  `/youtrack-task pr`. Not needed for anything else.
-- `jq` on your `PATH` — **required for the plugin hooks' protections** (assignee
-  check, `all` agent guard incl. the worker's file-write limit, optional review
-  enforcement). Without it the hooks let every call through and print a warning
-  to stderr that they are inactive. The skill itself works without `jq`.
-- *(optional)* the [`superpowers`](https://github.com/obra/superpowers) plugin —
-  when present, planning and implementation run through its skills. Everything
-  works without it.
+|    | Command | What it does |
+|:--:|---------|--------------|
+| 📝 | **`/youtrack-task new "<free text>"`** | Turns your text into a titled, structured issue. |
+| 🌿 | **`/youtrack-task <ID>`** | Picks up an issue: branch, state → *In Progress*, plan written back as a comment. |
+| 🚀 | **`/youtrack-task pr`** · `testing` · `done` | Checks the independent review, opens the PR and links it, then walks the state ladder. |
+| 🌲 | **`/youtrack-task worktree …`** | Runs several tasks at once, each in its own git worktree. |
+| 🤖 | **`/youtrack-task all`** | Works through many issues in parallel with an independent reviewer per result. |
 
 ---
 
-## ⚙️ Setup (one time)
+## ⚡ Quick start
 
-### 1. Create a YouTrack API token
+### 1. Check the requirements
+
+- Claude Code with plugin support
+- YouTrack **2025.3+** (Cloud or Server) with the remote MCP server at `https://<your-host>/mcp`
+- `git` on your `PATH`
+- `jq` on your `PATH` — needed for the hook protections; the skill itself works without it
+- *(optional)* the [`gh` CLI](https://cli.github.com/) for `pr`
+- *(optional)* the [`superpowers`](https://github.com/obra/superpowers) plugin for planning and implementation
+
+> [!TIP]
+> Behind a reverse proxy or SSO (Authelia, Authentik, oauth2-proxy…)? Allow the
+> `/mcp` path through with bearer-token auth.
+
+### 2. Create an API token
 
 YouTrack → your avatar → **Profile** → **Account Security** → **New token**.
 Scope: **YouTrack**. Copy the `perm:...` value.
 
-### 2. Export two environment variables
+### 3. Export two environment variables
 
-Put these in your shell startup (`~/.zshrc`, `~/.bashrc`):
+Put them in your shell startup (`~/.zshrc`, `~/.bashrc`), then open a new shell and start
+Claude Code from there:
 
 ```sh
 export YOUTRACK_MCP_URL="https://youtrack.example.com/mcp"
 export YOUTRACK_TOKEN="perm:xxxxxxxxxxxxxxxxxxxx"
 ```
 
-Open a new shell so they're loaded, then start Claude Code from there.
+### 4. Install the plugin
 
-> [!NOTE]
-> The plugin's bundled MCP definition (`.mcp.json`) references these two
-> variables — `${YOUTRACK_MCP_URL}` and `${YOUTRACK_TOKEN}`. Nothing
-> instance-specific is stored in this repo.
-
-### 3. Install the plugin
-
-```
+```text
 /plugin marketplace add JtheGunner/youtrack-task
 /plugin install youtrack-task@youtrack-task
 ```
 
-Restart Claude Code. Verify the MCP server connected: you should see `youtrack`
-tools available (`/mcp` lists them).
+Restart Claude Code. `/mcp` should now list the `youtrack` tools.
 
-### 4. (Optional) Config overrides
+### 5. Try it
 
-Only if your workflow differs from the defaults. Copy
-[`config.example.toml`](./config.example.toml) to
-`~/.config/youtrack-task/config.toml` and uncomment what you need — custom state
-names (`in_progress_state`, `testing_state`, `done_state`; the ladder order itself
-is fixed), a different issue-list query (`list_query`), branch-prefix mapping,
-where the plan copy goes (`local_plan_copy`), the type used by `new` when it can't
-infer one (`default_new_type`), the `use_superpowers` / `review_before_pr` / `review_rounds` / `review_gate_hook` toggles, `confirm_branch_name` (skip the branch-name question), `confirm_pr` (skip the push-and-PR question of `pr`), or the worktree
-settings (`worktree`, `worktree_dir`, `worktree_clone`, `worktree_link`), or the
-`all` batch settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`;
-`batch_review_rounds` still works as an alias of `review_rounds`). Arrays such as
-`worktree_clone` must be written on a single line; a multi-line array is ignored
-and the default applies.
+```text
+/youtrack-task                 # list your Open / In Progress issues and pick one
+/youtrack-task INFRA-42        # go straight to an issue
+```
+
+> [!NOTE]
+> Nothing instance-specific is stored in this repo. The bundled `.mcp.json` only
+> references `${YOUTRACK_MCP_URL}` and `${YOUTRACK_TOKEN}`.
 
 ---
 
-## 🚀 Usage
-
-### Pick up an issue
-
-```
-/youtrack-task                 # lists your Open / In Progress issues, you pick one
-/youtrack-task INFRA-42        # go straight to that issue
-```
-
-What happens:
-
-Before anything else, a bundled script (`scripts/read-config`) resolves your
-`config.toml` with all defaults, so a setting like `confirm_branch_name = false`
-is applied every time, not only when Claude happens to read the file. The other
-scripts and the review-gate hook read their settings through the same script, so
-Claude, the scripts and the hook always see the same value for a key (keys under a
-`[table]` such as `[type_prefix]` are ignored by all of them).
-
-1. **Fetch** — Claude pulls the issue (summary, description, type, priority,
-   state, subsystem) and its comments, and shows you a short brief.
-2. **Sanity check** — verifies you're in a git repo and that the repo roughly
-   matches the issue's YouTrack project (warns, never blocks).
-3. **Workspace** — a bundled script (`scripts/setup-workspace`) makes the
-   worktree-vs-in-place decision, then creates the branch `‹prefix›/‹ID›-‹slug›`
-   from the current tip of your default branch — either in place or in an
-   isolated worktree (see *Working several tasks in parallel* below). Prefix
-   comes from the issue Type: `Bug→fix`, `Feature→feat`, `Task→chore`,
-   `Epic→feat`, `Cosmetics→style`, else `chore`. Example:
-   `chore/INFRA-42-rotate-vault-unseal-keys`. On a dirty tree it asks whether to
-   stash or carry the changes onto the branch; resumes an existing branch /
-   worktree instead of recreating. The slug is always English even when the issue
-   isn't.
-4. **In Progress** — moves the issue to *In Progress* (unless it's already there
-   or further) and adds a comment: *📌 Picked up in Claude Code — branch `…`*.
-5. **Plan** — Claude explores the repo and drafts an implementation plan. If the
-   [`superpowers`](https://github.com/obra/superpowers) plugin is installed,
-   planning runs through it (`brainstorming`, or `systematic-debugging` for bugs,
-   then `writing-plans` for larger work); otherwise a plain plan-mode pass. You
-   review and iterate until it's right.
-6. **Write back the plan** — once you approve, the plan is posted to the issue as
-   a Markdown comment (*📝 Implementation plan (Claude Code)*). If the repo has a
-   `docs/` directory, a copy is also saved to `docs/plans/‹ID›.md` (always in
-   English, like every git artifact; the comment follows the issue's language).
-   Without `--implement` the flow stops here. Resuming an existing worktree
-   checks the issue's comments first: a plan comment that is already there is
-   reused and not posted again.
-7. **Implement** *(only with `--implement`)* — with `superpowers` present:
-   `test-driven-development` throughout, `subagent-driven-development` (or
-   `executing-plans` with `--checkpoints`) for a written plan, and
-   `verification-before-completion` against the issue's acceptance criteria.
-   Without it: the normal dev workflow. Either way the work then goes through the
-   **review gate**: a fresh, independent `ticket-reviewer` subagent that never
-   sees your session's reasoning checks the commit, and a `PASS` is stamped on
-   that exact commit. Then the completion comment is posted and it stops before
-   push — `/youtrack-task pr` is next.
-
-Flags:
-
-| Flag                           | Effect                                                                                                                         |
-|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `--no-move`                    | don't change the issue state; still add the pickup comment                                                                     |
-| `--no-writeback`               | don't change state and don't add the pickup comment                                                                            |
-| `--base ‹branch›`              | branch from `‹branch›` instead of the detected default                                                                         |
-| `--worktree` / `--no-worktree` | force / skip an isolated git worktree for this pickup (default: `worktree` config, itself `auto`)                              |
-| `--confirm-branch` / `--no-confirm-branch` | ask / don't ask whether the computed branch name is OK; with `--no-confirm-branch` the name is accepted and just shown (default: `confirm_branch_name` config, itself `true`) |
-| `--implement`                  | run step 7 (implement, then the review gate) after the plan is written back. Without it the flow ends once the plan is on the issue, and prints the command to continue; on an existing worktree it carries on from the plan comment already there |
-| `--checkpoints`                | execute an architectural plan with review stops after each phase (`superpowers:executing-plans`) instead of one continuous run |
-| `--confirm-pr` / `--no-confirm-pr` | `pr` only: ask / don't ask "push and open a PR?" (default: `confirm_pr` config, itself `true`; the flag wins). The commits and diffstat are still shown and the review gate still applies |
-| `--no-review`                  | skip the review gate for this run; `pr` then asks before pushing and labels the PR *Review: skipped* (default: every task with commits is reviewed; `--review` is accepted and does nothing) |
-
-### Create an issue
-
-```
-/youtrack-task new "hover on tinted rows loses the colour, needs a same-hue hover instead"
-/youtrack-task new                     # interactive: free text, or field by field
-/youtrack-task new --project ADMIN --title "..." --description "..." --priority Major --type Bug
-/youtrack-task new "..." --assignee max.muster   # assign someone else (login or email)
-```
-
-**Free-text mode** (first form): give one blob of text and Claude generates the
-title and a **structured description** — Summary / Context / Goal / Acceptance
-criteria / Scope / Technical notes / Open questions. That structure is the same
-one a later `/youtrack-task <id>` reads back to build its plan, so nothing is
-lost between capturing the task and working it. Title and description are
-written in the language of your text (German in → German title and description;
-English in → English), and an explicit `--title` is used as given. The confirm
-step shows a `Language:` line — say "English" there to switch, and title and
-description are regenerated. You review and edit the generated issue before it's
-created.
-
-Required either way: project, title, description. `--project` defaults to the
-YouTrack project matching the current repo. `--priority` is optional (project
-default otherwise; only proposed automatically if the text says "blocker" /
-"asap" / etc.). `--type` is inferred from the content and shown for confirmation
-when you don't pass it. After creating, Claude offers to pick the issue up.
-
-**Assignee:** every new issue is assigned to the owner of your API token by
-default. `--assignee <login|email>` — or an explicit "assign to …" / "für …" in
-the free text — assigns someone else instead. If that user doesn't exist, the
-issue falls back to you and the confirmation step flags it
-(`⚠ max.musterr not found → API-key owner`), so you can still correct it before
-anything is created.
-
-### Working several tasks in parallel
-
-Put `worktree = "always"` in `~/.config/youtrack-task/config.toml` (or pass
-`--worktree` each time). Then every pickup lands in its own **isolated git
-worktree**:
-
-```
-# terminal 1
-cd ~/projects/admin-dashboard-vue && claude
-> /youtrack-task ADMIN-1        # → .worktrees/ADMIN-1-…  on feat/ADMIN-1-…
-
-# terminal 2, at the same time
-cd ~/projects/admin-dashboard-vue && claude
-> /youtrack-task ADMIN-6        # → .worktrees/ADMIN-6-…  on fix/ADMIN-6-…
-```
-
-Each worktree gets its own `node_modules` / `vendor` (copy-on-write clone on
-APFS — instant, no extra disk until changed) and a symlinked `.env`. Drop a
-`.claude/youtrack-worktree-setup.sh` in the repo for anything project-specific
-(per-worktree DB, asset build). The worktree dir is ignored via
-`.git/info/exclude` — no commit on your branch.
-
-Cleanup is automatic where it's safe: **`/youtrack-task pr` sweeps every worktree
-whose PR has already merged/closed** (the one you just opened a PR for stays —
-review fixes go there). `/youtrack-task done` removes the current issue's worktree
-once its PR is merged. Dirty worktrees are always left alone.
-
-Managing worktrees by hand:
-
-| Command                               | Does                                                                   |
-|---------------------------------------|------------------------------------------------------------------------|
-| `/youtrack-task worktree list`        | list this plugin's worktrees + each issue's YouTrack state             |
-| `/youtrack-task worktree prune`       | remove every worktree whose PR is merged/closed (clean only)           |
-| `/youtrack-task worktree take <ID>`   | free `<ID>`'s branch from its worktree and `git switch` to it **here** |
-| `/youtrack-task worktree remove <ID>` | just drop `<ID>`'s worktree (branch kept, no switch)                   |
-
-The default, `worktree = "auto"`, only makes a worktree when the current checkout
-is already busy (dirty or on a task branch) or another worktree exists — so the
-*first* pickup in a clean repo stays in place. That's fine for one-at-a-time
-work; use `always` for parallel. `worktree = "off"` switches the current checkout
-in place, always.
-
-### Work through many issues at once (`all`)
-
-```
-/youtrack-task all [ID ...] [--max N] [--no-review] [--dry-run] [--auto-merge]
-```
-
-One command instead of briefing the agent by hand:
+## 🧭 How a task flows
 
 ```text
- triage ──▶ setup ──▶ work (parallel) ──▶ review ──▶ report ──▶ PRs ──▶ merge*
- you OK     worktree   one worker/issue    fresh      table     you OK   *only with
- once       per issue  TDD, local commits  reviewer   + overlap          --auto-merge
-```
-
-1. **Triage** — read-only. Each candidate (the IDs you name, else the issues
-   matching `batch_query`, limited to this repo's YouTrack project and read page by
-   page) is sorted into *ready*, *needs-human* or *blocked* and shown in one
-   table; you confirm once. If nothing is *ready*, the table is all you get — no
-   follow-up question. Issues tagged `manual`, without
-   acceptance criteria, with open questions, of architectural size, or touching
-   servers / network / secrets / data stores are **never** run unattended.
-   `--dry-run` stops here.
-2. **Work** — each ready issue gets its own worktree and its own `ticket-worker`
-   agent (at most `--max`, default 3, at a time). Workers use TDD, commit locally
-   in English, and never push, merge or write to YouTrack.
-   A worker that hits ambiguity stops and reports a question instead of guessing.
-3. **Independent review** — the same review gate every task goes through: a
-   fresh `ticket-reviewer` per issue sees only the issue, its acceptance criteria
-   and the diff — never the worker's report or reasoning — and re-runs the tests
-   itself. `CHANGES_REQUESTED` triggers a fix and a *new* reviewer, up to
-   `review_rounds` (default 2), then the issue is handed back to you.
-4. **Report and PRs** — a table with verdicts, files touched and overlap warnings
-   (files changed by more than one issue, i.e. likely merge conflicts). Only
-   issues that passed review qualify. After one more confirmation covering the
-   whole list, the main session pushes each reviewed branch and opens the PRs;
-   the issues move to Testing.
-5. **Merge** — never, unless you pass `--auto-merge`. With it, the run merges only
-   PRs *it created* whose head commit is exactly the one the reviewer passed,
-   with at least one required check and all of them green, `CLEAN`, and no file
-   overlap with another issue of the run — one by one, re-checking each time.
-   It never uses admin bypass, never deletes remote branches, and leaves a PR
-   open if the host refuses. `--auto-merge` is refused together with
-   `--no-review` or without subagent support, since a merge needs an
-   independent review.
-
-> [!WARNING]
-> `--auto-merge` lets the agent change your default branch. Use it only on
-> repositories with branch protection (required checks / reviews) and a token
-> that cannot force-push; those server-side rules, not the plugin, are the real
-> safety net.
-
-> [!NOTE]
-> The plugin ships a `PreToolUse` hook that confines the worker and reviewer
-> agents (no pushes, merges or PR creation, no network tools, no history
-> rewriting such as `commit --amend` or `reset --hard`; read-only reviewer; the
-> worker's `Edit` / `Write` / `MultiEdit` calls may only touch files inside its
-> worktree and never anything under `.git`). It
-> needs `jq` and is a best-effort layer on top of the agents' instructions, not
-> isolation: interpreter one-liners (`python3 -c`, `node -e`) and package installs
-> are not blocked, and tests the reviewer runs execute code of the branch under
-> review. Server-side branch protection and a token without merge / force-push
-> rights are the real boundary.
-
-> [!TIP]
-> Want the review gate enforced rather than just instructed? Set
-> `review_gate_hook = "on"` in your config. The plugin's `require-review` hook then
-> blocks `git push` and `gh pr create` for an issue branch (a branch whose name
-> carries an issue ID) unless that exact commit has a review stamp — also when you
-> run them by hand or through `/ship`. `/youtrack-task pr --no-review` records a
-> waiver and lets the push through. Default is `off`; it needs `jq` and is best
-> effort (server-side branch protection is the real safety net). It cannot follow
-> quoted or `$`-expanded push arguments and directories, so it rejects those: write
-> the remote, refspecs and `cd` path out unquoted.
-
-### During and after the work
-
-```
-/youtrack-task comment <text>          # add a comment to the current branch's issue
-/youtrack-task comment INFRA-42 <text> # ...or to a specific issue (a leading issue ID is the issue)
-/youtrack-task log 1h30m <what>         # log time on the current branch's issue
-/youtrack-task log INFRA-42 45m <what>  # ...or on a specific issue
-/youtrack-task pr                       # push branch + open PR + link it + move to Testing
-/youtrack-task link <pr-url>            # attach an already-open PR to the issue
-/youtrack-task testing                  # move the issue to Testing
-/youtrack-task done                     # move the issue to Done
-/youtrack-task worktree list|prune|take <ID>|remove <ID>   # manage worktrees (see above)
-/youtrack-task all [ID ...] [--auto-merge]   # many issues in parallel + independent review (see above)
-```
-
-`comment` / `log` / `pr` / `link` / `testing` / `done` figure out the issue ID
-from your current branch name; pass an explicit `ID` as the first argument to
-override. State moves are forward-only along `Open → In Progress → Testing → Done`
-(the ladder is fixed; only the state names are configurable) — asking to move an issue to a state it's already at or past does nothing.
-
-### The full lifecycle
-
-```
-/youtrack-task new …     →  (optional) create the issue first
-/youtrack-task ADMIN-6   →  branch, In Progress, plan, (optional) implement
-/youtrack-task pr        →  review check + push + GitHub PR + PR link on the issue + → Testing
+ /youtrack-task new …     create the issue (optional)
+          │
+          ▼
+ /youtrack-task ADMIN-6   branch · In Progress · plan · (--implement) code + review
+          │
+          ▼
+ /youtrack-task pr        review check · push · PR · link on issue · → Testing
+          │
       … PR review + merge …
-/youtrack-task done      →  → Done
+          ▼
+ /youtrack-task done      → Done
 ```
 
-A worked walk-through of one issue from `new` to `done`, with the state changes and
-comments each step writes, is in
+A worked walk-through with the state changes and comments of each step:
 [`examples/full-lifecycle.md`](skills/youtrack-task/examples/full-lifecycle.md).
 
-> [!IMPORTANT]
-> `pr` is the only command that pushes — apart from `all`, whose main session
-> pushes the branches of reviewed issues after one confirmation — and it asks
-> first (shows the commits and diffstat) unless you set `confirm_pr = false`
-> or pass `--no-confirm-pr` (that setting never applies to `all`, which always
-> asks its one batch confirmation). `pr` first makes the tree clean (commit or
-> stash, asked once), then runs the review, then shows the diffstat. It needs the
-> [`gh` CLI](https://cli.github.com/). It never force-pushes and never deletes
-> remote branches, and it merges only under `all --auto-merge`. Branch names, commit messages and the
-> PR title/body are always English — even for a German (or other non-English)
-> issue; the YouTrack comments and the title/description of issues created by
-> `new` follow the issue's language — your own "English everywhere" rules for code
-> and docs don't override that.
+On pickup the plugin:
 
-If you'd rather run your own richer ship flow (tests, version bump, changelog), do
-that instead and then `/youtrack-task link <pr-url>` to record the PR on the
-issue. `done` is always last — it means "merged and accepted", so run it after
-the PR lands, not before.
+1. 📥 **Fetches** the issue and its comments
+2. 🌿 **Creates** the branch `‹prefix›/‹ID›-‹slug›` (in a worktree if configured)
+3. 📌 **Moves** the issue to *In Progress* and comments
+4. 📝 **Plans** the work and, once you approve, posts the plan as a comment
+5. 🛠️ **Implements** it only when you pass `--implement`, then runs the review gate
+
+> [!IMPORTANT]
+> Nothing is pushed until you run `pr`, and it asks first. Branch names, commits and
+> PR text are always English; YouTrack comments follow the issue's language.
+
+---
+
+## 🧰 Command cheat sheet
+
+```text
+/youtrack-task ‹ID› [--implement]        # pick up (plan only without --implement)
+/youtrack-task new "<free text>"         # capture an issue
+/youtrack-task comment [‹ID›] <text>     # comment on an issue
+/youtrack-task log [‹ID›] 1h30m <what>   # log time
+/youtrack-task pr                        # push + PR + link + Testing
+/youtrack-task link <pr-url>             # attach an already-open PR
+/youtrack-task testing | done            # move the issue forward
+/youtrack-task worktree list|prune|take <ID>|remove <ID>
+/youtrack-task all [ID ...] [--max N] [--dry-run] [--auto-merge]
+```
+
+- **State ladder:** `Open → In Progress → Testing → Done`, forward-only.
+- **Issue ID:** `comment`, `log`, `pr`, `link`, `testing` and `done` read it from your
+  branch name. Pass an ID to override.
+- **Common flags:** `--no-move`, `--no-writeback`, `--base ‹branch›`, `--worktree`,
+  `--no-review`, `--no-confirm-branch`, `--no-confirm-pr`. All of them are in the
+  [flag table](docs/usage.md#flags).
+
+---
+
+## 📚 Documentation
+
+| | Page | Covers |
+|:-:|------|--------|
+| 🚀 | [Usage](docs/usage.md) | Pickup steps, flags, creating issues, parallel worktrees, sub-commands |
+| 🤖 | [Batch (`all`)](docs/batch.md) | Triage, workers, review loop, `--auto-merge`, guard hook |
+| ⚙️ | [Configuration](docs/configuration.md) | Config keys with defaults, what lives where, MCP tools used |
+| 🩺 | [Troubleshooting](docs/troubleshooting.md) | Symptoms and fixes, grouped by topic |
 
 ---
 
 ## 🧩 Use it in other agents
 
-The skill folder `skills/youtrack-task/` is a self-contained `SKILL.md` skill, so
-it also runs outside Claude Code (Cursor, GitHub Copilot, Codex CLI, …) and is
-published on [Agensi.io](https://www.agensi.io). What changes there:
+`skills/youtrack-task/` is a self-contained `SKILL.md` skill. It also runs in Cursor,
+GitHub Copilot, Codex CLI and others, and is published on
+[Agensi.io](https://www.agensi.io). What changes there:
 
-1. **Add the YouTrack MCP server to the agent.** Same URL and header as above
-   (`Authorization: Bearer <token>`), configured in that agent's MCP settings —
-   for example `.cursor/mcp.json` or `.vscode/mcp.json`. The plugin's `.mcp.json`
-   only applies to Claude Code.
-2. **Tool names are matched by their base name** (`get_issue`, `update_issue`, …),
-   not by the Claude Code `mcp__youtrack__` prefix.
-3. **Bundled `scripts/` are optional.** If the agent loads the skill without
-   writing them to disk, it falls back to plain in-place git (no worktrees).
+1. **Add the YouTrack MCP server to the agent.** Same URL and header
+   (`Authorization: Bearer <token>`), in that agent's MCP settings, for example
+   `.cursor/mcp.json` or `.vscode/mcp.json`. The plugin's `.mcp.json` only applies to
+   Claude Code.
+2. **Tool names are matched by base name** (`get_issue`, `update_issue`, …), not by
+   the `mcp__youtrack__` prefix.
+3. **Bundled `scripts/` are optional.** Without them on disk the skill falls back to
+   plain in-place git (no worktrees).
 4. **The review gate runs in its weaker mode.** The `ticket-reviewer` agent and the
-   hooks live at plugin level and are not part of the skill folder. The review is
-   stamped `independent=no`, `pr` asks for confirmation, and `all --auto-merge`
-   stays disabled.
+   hooks live at plugin level. The review is stamped `independent=no`, `pr` asks for
+   confirmation, and `all --auto-merge` stays disabled.
 
-The ZIP contains the whole skill folder, so the `reference/*.md` files that
-`SKILL.md` points to travel with it.
-
-Build the upload ZIP yourself with `tools/package-agensi` (output:
-`dist/agensi/youtrack-task.zip`). Pushing a version tag also builds it in CI and attaches it to the GitHub
-Release; the upload to Agensi itself is still manual (no documented API). The skill-level readme is
+The upload ZIP contains the whole skill folder, so the `reference/*.md` files travel
+with it. Build it with `tools/package-agensi` (output: `dist/agensi/youtrack-task.zip`).
+Pushing a version tag also builds it in CI and attaches it to the GitHub Release; the
+upload to Agensi itself is manual. The skill-level readme is
 [`skills/youtrack-task/README.md`](./skills/youtrack-task/README.md).
 
 ---
 
-## 🗂️ What lives where
-
-| Thing                                                                         | Location                                                                  | In this public repo? |
-|-------------------------------------------------------------------------------|---------------------------------------------------------------------------|:--------------------:|
-| YouTrack URL                                                                  | `YOUTRACK_MCP_URL` env var                                                |          🚫          |
-| API token                                                                     | `YOUTRACK_TOKEN` env var                                                  |          🚫          |
-| Which project an issue is in                                                  | encoded in the issue ID (`INFRA-42`)                                      |          🚫          |
-| State names, list query, prefix map, branch-name and PR confirmation, superpowers / review / worktree settings | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
-| The skill + its bundled `scripts/` (workspace setup, worktree sweep/detach, review stamp). `SKILL.md` holds the guardrails and the primary flow; each sub-command's detail sits in `reference/` and is read only when that command runs | `skills/youtrack-task/`                                                   |          ✅          |
-| Review agent (`ticket-reviewer`, used by every flow), `all` worker (`ticket-worker`) and the guard hook | `agents/`, `hooks/guard-subagent` (plugin install only)                   |          ✅          |
-| `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`; review rounds via `review_rounds`) | defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` |   ✅ defaults only   |
-| Logo (`logo.svg` source, transparent `logo.png` export used in the header)     | `assets/`                                                                 |          ✅          |
-| Marketplace upload ZIP (built, not committed)                                 | `dist/agensi/youtrack-task.zip` via `tools/package-agensi`                |          🚫          |
-
----
-
-## 🩺 Troubleshooting
-
-| Symptom                                                              | Fix                                                                                                                                                                                                 |
-|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| "YouTrack MCP server isn't connected"                                | `YOUTRACK_MCP_URL` / `YOUTRACK_TOKEN` not set in the shell that launched Claude Code, or `/mcp` blocked by your proxy. Check `curl -H "Authorization: Bearer $YOUTRACK_TOKEN" "$YOUTRACK_MCP_URL"`. |
-| MCP connects but writes fail with 403                                | The token's user lacks permission on that project, or the token scope is wrong.                                                                                                                     |
-| State change skipped with a warning                                  | The skill couldn't identify the state field from the project schema. Set `in_progress_state` / `testing_state` / `done_state` in the config to match your project's field values.                   |
-| The flow stops after the plan and nothing is implemented            | By design: implementing needs the `--implement` flag (`/youtrack-task ‹ID› --implement`; on an existing worktree it continues from the plan comment on the issue). There is no go-ahead question. |
-| `comment` / `testing` / `done` picked the wrong issue                | A leading token that looks like an issue ID (`PROJ-12`, `P2X-5`) is taken as the issue; anything else is text and the issue comes from the branch name (its first ID match). Pass the ID explicitly when the branch name has several. |
-| Scripts reported as missing (`SCRIPTS=missing`)                      | The skill was loaded without its `scripts/` directory, so it falls back to plain git in place. Install it as a plugin (or copy the whole skill directory) so `‹skill-dir›/scripts/read-config` exists. |
-| "Shall I continue with `<ID>`?" before the pickup although `confirm_branch_name = false` | There is no such question. If an ID does not exist (typo in the project key, say) the skill stops, names the ID and the likely intended one, and you run it again with the right ID. Anything else that asks before the pickup is a bug: report it with the transcript. |
-| Branch name too long                                                 | Slugs are capped; if it's still awkward, rename with `git branch -m`.                                                                                                                               |
-| Asked every time "push and open a PR?" by `pr`                     | Set `confirm_pr = false` in the config, or pass `--no-confirm-pr` for one run. `--confirm-pr` asks again when the config says `false`. The review gate and the other `pr` checks are not affected. |
-| Asked every time whether the branch name is OK                       | Set `confirm_branch_name = false` in the config, or pass `--no-confirm-branch` for one run. `--confirm-branch` asks again when the config says no. Still asked with `false` set? Check that the transcript shows `scripts/read-config` running first, and that the key sits at the top level of the file, not under a `[table]`.                                                                                                                               |
-| "cannot checkout `<branch>` — already checked out at `.worktrees/…`" | The branch lives in a worktree. `/youtrack-task worktree take <ID>` frees it and switches you to it; or just `cd` into that worktree.                                                               |
-| `ERROR=cannot-resolve-base` from the workspace step                  | Neither `origin/<base>` nor a local `<base>` branch exists (typically a typo in `--base`, or a repo with no remote default branch). Fix the name or create/fetch the branch and run again. Before 0.16.2 the branch silently started at the current HEAD instead. |
-| Worktrees piling up                                                  | `/youtrack-task pr` clears merged ones automatically; `/youtrack-task worktree prune` sweeps on demand.                                                                                             |
-| Skill runs in Cursor / Copilot but no YouTrack tools are found       | Add the YouTrack MCP server to that agent's MCP settings (see *Use it in other agents*); the skill matches tool names by base name, so any prefix works.                                           |
-| New issue assigned to you instead of the requested user              | The `--assignee` login / email wasn't found in YouTrack, so `new` fell back to the token's owner (flagged at the confirm step). Check the exact login under YouTrack → Users.                          |
-| Issues still come out in English although you write German            | Almost always a stale plugin: third-party marketplaces don't auto-update. Run `/plugin marketplace update youtrack-task` then `/plugin update youtrack-task@youtrack-task`, restart Claude Code, and check the version under `/plugin`. Enable *Auto-update* for the marketplace in `/plugin` → Marketplaces to stop it recurring. If it persists, name the language in your input ("auf Deutsch") — an explicit instruction always wins. |
-| Issue created in conversation (not via `new`) ended up unassigned or English | The plugin's `create_issue` hook now rejects a call without an Assignee and tells Claude to retry with you as assignee (needs `jq` on your `PATH`; Claude Code only). Update the plugin and restart if you still see it. |
-| `pr` refuses with `FAILED` / asks for a review                       | The review gate is mandatory before a push: the stamped `PASS` must match the current HEAD, so any commit after the review (or uncommitted changes) makes it `STALE` and `pr` reviews again. Open findings (`FAILED`) must be fixed first. To push without a review on purpose use `--no-review`; the PR is then labelled *Review: skipped*. |
-| `all` finds nothing although the repo's project has open tickets    | Fixed in 0.16.1: without IDs, `all` now limits `batch_query` to this repo's project (before, other projects' tickets filled the first 20 results), reads every result page, and treats a project's initial state (e.g. `Submitted`) like `Open`. Update the plugin and restart Claude Code. A `batch_query` with its own `project:` clause is used as written. |
-| `all` says no issue is ready                                         | Every candidate failed triage; the table names the reason per issue (tag in `batch_skip_tags`, no acceptance criteria, open questions, architectural size, unresolved dependency). Fix the issue, drop the tag, or run `/youtrack-task <ID>` interactively. |
-| A worker reports `BLOCKED` / `ESCALATE`                              | It hit ambiguity or architectural scope and stopped on purpose; its question is posted on the issue. Answer it and re-run `all <ID>` (the existing worktree is resumed), or take the issue interactively. |
-| A push or `gh pr create` is blocked with "Blocked by the youtrack-task review gate" | `review_gate_hook = "on"` is set and the exact commit has no review stamp. Run `/youtrack-task pr` (it reviews, then pushes), or waive on purpose with `/youtrack-task pr --no-review`, or set `review_gate_hook = "off"`. |
-| A reviewer command is rejected by the hook (e.g. a Gradle task)     | The reviewer is read-only and runs an allowlist. Gradle is allowed for check tasks by exact name only (`test`, `check`, `lint`, `detekt`, `ktlintCheck`, `spotlessCheck`, `lint(Debug\|Release\|Vital\|VitalRelease)`, `test<Variant>UnitTest`, optionally with a `:module:` path) and the options `--no-daemon`, `--offline`, `--tests <pattern>`, `-x <task>` and a few logging flags. Build, publish and clean tasks, `-D` / `-P`, `-I` / `-b` / `-c`, and globs in option values are denied. Task abbreviations such as `lintF` are denied on purpose (Gradle would expand them to `lintFix`). Needs plugin 0.15.4 or newer. |
-| A worker command or file write is rejected by the hook                             | Working as intended: workers never push or merge, use no network tools and write only inside their worktree; the main session pushes after review. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
-| `all` unavailable when installed as a skill only (e.g. the marketplace ZIP) | The `ticket-worker` / `ticket-reviewer` agents and the guard hook ship with the **plugin**. Without them `all` falls back to sequential work in the main session with a weaker, same-session review. |
-| "There is no project named …" although the project exists           | Fixed in 0.15.1: the skill now searches by repo name first and, if needed, pages through *all* projects (the YouTrack MCP server returns only 20 per page) before claiming a project is missing. Update the plugin (`/plugin marketplace update youtrack-task`, then `/plugin update youtrack-task@youtrack-task`) and restart Claude Code. A project whose name differs from the repo name can always be named with `--project KEY`. |
-| New issue created unassigned                                         | The project has no `Assignee` field, or setting it failed (e.g. the user isn't allowed as assignee in that project). The report says which; assign it in YouTrack.                                   |
-
----
-
-## 🔌 MCP tools used
-
-`get_current_user`, `find_user`, `find_projects`, `get_project`, `search_issues`,
-`get_issue`, `get_issue_fields_schema`, `get_issue_comments`, `create_issue`,
-`update_issue`, `change_issue_assignee`, `add_issue_comment`, `log_work` — all
-from YouTrack's predefined MCP tool set.
-
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. Every behaviour change also updates the
-README, changelog, spec, config example and manual test checklist — see
+Issues and pull requests are welcome. Every behaviour change also updates the docs,
+changelog, spec, config example and manual test checklist. See
 [CONTRIBUTING.md](./CONTRIBUTING.md) for the full checklist.
 
-Every pull request and every push to `main` runs the `ci` workflow: the test
-suites in `tests/`, ShellCheck on the hooks and scripts, a JSON syntax check and a
-check that `plugin.json` and `marketplace.json` have the same version. The release
-workflow runs the same checks before it builds the package. To use `ci` as a
-required check, add it under *Settings → Branches → Branch protection*.
+Every pull request and every push to `main` runs the `ci` workflow:
+
+- the test suites in `tests/`
+- ShellCheck on the hooks and scripts
+- a JSON syntax check
+- a check that `plugin.json` and `marketplace.json` have the same version
+
+The release workflow runs the same checks before it builds the package. To use `ci`
+as a required check, add it under *Settings → Branches → Branch protection*.
 
 ## 📜 Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md). Versioning follows [SemVer](https://semver.org/);
 each release is also a git tag (`vMAJOR.MINOR.PATCH`).
 
----
-
 ## 📄 License
 
 MIT — see [LICENSE](./LICENSE).
+
+---
 
 <div align="center">
 <sub>Issues live in YouTrack, work happens in your editor — without the context-switch tax.</sub>

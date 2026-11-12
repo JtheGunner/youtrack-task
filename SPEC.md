@@ -73,7 +73,12 @@ youtrack-task/
 │   ├── logo.svg             # logo source: dark metallic tile, pink shapes, transparent background
 │   └── logo.png             # 512 px RGBA export of logo.svg, shown in the README header
 ├── config.example.toml      # documents every optional override, dummy values only
-├── README.md                # setup: 2 env vars + token, then /plugin install
+├── README.md                # short entry point: what it does, quick start (2 env vars + token, then /plugin install), cheat sheet, links to docs/
+├── docs/
+│   ├── usage.md             # pickup steps, flags, `new`, parallel worktrees, sub-commands, lifecycle
+│   ├── batch.md             # `all`: triage, workers, review loop, --auto-merge, guard hook
+│   ├── configuration.md     # config keys with defaults, what lives where, MCP tools used
+│   └── troubleshooting.md   # symptoms and fixes, grouped by topic
 ├── LICENSE                  # MIT
 └── SPEC.md                  # this file
 ```

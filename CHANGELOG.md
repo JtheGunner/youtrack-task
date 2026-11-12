@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- **Docs: shorter, scannable README.** `README.md` is now the entry point only: what
+  the plugin does, a five-step quick start, the task flow, a command cheat sheet and
+  links. The detail moved, unchanged in substance, to `docs/usage.md`,
+  `docs/batch.md`, `docs/configuration.md` and `docs/troubleshooting.md` (the
+  troubleshooting table is grouped by topic).
+- `tests/skill-text.sh` reads the *Config overrides* section and the fixed-ladder
+  statement from `docs/`, and checks that the README links every docs page.
+
 ## 0.18.4 — 2026-11-12
 
 - **Docs: end-to-end example.** New `skills/youtrack-task/examples/full-lifecycle.md`
