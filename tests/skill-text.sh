@@ -212,6 +212,15 @@ printf '%s' "$install" | grep -qF 'https://www.agensi.io/skills/youtrack-flow-fo
   && ok "README install step links Agensi and shows the Product Hunt badge" \
   || bad "README install step lacks the Agensi link or the Product Hunt badge"
 
+# 8e. A pipe inside a table row would split the cell and break inline HTML (the Product Hunt
+# badge alt text once did): every README table row must have the same cell count as its header.
+awk '
+  /^\|/ { n=gsub(/(^|[^\\])\|/,"&"); if (!intable) { cols=n; intable=1 } else if (n!=cols) { bad=1; print "row " NR ": " n " pipes, header has " cols } next }
+  { intable=0 }
+  END { exit bad }' "$readme" >/dev/null \
+  && ok "README table rows keep their cell count (no stray pipe in inline HTML)" \
+  || bad "a README table row has a stray pipe (e.g. in an img alt text)"
+
 # 9. Confirmation gates: the invocation authorizes the pickup, and a wrong input
 # never becomes an improvised "Shall I continue?" question.
 flow=$(sed -n '/^## Primary flow/,$p' "$skill/SKILL.md")
