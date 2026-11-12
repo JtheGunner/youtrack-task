@@ -9,11 +9,12 @@ This is a Claude Code plugin. The user-facing behaviour lives in
 Whenever you touch `SKILL.md`, a `reference/*.md`, a `scripts/*`, `.mcp.json`, or
 `config.example.toml`, before committing:
 
-1. **`README.md`** — update the affected section(s). New sub-command → add it to
-   the intro bullets, the *During and after the work* list, and any relevant
-   how-to section + the flags table. New config key → *Config overrides* +
-   *What lives where*. New failure mode → *Troubleshooting*. This is the step
-   that keeps getting missed — check it explicitly, every time.
+1. **`README.md` and `docs/`** — update the affected page(s). New sub-command →
+   the README command table and cheat sheet, plus `docs/usage.md` (and the flags
+   table there). New config key → `docs/configuration.md` (*Config overrides* +
+   *What lives where*). New failure mode → `docs/troubleshooting.md`. Keep the
+   README short: detail goes into `docs/`. This is the step that keeps getting
+   missed — check it explicitly, every time.
 2. **`CHANGELOG.md`** — add an entry under a new version heading (Keep a
    Changelog style, newest first).
 3. **`SPEC.md`** — keep the command surface, flow steps, file tree, and config
@@ -28,7 +29,7 @@ Whenever you touch `SKILL.md`, a `reference/*.md`, a `scripts/*`, `.mcp.json`, o
 
 Consistency to keep: config keys identical across SKILL.md's table,
 `config.example.toml`, and SPEC.md's block; sub-command names identical across
-SKILL.md dispatch table + sections, README, and SPEC.
+SKILL.md dispatch table + sections, README, `docs/` and SPEC.
 
 ## Conventions
 

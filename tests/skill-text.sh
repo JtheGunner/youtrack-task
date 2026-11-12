@@ -175,13 +175,19 @@ grep -qF 'examples/full-lifecycle.md' "$root/README.md" && grep -qF 'full-lifecy
 grep -qiE 'arrays? .*(one line|single line)|single-line arrays' "$root/config.example.toml" \
   && ok "config.example.toml says arrays must be single-line" \
   || bad "config.example.toml does not say that arrays must be single-line"
-grep -qiE 'fixed' "$skill/reference/writeback.md" && grep -qiE 'ladder.*fixed|fixed.*ladder' "$root/README.md" \
-  && ok "the state ladder is documented as fixed (writeback.md, README.md)" \
-  || bad "the state ladder is not documented as fixed in writeback.md and README.md"
+grep -qiE 'fixed' "$skill/reference/writeback.md" && grep -qiE 'ladder.*fixed|fixed.*ladder' "$root/docs/usage.md" \
+  && ok "the state ladder is documented as fixed (writeback.md, docs/usage.md)" \
+  || bad "the state ladder is not documented as fixed in writeback.md and docs/usage.md"
 grep -qE 'git tag' "$root/CONTRIBUTING.md" && ok "CONTRIBUTING.md has the tag step" || bad "CONTRIBUTING.md lacks the tag step"
 for k in list_query local_plan_copy default_new_type; do
-  sed -n '/Config overrides/,/^## /p' "$root/README.md" | grep -qF "$k" \
-    && ok "README Config overrides names $k" || bad "README Config overrides does not name $k"
+  sed -n '/^## Config overrides/,/^---/p' "$root/docs/configuration.md" | grep -qF "$k" \
+    && ok "docs/configuration.md Config overrides names $k" || bad "docs/configuration.md Config overrides does not name $k"
+done
+
+# 8b. The README stays the short entry point and links every docs page.
+for d in usage batch configuration troubleshooting; do
+  [ -f "$root/docs/$d.md" ] && grep -qF "docs/$d.md" "$root/README.md" \
+    && ok "README.md links docs/$d.md" || bad "docs/$d.md is missing or not linked from README.md"
 done
 
 # 9. Confirmation gates: the invocation authorizes the pickup, and a wrong input

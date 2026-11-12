@@ -8,7 +8,8 @@ the approach can be agreed on before you invest time.
 - `skills/youtrack-task/SKILL.md`, its `reference/*.md` and the bundled
   `scripts/*` — the user-facing behaviour.
 - `SPEC.md` — the design and contract document.
-- `README.md` — the user documentation.
+- `README.md` — the short entry point; `docs/` — usage, batch, configuration and
+  troubleshooting in detail.
 - `tests/README.md` — the manual test checklist (there is no mock server).
 
 ## Change checklist
@@ -16,8 +17,9 @@ the approach can be agreed on before you invest time.
 Every behaviour change — anything touching `SKILL.md`, `reference/*.md`,
 `scripts/*`, `.mcp.json` or `config.example.toml` — also updates:
 
-1. **`README.md`** — the affected sections (intro bullets, how-to sections, flags
-   table, *Config overrides*, *What lives where*, *Troubleshooting*).
+1. **`README.md` and `docs/`** — the affected pages (README command table and cheat
+   sheet; `docs/usage.md` with the flags table; `docs/configuration.md` for config
+   keys; `docs/troubleshooting.md` for failure modes).
 2. **`CHANGELOG.md`** — an entry under a new version heading
    ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/), newest first).
 3. **`SPEC.md`** — command surface, flow steps, file tree and config block.
@@ -30,7 +32,7 @@ Every behaviour change — anything touching `SKILL.md`, `reference/*.md`,
 7. **Tag** — `git tag -a vX.Y.Z -m "…"` and push it together with the commit.
 
 Keep config keys and sub-command names identical across `SKILL.md`, `README.md`,
-`SPEC.md` and `config.example.toml`.
+`docs/`, `SPEC.md` and `config.example.toml`.
 
 ## Testing
 
