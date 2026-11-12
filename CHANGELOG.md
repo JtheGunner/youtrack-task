@@ -23,8 +23,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The base branch of `.youtrack-task/reviewer-commands` is resolved from full ref names
   (`refs/remotes/origin/HEAD`, `refs/remotes/origin/main|master`, `refs/heads/main|master`)
   and read by commit id, so a tag named `main` or `origin/main` cannot shadow it. The worker
-  guard also denies `git symbolic-ref` writes, `git remote set-head` and
-  `git branch --force/--move/--copy`.
+  guard also denies `git symbolic-ref` writes, `git remote set-head`, `git replace`,
+  `git fetch` into refs, `git branch --force/--move/--copy` (also abbreviated),
+  `git checkout -B` and `git switch -C`; the lookups ignore replace refs.
 - `read-config` resolves `reviewer_commands` (`REVIEWER_COMMANDS`, entries joined with `;`).
   Tests cover the new built-ins, both extra sources and the self-allowing branch.
 

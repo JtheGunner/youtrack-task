@@ -253,8 +253,10 @@ them → merge **only** with `--auto-merge`.
   user config, and the exact commands of `.youtrack-task/reviewer-commands` as
   committed on the base branch (read with `git show <commit>` from a base resolved by
   full ref name, so neither the branch under review nor a same-named tag can allow
-  commands for its own review; the worker may not repoint `origin/HEAD` or move a
-  branch). A rejected command
+  commands for its own review; lookups ignore replace refs, and the worker may not
+  repoint `origin/HEAD`, move or reset a branch, fetch into refs or use `git replace`).
+  Like the rest of the guard this is a denylist and best effort: the list only counts once
+  merged into the base branch, and branch protection stays the real boundary. A rejected command
   carries `[blocked-by-guard]`; the reviewer reports it as `BLOCKED_BY_GUARD`
   instead of a code finding and the gate returns `BLOCKED` without a fix round or a
   stamp (`reference/reviewer-allowlist.md`).

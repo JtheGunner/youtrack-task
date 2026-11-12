@@ -382,6 +382,22 @@ treason $W "git branch -f main HEAD" "base refs"
 treason $W "git branch -M main" "base refs"
 treason $W "git branch --move main other" "base refs"
 treason $W "git branch --copy main other" "base refs"
+treason $W "git symbolic-ref -m x refs/remotes/origin/HEAD refs/remotes/origin/evil" "base refs"
+treason $W "git symbolic-ref --quiet refs/remotes/origin/HEAD refs/remotes/origin/evil" "base refs"
+treason $W "git replace abc123 def456" "base refs"
+treason $W "git fetch origin evil:refs/heads/main" "base refs"
+treason $W "git fetch origin +refs/heads/x:refs/remotes/origin/main" "base refs"
+treason $W "git checkout -B main" "base refs"
+treason $W "git switch -C main" "base refs"
+treason $W "git switch --force-create main" "base refs"
+treason $W "git branch --forc main HEAD" "base refs"
+treason $W "git branch --mov main other" "base refs"
+treason $W "git branch --cop main other" "base refs"
+t 0 $W "git fetch origin"
+t 0 $W "git checkout -b feat/ABC-1-x"
+t 0 $W "git switch -c feat/ABC-1-x"
+t 0 $W "git switch feat/ABC-1-x"
+t 0 $W "git branch --contains HEAD"
 t 0 $W "git symbolic-ref HEAD"
 t 0 $W "git symbolic-ref --short HEAD"
 t 0 $W "git branch --show-current"
@@ -503,6 +519,9 @@ git -C "$rv" -c user.name=t -c user.email=t@t commit -q -am 'branch adds evil-to
 # Ref shadowing: tags named like the base branch resolve before branches and remote refs
 # when a short name is used. They point at the branch commit, which lists evil-tool.
 git -C "$rv" tag main HEAD && git -C "$rv" tag master HEAD && git -C "$rv" tag origin/main HEAD
+# Replace refs: `git replace` swaps an object for another one in every plain lookup, so the
+# base commit would read as the branch tip (which lists evil-tool). The hook must ignore them.
+git -C "$rv" replace "$(git -C "$rv" rev-list --max-parents=0 refs/heads/main)" HEAD
 printf 'reviewer_commands = ["npm run build:ci", "docker compose run app lint,fast"]\n' > "$fx/reviewer-config.toml"
 
 # tx <expected-exit> <command> <cwd> <config-file> [stderr-substring]
