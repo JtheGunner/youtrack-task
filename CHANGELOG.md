@@ -26,7 +26,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   guard also denies `git symbolic-ref` writes, `git remote set-head`, `git replace`,
   `git fetch` / `git pull` into refs (also `--refmap`), `git branch --force/--move/--copy`
   (also abbreviated), `git checkout -B`, `git switch -C` and `git worktree add -B`, checked on the command with
-  its quote characters removed (and `git -C <quoted dir>` normalised first) so quoting an argument
+  its quote characters removed (and `git -C <dir>` normalised first, the dir read as a whole shell word: quoted, escaped or plain) so quoting an argument
   does not hide it; the lookups ignore replace refs.
 - `read-config` resolves `reviewer_commands` (`REVIEWER_COMMANDS`, entries joined with `;`).
   Tests cover the new built-ins, both extra sources and the self-allowing branch.

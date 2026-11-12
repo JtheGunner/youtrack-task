@@ -407,6 +407,10 @@ treason $W 'git -C "a b c" branch -f main HEAD' "base refs"
 t 2 $W "git -C 'a b' checkout -B main"
 treason $W "git worktree add -B main /tmp/wt" "base refs"
 treason $W "git worktree add --orphan x /tmp/wt" "base refs"
+t 2 $W 'git -C "a"b fetch origin x:refs/heads/main'
+t 2 $W 'git -C a"b c" branch -f main HEAD'
+t 2 $W 'git -C a\ b checkout -B main'
+t 2 $W "git -C 'a'\"b c\"d fetch origin x:refs/heads/main"
 t 0 $W 'git -C "a b c" status'
 t 0 $W "git worktree add -b feat/ABC-1-x /tmp/wt"
 t 0 $W "git worktree list"
