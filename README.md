@@ -353,6 +353,10 @@ override. State moves are forward-only along `Open → In Progress → Testing �
 /youtrack-task done      →  → Done
 ```
 
+A worked walk-through of one issue from `new` to `done`, with the state changes and
+comments each step writes, is in
+[`examples/full-lifecycle.md`](skills/youtrack-task/examples/full-lifecycle.md).
+
 > [!IMPORTANT]
 > `pr` is the only command that pushes — apart from `all`, whose main session
 > pushes the branches of reviewed issues after one confirmation — and it asks

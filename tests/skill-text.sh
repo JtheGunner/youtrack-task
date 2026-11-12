@@ -162,6 +162,14 @@ grep -qF 'moved to Testing.' "$ex/pr.md" && grep -qiE 'review' "$ex/pr.md" \
 grep -qF 'Branch:' "$ex/pickup.md" && grep -qF 'Implementation plan' "$ex/pickup.md" && grep -qiE 'review' "$ex/pickup.md" \
   && ok "examples/pickup.md shows the branch line, the plan comment and the review gate" \
   || bad "examples/pickup.md lacks the branch line, the plan comment or the review gate"
+lc=$ex/full-lifecycle.md
+[ -f "$lc" ] && grep -qF '/youtrack-task new' "$lc" && grep -qF 'Implementation plan' "$lc" \
+  && grep -qF '/youtrack-task pr' "$lc" && grep -qF '/youtrack-task done' "$lc" && grep -qF 'moved to Testing.' "$lc" \
+  && ok "examples/full-lifecycle.md walks new, pickup, plan, pr and done on one issue" \
+  || bad "examples/full-lifecycle.md is missing or lacks new / plan / pr / done / 'moved to Testing.'"
+grep -qF 'examples/full-lifecycle.md' "$root/README.md" && grep -qF 'full-lifecycle.md' "$root/SPEC.md" \
+  && ok "README.md and SPEC.md reference examples/full-lifecycle.md" \
+  || bad "README.md or SPEC.md does not reference examples/full-lifecycle.md"
 
 # 8. Documented limits.
 grep -qiE 'arrays? .*(one line|single line)|single-line arrays' "$root/config.example.toml" \

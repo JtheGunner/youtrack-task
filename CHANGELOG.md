@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.4 — 2026-11-12
+
+- **Docs: end-to-end example.** New `skills/youtrack-task/examples/full-lifecycle.md`
+  follows one issue from `new` through pickup, plan, `--implement`, `pr` and `done`,
+  with the state change and comment each step writes. The README's *The full
+  lifecycle* section links to it, and `SPEC.md` lists it in the file tree.
+- `tests/skill-text.sh` checks that the example exists, covers every step, and is
+  referenced from `README.md` and `SPEC.md`.
+
 ## 0.18.3 — 2026-11-11
 
 - **Fix: no improvised go-ahead question before the pickup.** The rule "the

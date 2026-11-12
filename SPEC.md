@@ -43,7 +43,7 @@ youtrack-task/
 │   └── youtrack-task/
 │       ├── SKILL.md         # guardrails, language, config, dispatch table and the primary flow; user-invocable as /youtrack-task. Per-command detail is loaded from reference/ on demand
 │       ├── README.md        # skill-level readme: requirements, per-agent MCP setup, script ops
-│       ├── examples/        # sample runs: pickup.md, new.md, pr.md
+│       ├── examples/        # sample runs: pickup.md, new.md, pr.md, full-lifecycle.md
 │       ├── scripts/
 │       │   ├── read-config       # step 0 of every invocation: resolve config.toml + defaults as KEY=VALUE; `read-config <key>` prints one value (the only config parser: scripts and hooks call it)
 │       │   ├── setup-workspace   # step 4: worktree-vs-in-place decision + create + bootstrap
