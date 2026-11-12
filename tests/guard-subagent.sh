@@ -374,6 +374,22 @@ treason $W "git commit --am --no-edit" "history"
 treason $W "git reset --har HEAD~1" "history"
 treason $W "git -C /r/wt clean -fd" "history"
 
+echo "# worker: the base refs the reviewer trusts cannot be repointed"
+treason $W "git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/evil" "base refs"
+treason $W "git symbolic-ref -d refs/remotes/origin/HEAD" "base refs"
+treason $W "git remote set-head origin evil" "base refs"
+treason $W "git branch -f main HEAD" "base refs"
+treason $W "git branch -M main" "base refs"
+treason $W "git branch --move main other" "base refs"
+treason $W "git branch --copy main other" "base refs"
+t 0 $W "git symbolic-ref HEAD"
+t 0 $W "git symbolic-ref --short HEAD"
+t 0 $W "git branch --show-current"
+t 0 $W "git branch -a"
+t 0 $W "git branch -vv"
+t 0 $W "git branch feat/ABC-1-x"
+t 0 $W "git remote -v"
+
 echo "# worker: ordinary local git stays allowed"
 t 0 $W "git commit -m 'amend the docs'"
 t 0 $W "git commit -m 'reset --hard is blocked' -m body"
@@ -484,6 +500,9 @@ git -C "$rv" add . && git -C "$rv" -c user.name=t -c user.email=t@t commit -q -m
 git -C "$rv" switch -q -c feat/RV-1-x
 printf '%s\n' 'ddev exec vendor/bin/pest' 'evil-tool --now' >> "$rv/.youtrack-task/reviewer-commands"
 git -C "$rv" -c user.name=t -c user.email=t@t commit -q -am 'branch adds evil-tool'
+# Ref shadowing: tags named like the base branch resolve before branches and remote refs
+# when a short name is used. They point at the branch commit, which lists evil-tool.
+git -C "$rv" tag main HEAD && git -C "$rv" tag master HEAD && git -C "$rv" tag origin/main HEAD
 printf 'reviewer_commands = ["npm run build:ci", "docker compose run app lint,fast"]\n' > "$fx/reviewer-config.toml"
 
 # tx <expected-exit> <command> <cwd> <config-file> [stderr-substring]
@@ -520,6 +539,9 @@ tx 2 "make verify > out.txt" "$rv" "$none"
 echo "# reviewer: the branch under review cannot allow itself (the file is read from the base branch)"
 tx 2 "evil-tool --now" "$rv" "$none" "[blocked-by-guard]"
 tx 2 "evil-tool --now" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+# ... also not through a tag named main / master / origin/main (full ref names are used)
+tx 0 "make verify" "$rv" "$none"
+tx 2 "make verify-evil" "$rv" "$none" "[blocked-by-guard]"
 
 echo "# reviewer: no base branch file, no repo, or a comment line -> built-in and user config only"
 mkdir -p "$fx/rv-empty" && git -C "$fx/rv-empty" init -q -b main && git -C "$fx/rv-empty" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init

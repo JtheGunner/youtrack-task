@@ -251,8 +251,10 @@ them → merge **only** with `--auto-merge`.
   built-in patterns (test, build and lint runners; no write or steering options such
   as `--fix`, `-o`, `-toolexec`), the exact commands of `reviewer_commands` in the
   user config, and the exact commands of `.youtrack-task/reviewer-commands` as
-  committed on the base branch (read with `git show`, never from the branch under
-  review, so a branch cannot allow commands for its own review). A rejected command
+  committed on the base branch (read with `git show <commit>` from a base resolved by
+  full ref name, so neither the branch under review nor a same-named tag can allow
+  commands for its own review; the worker may not repoint `origin/HEAD` or move a
+  branch). A rejected command
   carries `[blocked-by-guard]`; the reviewer reports it as `BLOCKED_BY_GUARD`
   instead of a code finding and the gate returns `BLOCKED` without a fix round or a
   stamp (`reference/reviewer-allowlist.md`).

@@ -20,6 +20,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `[blocked-by-guard]`; the reviewer reports `BLOCKED_BY_GUARD` and the review gate returns
   `BLOCKED` without a fix round, without a stamp, listing the commands and how to allow them.
   Before, "build, lint or CI not checkable" ended as `CHANGES_REQUESTED`.
+- The base branch of `.youtrack-task/reviewer-commands` is resolved from full ref names
+  (`refs/remotes/origin/HEAD`, `refs/remotes/origin/main|master`, `refs/heads/main|master`)
+  and read by commit id, so a tag named `main` or `origin/main` cannot shadow it. The worker
+  guard also denies `git symbolic-ref` writes, `git remote set-head` and
+  `git branch --force/--move/--copy`.
 - `read-config` resolves `reviewer_commands` (`REVIEWER_COMMANDS`, entries joined with `;`).
   Tests cover the new built-ins, both extra sources and the self-allowing branch.
 

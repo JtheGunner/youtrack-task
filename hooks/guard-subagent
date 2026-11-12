@@ -21,7 +21,8 @@
 #                   deletion, `git config` writes (aliases), global git options,
 #                   history rewriting (`commit --amend`, `reset --hard`, `clean`,
 #                   `rebase`, `update-ref`, `filter-branch`, `worktree remove
-#                   --force`), `gh repo|release|secret|pr create`,
+#                   --force`), repointing the base refs the reviewer trusts
+#                   (`symbolic-ref` writes, `remote set-head`, `branch -f/-m/-c`), `gh repo|release|secret|pr create`,
 #                   shell wrappers / `-c` / `eval`, command substitution.
 #   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
 #                   runners with per-command argument limits; no heredocs, no
@@ -325,22 +326,27 @@ gradle_allows() {
 # the checked command word for word (no regex, no prefix):
 #   1. `reviewer_commands` in the user config, resolved by the skill's read-config.
 #   2. `.youtrack-task/reviewer-commands` as committed on the BASE branch: one command
-#      per line, full-line `#` comments. It is read with `git show <base>:<path>`, never
-#      from the working tree, so the branch under review cannot allow commands for itself;
-#      a change to the list has to be merged into the base branch first.
+#      per line, full-line `#` comments. It is read with `git show <base-commit>:<path>`,
+#      never from the working tree, so the branch under review cannot allow commands for
+#      itself; a change to the list has to be merged into the base branch first. The base
+#      is resolved from FULL ref names only (see base_ref), so a tag cannot shadow it.
 # Every deny rule of reviewer_allows (path traversal, --web, ...) still runs before this,
 # and redirections, heredocs, `;`, `&&` and `|` are rejected before a command is compared.
 REVIEWER_COMMANDS_FILE='.youtrack-task/reviewer-commands'
 reviewer_extra_loaded=0
 reviewer_extra_list=""
 
-# Echoes the base branch ref of the repo around $1, or nothing.
+# Echoes the commit id of the base branch of the repo around $1, or nothing. Only FULL ref
+# names are resolved: a short name such as `main` or `origin/main` is matched against tags
+# first, so a tag created in the checkout would shadow the real base branch. Remote-tracking
+# refs win over local branches; `git show` then gets the commit id, not a name.
 base_ref() {
-  local dir=$1 ref
-  ref=$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
-  if [ -n "$ref" ]; then printf '%s' "$ref"; return 0; fi
-  for ref in origin/main origin/master main master; do
-    if git -C "$dir" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1; then printf '%s' "$ref"; return 0; fi
+  local dir=$1 head ref oid
+  head=$(git -C "$dir" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)
+  for ref in "$head" refs/remotes/origin/main refs/remotes/origin/master refs/heads/main refs/heads/master; do
+    case "$ref" in refs/remotes/* | refs/heads/*) ;; *) continue ;; esac
+    oid=$(git -C "$dir" rev-parse --verify --quiet "$ref^{commit}" 2>/dev/null)
+    if [ -n "$oid" ]; then printf '%s' "$oid"; return 0; fi
   done
   return 0
 }
@@ -473,6 +479,10 @@ while IFS= read -r segment; do
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? -[a-zA-Z]*D' && deny "never force-delete a branch."
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? (-[a-zA-Z]*d|--delete)( .*)? (-[a-zA-Z]*f|--force)|^git branch( .*)? (-[a-zA-Z]*f|--force)( .*)? (-[a-zA-Z]*d|--delete)' \
       && deny "never force-delete a branch."
+    # The reviewer reads .youtrack-task/reviewer-commands from the base branch (full ref names), so the
+    # worker must not be able to repoint that base: origin/HEAD, a moved, renamed or copied branch.
+    printf '%s' "$segment" | grep -Eq '^git (symbolic-ref( .*)? (-d|--delete)|symbolic-ref [^ -][^ ]* [^ ]|remote set-head|branch( .*)? (-[a-zA-Z]*[fmMcC]|--force|--move|--copy)( |$))' \
+      && deny "no repointing of base refs (symbolic-ref writes, remote set-head, branch --force / --move / --copy)."
   fi
 done < <(segments "$emptied")
 
