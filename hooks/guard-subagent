@@ -23,7 +23,7 @@
 #                   `rebase`, `update-ref`, `filter-branch`, `worktree remove
 #                   --force`), repointing the base refs the reviewer trusts
 #                   (`symbolic-ref` writes, `remote set-head`, `replace`, `fetch` / `pull` into
-#                   refs, `branch -f/-m/-c`, `checkout -B`, `switch -C`), `gh repo|release|secret|pr create`,
+#                   refs, `branch -f/-m/-c`, `checkout -B`, `switch -C`, `worktree add -B`), `gh repo|release|secret|pr create`,
 #                   shell wrappers / `-c` / `eval`, command substitution.
 #   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
 #                   runners with per-command argument limits; no heredocs, no
@@ -252,6 +252,7 @@ emptied=$(printf '%s\n' "$body" | awk -v mode=empty "$awk_quotes") # content: qu
 clean() {
   printf '%s' "$1" | sed -E 's/git +-C +[^ ;&|]+/git/g; s#&> *(/dev/null)##g; s#[0-9]*>>? *(/dev/null)([ ;&|]|$)#\2#g; s#[0-9]*>&[0-9-]+([ ;\&|]|$)#\1#g'
 }
+premask=$masked   # structure before clean(): the base-refs pass normalises `git -C <dir>` itself, quote-aware
 masked=$(clean "$masked")
 emptied=$(clean "$emptied")
 case "$masked" in *'@@BAD@@'*) deny "no shell comments, \$'...' quoting or unterminated quotes; run plain commands." ;; esac
@@ -486,22 +487,22 @@ done < <(segments "$emptied")
 
 # ---- worker: base refs the reviewer trusts (quote characters removed, content kept) --------
 # The reviewer reads .youtrack-task/reviewer-commands from the base branch, so the worker must not
-# be able to repoint that base: origin/HEAD, a moved, renamed, copied or reset branch, a fetch or
-# pull writing refs, replace objects. This runs on the text with the quote CHARACTERS removed (the
+# be able to repoint that base: origin/HEAD, a moved, renamed, copied or reset branch (also via
+# `worktree add -B`), a fetch or pull writing refs, replace objects. This runs on the text with the quote CHARACTERS removed (the
 # main pass above blanks quoted content, so `git fetch origin "x:refs/heads/main"` would hide there).
 # A denylist cannot be complete (best effort, see the header); the real protection is that the list
 # only counts once merged into the base branch.
-base_refs_re='^git (replace|remote set-head|symbolic-ref|(fetch|pull)( .*)? ([^ ]*:[^ ]*|--refmap[= ])|(checkout|switch)( .*)? (-[a-zA-Z]*[BC]|--force-create|--orphan)( |$)|branch( .*)? (-[a-zA-Z]*[fmMcC]|--(f(o(r(c(e)?)?)?)?|m(o(v(e)?)?)?|c(o(p(y)?)?)?))( |$))'
+base_refs_re='^git (replace|remote set-head|symbolic-ref|(fetch|pull)( .*)? ([^ ]*:[^ ]*|--refmap[= ])|(checkout|switch)( .*)? (-[a-zA-Z]*[BC]|--force-create|--orphan)( |$)|worktree add( .*)? (-[a-zA-Z]*B|--orphan)( |$)|branch( .*)? (-[a-zA-Z]*[fmMcC]|--(f(o(r(c(e)?)?)?)?|m(o(v(e)?)?)?|c(o(p(y)?)?)?))( |$))'
 if [ "$role" = worker ]; then
   while IFS= read -r qsegment; do
     [ -n "$qsegment" ] || continue
-    qsegment=$(printf '%s' "$qsegment" | tr -d "\"'\\\\")
+    qsegment=$(printf '%s' "$qsegment" | sed -E "s/git +-C +(\"[^\"]*\"|'[^']*'|[^ ;&|]+)/git/g" | tr -d "\"'\\\\")
     qsegment=$(strip_assignments "$qsegment") || exit 2
     printf '%s' "$qsegment" | grep -Eq "$base_refs_re" || continue
     # Reading one symbolic ref (`git symbolic-ref [--short] HEAD`) stays allowed.
     printf '%s' "$qsegment" | grep -Eq '^git symbolic-ref( (-q|--quiet|--short|--no-recurse))* [^ -][^ ]*$' \
       || deny "no repointing of base refs (symbolic-ref writes, remote set-head, replace, fetch / pull into refs, branch --force / --move / --copy, checkout -B / switch -C)."
-  done < <(segments "$masked")
+  done < <(segments "$premask")
 fi
 
 exit 0

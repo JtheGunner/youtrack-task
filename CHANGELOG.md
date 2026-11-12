@@ -25,8 +25,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and read by commit id, so a tag named `main` or `origin/main` cannot shadow it. The worker
   guard also denies `git symbolic-ref` writes, `git remote set-head`, `git replace`,
   `git fetch` / `git pull` into refs (also `--refmap`), `git branch --force/--move/--copy`
-  (also abbreviated), `git checkout -B` and `git switch -C`, checked on the command with its
-  quote characters removed so quoting an argument does not hide it; the lookups ignore replace refs.
+  (also abbreviated), `git checkout -B`, `git switch -C` and `git worktree add -B`, checked on the command with
+  its quote characters removed (and `git -C <quoted dir>` normalised first) so quoting an argument
+  does not hide it; the lookups ignore replace refs.
 - `read-config` resolves `reviewer_commands` (`REVIEWER_COMMANDS`, entries joined with `;`).
   Tests cover the new built-ins, both extra sources and the self-allowing branch.
 
