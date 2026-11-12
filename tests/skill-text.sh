@@ -133,6 +133,13 @@ max_review_lines=130
 rl=$(wc -l < "$review" | tr -d ' ')
 [ "$rl" -le "$max_review_lines" ] && ok "review.md has $rl lines (max $max_review_lines)" \
   || bad "review.md has $rl lines, max $max_review_lines"
+# Reviewer allowlist: review.md points to the reference that holds the details.
+allow=$skill/reference/reviewer-allowlist.md
+grep -qF 'reference/reviewer-allowlist.md' "$review" && ok "review.md points to reviewer-allowlist.md" \
+  || bad "review.md does not point to reference/reviewer-allowlist.md"
+if [ -f "$allow" ] && grep -qF 'reviewer_commands' "$allow" && grep -qF '.youtrack-task/reviewer-commands' "$allow" \
+  && grep -qF 'BLOCKED' "$allow"; then ok "reviewer-allowlist.md names reviewer_commands, the repo file and BLOCKED"
+else bad "reviewer-allowlist.md is missing or lacks reviewer_commands / .youtrack-task/reviewer-commands / BLOCKED"; fi
 for h in '^## Stamp contract' '^## Enforcement hook'; do
   grep -qE "$h" "$review" && bad "review.md still has section $h (belongs in SPEC.md)" \
     || ok "section not in review.md: $h"

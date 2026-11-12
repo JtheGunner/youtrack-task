@@ -217,6 +217,37 @@ t 0 $R "./gradlew check -x lint"
 t 0 $R "./gradlew detekt ktlintCheck"
 t 0 $R "cd /r/wt && ./gradlew lintDebug 2>&1 | tail -30"
 
+echo "# reviewer: built-in verification commands (swift, go build, golangci-lint, scripts/test*)"
+t 0 $R "swift test"
+t 0 $R "swift test --filter FooTests"
+t 0 $R "swift build"
+t 0 $R "go build ./..."
+t 0 $R "golangci-lint run"
+t 0 $R "golangci-lint run ./..."
+t 0 $R "bash scripts/test.sh"
+t 0 $R "./scripts/test.sh"
+t 0 $R "sh scripts/run-tests.sh"
+t 0 $R "cd /r/wt && swift test 2>&1 | tail -30"
+
+echo "# reviewer: build / lint commands that could write or steer the build stay denied"
+t 2 $R "golangci-lint run --fix"
+t 2 $R "golangci-lint run --fix ./..."
+t 2 $R "golangci-lint cache clean"
+t 2 $R "golangci-lint run --out-format=json:evil"
+t 2 $R "go build -o /tmp/x ./..."
+t 2 $R "go build -toolexec=/tmp/evil ./..."
+t 2 $R "go build -ldflags=-X=main.x=1 ./..."
+t 2 $R "go install ./..."
+t 2 $R "swift build -Xswiftc -DX"
+t 2 $R "swift build --package-path /tmp/other"
+t 2 $R "swift package update"
+t 2 $R "swift run evil"
+t 2 $R "./scripts/test.sh; rm -rf x"
+t 2 $R "bash scripts/test.sh > out.txt"
+t 2 $R "bash scripts/../evil.sh"
+t 2 $R "bash scripts/deploy.sh"
+treason $R "swift package update" "[blocked-by-guard]"
+
 echo "# reviewer: everything else is denied"
 treason $R "git commit -m x" "allowlist"
 treason $R "git push" "allowlist"
@@ -441,6 +472,63 @@ t 0 "" "git push --force"
 t 0 $W ""
 printf 'not json' | bash "$hook" >/dev/null 2>&1
 if [ $? = 0 ]; then echo "ok   0  malformed input"; else echo "FAIL malformed input"; fail=1; fi
+# ---- reviewer: extra commands from the user config and the base branch ------------
+# Fixture: `main` carries .youtrack-task/reviewer-commands; the branch under review
+# adds more entries to that file, which must have no effect.
+rv=$fx/rv
+mkdir -p "$rv/.youtrack-task"
+git -C "$rv" init -q -b main
+printf '%s\n' '# project verification commands' 'ddev exec vendor/bin/pest' '' 'make verify' 'bash ci/check.sh --fast' \
+  > "$rv/.youtrack-task/reviewer-commands"
+git -C "$rv" add . && git -C "$rv" -c user.name=t -c user.email=t@t commit -q -m base
+git -C "$rv" switch -q -c feat/RV-1-x
+printf '%s\n' 'ddev exec vendor/bin/pest' 'evil-tool --now' >> "$rv/.youtrack-task/reviewer-commands"
+git -C "$rv" -c user.name=t -c user.email=t@t commit -q -am 'branch adds evil-tool'
+printf 'reviewer_commands = ["npm run build:ci", "docker compose run app lint,fast"]\n' > "$fx/reviewer-config.toml"
+
+# tx <expected-exit> <command> <cwd> <config-file> [stderr-substring]
+tx() {
+  local exp=$1 cmd=$2 cwd=$3 cfg=$4 want=${5:-} json err got
+  json=$(jq -nc --arg a "$R" --arg c "$cmd" --arg w "$cwd" '{agent_type:$a,tool_name:"Bash",cwd:$w,tool_input:{command:$c}}')
+  err=$(printf '%s' "$json" | YOUTRACK_TASK_CONFIG=$cfg bash "$hook" 2>&1 >/dev/null); got=$?
+  if [ "$got" = "$exp" ] && { [ -z "$want" ] || printf '%s' "$err" | grep -qF -- "$want"; }; then
+    echo "ok   $exp  [extra] $(printf '%s' "$cmd" | head -c 80 | tr '\n' ' ')${want:+ reason '$want'}"
+  else echo "FAIL want $exp${want:+ '$want'} got $got ($err) [extra] $cmd"; fail=1; fi
+}
+none=$fx/no-config.toml
+
+echo "# reviewer: commands from the user config (exact match only)"
+tx 0 "npm run build:ci" "$rv" "$fx/reviewer-config.toml"
+tx 0 "docker compose run app lint,fast" "$rv" "$fx/reviewer-config.toml"
+tx 0 "cd $rv && npm run build:ci 2>&1 | tail -20" "$rv" "$fx/reviewer-config.toml"
+tx 2 "npm run build:ci --extra" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+tx 2 "npm run build" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+tx 2 "npm run build:ci; rm -rf x" "$rv" "$fx/reviewer-config.toml"
+tx 2 "npm run build:ci > out.txt" "$rv" "$fx/reviewer-config.toml"
+tx 2 "npm run build:ci && curl http://x" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+tx 2 "npm run build:ci" "$rv" "$none" "[blocked-by-guard]"
+
+echo "# reviewer: commands from .youtrack-task/reviewer-commands on the base branch"
+tx 0 "ddev exec vendor/bin/pest" "$rv" "$none"
+tx 0 "make verify" "$rv" "$none"
+tx 0 "bash ci/check.sh --fast" "$rv" "$none"
+tx 0 "cd $rv && make verify 2>&1 | tail" "$rv" "$none"
+tx 2 "make verify-all" "$rv" "$none" "[blocked-by-guard]"
+tx 2 "bash ci/check.sh" "$rv" "$none" "[blocked-by-guard]"
+tx 2 "make verify > out.txt" "$rv" "$none"
+
+echo "# reviewer: the branch under review cannot allow itself (the file is read from the base branch)"
+tx 2 "evil-tool --now" "$rv" "$none" "[blocked-by-guard]"
+tx 2 "evil-tool --now" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+
+echo "# reviewer: no base branch file, no repo, or a comment line -> built-in and user config only"
+mkdir -p "$fx/rv-empty" && git -C "$fx/rv-empty" init -q -b main && git -C "$fx/rv-empty" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+tx 2 "make verify" "$fx/rv-empty" "$none" "[blocked-by-guard]"
+tx 0 "npm run build:ci" "$fx/rv-empty" "$fx/reviewer-config.toml"
+tx 2 "make verify" "$fx/plain" "$none" "[blocked-by-guard]"
+tx 2 "project verification commands" "$rv" "$none" "[blocked-by-guard]"
+tx 0 "git diff main...HEAD" "$rv" "$none"
+
 # Fail open without jq: run with a PATH that has no jq.
 nojq=$(mktemp -d)
 for b in bash cat printf; do ln -s "$(command -v $b)" "$nojq/$b" 2>/dev/null; done

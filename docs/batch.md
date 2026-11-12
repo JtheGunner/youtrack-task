@@ -44,7 +44,10 @@ One command instead of briefing the agent by hand. Back to the
   issue, its acceptance criteria and the diff, never the worker's report or
   reasoning, and re-runs the tests itself.
 - `CHANGES_REQUESTED` triggers a fix and a *new* reviewer, up to `review_rounds`
-  (default 2). Then the issue is handed back to you.
+  (default 2). Then the issue is handed back to you. If the reviewer was blocked by the
+  guard (a command it needed is not on its allowlist), the issue is handed back at once,
+  without a fix round, with the commands listed — see
+  [Troubleshooting](troubleshooting.md), section *Hooks*.
 
 ### 4. Report and PRs
 

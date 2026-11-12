@@ -25,7 +25,9 @@
 #                   shell wrappers / `-c` / `eval`, command substitution.
 #   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
 #                   runners with per-command argument limits; no heredocs, no
-#                   output redirection into files.
+#                   output redirection into files. Extra whole commands come from
+#                   `reviewer_commands` (user config) and `.youtrack-task/reviewer-commands`
+#                   on the base branch, matched exactly (see reviewer_extra_allows).
 #
 # Quoted text is data: separators and `>` inside quotes are masked before the
 # command is split, heredoc bodies are dropped, and words inside quotes never
@@ -318,6 +320,62 @@ gradle_allows() {
   [ "$expect_value" = 0 ] && [ "$seen_task" = 1 ]
 }
 
+# ---- reviewer: project-specific verification commands (exact match) ------------
+# Two sources extend the built-in allowlist, each entry a WHOLE command that must equal
+# the checked command word for word (no regex, no prefix):
+#   1. `reviewer_commands` in the user config, resolved by the skill's read-config.
+#   2. `.youtrack-task/reviewer-commands` as committed on the BASE branch: one command
+#      per line, full-line `#` comments. It is read with `git show <base>:<path>`, never
+#      from the working tree, so the branch under review cannot allow commands for itself;
+#      a change to the list has to be merged into the base branch first.
+# Every deny rule of reviewer_allows (path traversal, --web, ...) still runs before this,
+# and redirections, heredocs, `;`, `&&` and `|` are rejected before a command is compared.
+REVIEWER_COMMANDS_FILE='.youtrack-task/reviewer-commands'
+reviewer_extra_loaded=0
+reviewer_extra_list=""
+
+# Echoes the base branch ref of the repo around $1, or nothing.
+base_ref() {
+  local dir=$1 ref
+  ref=$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
+  if [ -n "$ref" ]; then printf '%s' "$ref"; return 0; fi
+  for ref in origin/main origin/master main master; do
+    if git -C "$dir" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1; then printf '%s' "$ref"; return 0; fi
+  done
+  return 0
+}
+
+# One entry per line, normalised like a checked command: no quotes or backslashes, single spaces.
+normalize_entries() {
+  tr -d '\r' | sed -E "s/[\"'\\\\]//g; s/[[:space:]]+/ /g; s/^ //; s/ \$//" | grep -v '^$'
+}
+
+load_reviewer_extra() {
+  local cwd_dir base config_file
+  config_file="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-task/scripts/read-config"
+  if [ -x "$config_file" ]; then
+    "$config_file" reviewer_commands 2>/dev/null | tr ';' '\n' | normalize_entries
+  fi
+  cwd_dir=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+  [ -n "$cwd_dir" ] || cwd_dir=$PWD
+  base=$(base_ref "$cwd_dir")
+  [ -n "$base" ] || return 0
+  git -C "$cwd_dir" show "$base:$REVIEWER_COMMANDS_FILE" 2>/dev/null | grep -v '^[[:space:]]*#' | normalize_entries
+}
+
+reviewer_extra_allows() {
+  local checked=$1 entry
+  if [ "$reviewer_extra_loaded" = 0 ]; then
+    reviewer_extra_loaded=1
+    reviewer_extra_list=$(load_reviewer_extra)
+  fi
+  [ -n "$reviewer_extra_list" ] || return 1
+  while IFS= read -r entry; do
+    [ "$entry" = "$checked" ] && return 0
+  done <<< "$reviewer_extra_list"
+  return 1
+}
+
 reviewer_allows() {
   # Quotes and backslashes are removed first so they cannot hide an option.
   local s
@@ -341,7 +399,14 @@ reviewer_allows() {
   printf '%s' "$s" | grep -Eq '^sed -n [0-9$,]+p( [^ -][^ ]*)*$' && return 0
   printf '%s' "$s" | grep -Eq '^(npm|pnpm|yarn|bun) (test|run (test|lint|typecheck|check)[a-z:-]*)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^npx (--no-install )?(jest|vitest|tsc|eslint|playwright test)( |$)' && return 0
+  # Build and lint without write or steering options: no -o / -toolexec / -ldflags / --fix / -Xswiftc /
+  # --package-path, no single-package `go build` (it would drop a binary into the checkout).
+  printf '%s' "$s" | grep -Eq '^swift (test|build)( (--filter|--skip|--configuration|-c) [A-Za-z0-9_./:#-]+| --parallel| --no-parallel| --verbose| -v| --enable-code-coverage)*$' && return 0
+  printf '%s' "$s" | grep -Eq '^go build \./\.\.\.$' && return 0
+  printf '%s' "$s" | grep -Eq '^golangci-lint run( -v| --timeout[= ][0-9]+[smh]| \./[A-Za-z0-9_./-]*)*$' && return 0
+  printf '%s' "$s" | grep -Eq '^((bash|sh) )?(\./)?scripts/[A-Za-z0-9._-]*test[A-Za-z0-9._-]*( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^((php )?(\./)?vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|pytest|python3? -m pytest|ruff check|eslint|php -l|phpunit|pest|phpstan|php artisan test|composer (test|run(-script)? (test|lint|analyse|check)[a-z:-]*)|go (test|vet)|cargo (test|clippy|check)|make( -[a-zA-Z]+)* (test|check|lint)|ctest|mvn( -[a-zA-Z]+)* test|dotnet test|bats|shellcheck|bash -n|(bash|sh) (\./)?tests?/[A-Za-z0-9._/-]+)( |$)' && return 0
+  reviewer_extra_allows "$s" && return 0
   return 1
 }
 
@@ -364,7 +429,7 @@ while IFS= read -r segment; do
 
   if [ "$role" = reviewer ]; then
     reviewer_allows "$segment" \
-      || deny "the reviewer is read-only; '$segment' is not on its allowlist (inspect with git diff / grep / cat, run the project's tests)."
+      || deny "[blocked-by-guard] the reviewer is read-only; '$segment' is not on its allowlist (inspect with git diff / grep / cat, run the project's tests). Report it as blocked-by-guard, not as a code finding."
     continue
   fi
 
