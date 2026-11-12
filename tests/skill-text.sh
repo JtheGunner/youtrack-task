@@ -197,6 +197,14 @@ for d in usage batch configuration troubleshooting other-agents; do
     && ok "README.md links docs/$d.md" || bad "docs/$d.md is missing or not linked from README.md"
 done
 
+# 8b2. The README makes the reviewer's extra commands findable and links the docs section that
+# holds the detail; that anchor is the heading of the section in docs/configuration.md.
+anchor='docs/configuration.md#letting-the-reviewer-run-more'
+grep -qF "$anchor" "$root/README.md" && grep -qF '.youtrack-task/reviewer-commands' "$root/README.md" \
+  && grep -qE '^### Letting the reviewer run more$' "$root/docs/configuration.md" \
+  && ok "README points to the reviewer commands section of docs/configuration.md" \
+  || bad "README does not link $anchor, does not name .youtrack-task/reviewer-commands, or the docs heading is gone"
+
 # 8c. The README says up front that the tool is not Claude-Code-only, and links
 # the listings (Agensi, Product Hunt).
 readme="$root/README.md"
