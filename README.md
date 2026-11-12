@@ -69,6 +69,7 @@ Pick the route that matches your agent:
 |:--:|-------|-----|
 | 🟣 | **Claude Code** | Plugin: the steps right below. Gives you every feature. |
 | 📦 | **Agensi** | Get the skill from the [Agensi listing](https://www.agensi.io/skills/youtrack-flow-for-ai-agents), then add the YouTrack MCP server to your agent. |
+| 🚀 | **Product Hunt** | Find the product on [Product Hunt](https://www.producthunt.com/products/youtrack-task) and follow its links: <a href="https://www.producthunt.com/products/youtrack-task?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-youtrack-flow-for-ai-agents" target="_blank" rel="noopener noreferrer"><img alt="YouTrack Flow for AI Agents | Product Hunt" width="125" height="27" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1313575&amp;theme=dark&amp;t=1794499989612"></a> |
 | 🧩 | **Cursor, Copilot, Codex, others** | Skill folder plus the YouTrack MCP server in the agent's MCP settings: [Other agents](docs/other-agents.md). |
 
 **Claude Code plugin.** Export two environment variables in your shell startup

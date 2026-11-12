@@ -11,8 +11,9 @@ talk to an MCP server. It is also listed on
 ## Install
 
 1. **Get the skill folder.** Download it from the
-   [Agensi listing](https://www.agensi.io/skills/youtrack-flow-for-ai-agents), or copy
-   `skills/youtrack-task/` from this repository, into the place your agent loads
+   [Agensi listing](https://www.agensi.io/skills/youtrack-flow-for-ai-agents) (also
+   reachable from the [Product Hunt page](https://www.producthunt.com/products/youtrack-task)),
+   or copy `skills/youtrack-task/` from this repository, into the place your agent loads
    skills from. Keep the whole folder: `SKILL.md` reads the `reference/*.md` files
    next to it.
 2. **Create an API token** in YouTrack (*Profile → Account Security → New token*,

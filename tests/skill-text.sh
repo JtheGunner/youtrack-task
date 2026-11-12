@@ -204,6 +204,14 @@ grep -qF 'https://www.producthunt.com/products/youtrack-task' "$readme" \
   && ok "README shows the Product Hunt badge linked to the product" \
   || bad "README is missing the Product Hunt badge or its link"
 
+# 8d. The install step itself offers both marketplaces as alternatives.
+install=$(sed -n '/^### 3\. Install/,/^### 4\./p' "$readme")
+printf '%s' "$install" | grep -qF 'https://www.agensi.io/skills/youtrack-flow-for-ai-agents' \
+  && printf '%s' "$install" | grep -qF 'https://www.producthunt.com/products/youtrack-task' \
+  && printf '%s' "$install" | grep -qF 'api.producthunt.com/widgets/embed-image/v1/featured.svg' \
+  && ok "README install step links Agensi and shows the Product Hunt badge" \
+  || bad "README install step lacks the Agensi link or the Product Hunt badge"
+
 # 9. Confirmation gates: the invocation authorizes the pickup, and a wrong input
 # never becomes an improvised "Shall I continue?" question.
 flow=$(sed -n '/^## Primary flow/,$p' "$skill/SKILL.md")
