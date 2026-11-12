@@ -185,10 +185,24 @@ for k in list_query local_plan_copy default_new_type; do
 done
 
 # 8b. The README stays the short entry point and links every docs page.
-for d in usage batch configuration troubleshooting; do
+for d in usage batch configuration troubleshooting other-agents; do
   [ -f "$root/docs/$d.md" ] && grep -qF "docs/$d.md" "$root/README.md" \
     && ok "README.md links docs/$d.md" || bad "docs/$d.md is missing or not linked from README.md"
 done
+
+# 8c. The README says up front that the tool is not Claude-Code-only, and links
+# the listings (Agensi, Product Hunt).
+readme="$root/README.md"
+head_block=$(sed -n '1,/^---$/p' "$readme")
+printf '%s' "$head_block" | grep -qiE 'any (MCP-capable )?(AI )?agent' \
+  && ok "README header says the tool works with other AI agents" \
+  || bad "README header does not say the tool works with other AI agents"
+grep -qF 'https://www.agensi.io/skills/youtrack-flow-for-ai-agents' "$readme" \
+  && ok "README links the Agensi listing" || bad "README does not link the Agensi listing"
+grep -qF 'https://www.producthunt.com/products/youtrack-task' "$readme" \
+  && grep -qF 'api.producthunt.com/widgets/embed-image/v1/featured.svg' "$readme" \
+  && ok "README shows the Product Hunt badge linked to the product" \
+  || bad "README is missing the Product Hunt badge or its link"
 
 # 9. Confirmation gates: the invocation authorizes the pickup, and a wrong input
 # never becomes an improvised "Shall I continue?" question.

@@ -78,6 +78,7 @@ youtrack-task/
 │   ├── usage.md             # pickup steps, flags, `new`, parallel worktrees, sub-commands, lifecycle
 │   ├── batch.md             # `all`: triage, workers, review loop, --auto-merge, guard hook
 │   ├── configuration.md     # config keys with defaults, what lives where, MCP tools used
+│   ├── other-agents.md      # Cursor / Copilot / Codex / Agensi: MCP setup, what differs
 │   └── troubleshooting.md   # symptoms and fixes, grouped by topic
 ├── LICENSE                  # MIT
 └── SPEC.md                  # this file
