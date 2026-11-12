@@ -63,7 +63,7 @@ Scope: **YouTrack**. Copy the `perm:...` value.
 
 ### 2. Export two environment variables
 
-Put these in your shell startup (`~/.zshrc`, omnishell module, etc.):
+Put these in your shell startup (`~/.zshrc`, `~/.bashrc`):
 
 ```sh
 export YOUTRACK_MCP_URL="https://youtrack.example.com/mcp"
