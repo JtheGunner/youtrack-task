@@ -22,7 +22,7 @@
 #                   history rewriting (`commit --amend`, `reset --hard`, `clean`,
 #                   `rebase`, `update-ref`, `filter-branch`, `worktree remove
 #                   --force`), repointing the base refs the reviewer trusts
-#                   (`symbolic-ref` writes, `remote set-head`, `replace`, `fetch` into
+#                   (`symbolic-ref` writes, `remote set-head`, `replace`, `fetch` / `pull` into
 #                   refs, `branch -f/-m/-c`, `checkout -B`, `switch -C`), `gh repo|release|secret|pr create`,
 #                   shell wrappers / `-c` / `eval`, command substitution.
 #   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
@@ -481,17 +481,27 @@ while IFS= read -r segment; do
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? -[a-zA-Z]*D' && deny "never force-delete a branch."
     printf '%s' "$segment" | grep -Eq '^git branch( .*)? (-[a-zA-Z]*d|--delete)( .*)? (-[a-zA-Z]*f|--force)|^git branch( .*)? (-[a-zA-Z]*f|--force)( .*)? (-[a-zA-Z]*d|--delete)' \
       && deny "never force-delete a branch."
-    # The reviewer reads .youtrack-task/reviewer-commands from the base branch, so the worker must
-    # not be able to repoint that base: origin/HEAD, a moved, renamed, copied or reset branch, a
-    # fetch writing refs, replace objects. A denylist cannot be complete (best effort, see the
-    # header); the real protection is that the list only counts once merged into the base.
-    base_refs_re='^git (replace|remote set-head|symbolic-ref|fetch( .*)? [^ ]*:[^ ]*|(checkout|switch)( .*)? (-[a-zA-Z]*[BC]|--force-create|--orphan)( |$)|branch( .*)? (-[a-zA-Z]*[fmMcC]|--(f(o(r(c(e)?)?)?)?|m(o(v(e)?)?)?|c(o(p(y)?)?)?))( |$))'
-    if printf '%s' "$segment" | grep -Eq "$base_refs_re"; then
-      # Reading one symbolic ref (`git symbolic-ref [--short] HEAD`) stays allowed.
-      printf '%s' "$segment" | grep -Eq '^git symbolic-ref( (-q|--quiet|--short|--no-recurse))* [^ -][^ ]*$' \
-        || deny "no repointing of base refs (symbolic-ref writes, remote set-head, replace, fetch into refs, branch --force / --move / --copy, checkout -B / switch -C)."
-    fi
   fi
 done < <(segments "$emptied")
+
+# ---- worker: base refs the reviewer trusts (quote characters removed, content kept) --------
+# The reviewer reads .youtrack-task/reviewer-commands from the base branch, so the worker must not
+# be able to repoint that base: origin/HEAD, a moved, renamed, copied or reset branch, a fetch or
+# pull writing refs, replace objects. This runs on the text with the quote CHARACTERS removed (the
+# main pass above blanks quoted content, so `git fetch origin "x:refs/heads/main"` would hide there).
+# A denylist cannot be complete (best effort, see the header); the real protection is that the list
+# only counts once merged into the base branch.
+base_refs_re='^git (replace|remote set-head|symbolic-ref|(fetch|pull)( .*)? ([^ ]*:[^ ]*|--refmap[= ])|(checkout|switch)( .*)? (-[a-zA-Z]*[BC]|--force-create|--orphan)( |$)|branch( .*)? (-[a-zA-Z]*[fmMcC]|--(f(o(r(c(e)?)?)?)?|m(o(v(e)?)?)?|c(o(p(y)?)?)?))( |$))'
+if [ "$role" = worker ]; then
+  while IFS= read -r qsegment; do
+    [ -n "$qsegment" ] || continue
+    qsegment=$(printf '%s' "$qsegment" | tr -d "\"'\\\\")
+    qsegment=$(strip_assignments "$qsegment") || exit 2
+    printf '%s' "$qsegment" | grep -Eq "$base_refs_re" || continue
+    # Reading one symbolic ref (`git symbolic-ref [--short] HEAD`) stays allowed.
+    printf '%s' "$qsegment" | grep -Eq '^git symbolic-ref( (-q|--quiet|--short|--no-recurse))* [^ -][^ ]*$' \
+      || deny "no repointing of base refs (symbolic-ref writes, remote set-head, replace, fetch / pull into refs, branch --force / --move / --copy, checkout -B / switch -C)."
+  done < <(segments "$masked")
+fi
 
 exit 0

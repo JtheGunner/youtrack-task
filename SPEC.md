@@ -254,7 +254,7 @@ them → merge **only** with `--auto-merge`.
   committed on the base branch (read with `git show <commit>` from a base resolved by
   full ref name, so neither the branch under review nor a same-named tag can allow
   commands for its own review; lookups ignore replace refs, and the worker may not
-  repoint `origin/HEAD`, move or reset a branch, fetch into refs or use `git replace`).
+  repoint `origin/HEAD`, move or reset a branch, fetch / pull into refs or use `git replace`).
   Like the rest of the guard this is a denylist and best effort: the list only counts once
   merged into the base branch, and branch protection stays the real boundary. A rejected command
   carries `[blocked-by-guard]`; the reviewer reports it as `BLOCKED_BY_GUARD`
