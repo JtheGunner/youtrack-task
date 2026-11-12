@@ -5,15 +5,18 @@
 # YouTrack Flow for AI Agents
 
 **Work JetBrains YouTrack issues without leaving your repo.**
-Capture, pick up, branch, plan, open the PR, and walk the state ladder — all from inside Claude Code.
+Capture, pick up, branch, plan, open the PR, and walk the state ladder — all from inside
+Claude Code or any MCP-capable AI agent.
 
 <code>📥 capture</code> &nbsp;→&nbsp; <code>🌿 branch + plan</code> &nbsp;→&nbsp; <code>🚀 PR</code> &nbsp;→&nbsp; <code>✅ done</code>
 
 ![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)
-![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-8b5cf6?style=flat-square)
+![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20Codex%20%C2%B7%20Copilot-8b5cf6?style=flat-square)
 ![YouTrack](https://img.shields.io/badge/YouTrack-2025.3%2B-0ea5e9?style=flat-square)
 ![Transport](https://img.shields.io/badge/transport-MCP-3776ab?style=flat-square)
 ![Versioning](https://img.shields.io/badge/versioning-SemVer-f59e0b?style=flat-square)
+
+<a href="https://www.producthunt.com/products/youtrack-task?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-youtrack-flow-for-ai-agents" target="_blank" rel="noopener noreferrer"><img alt="YouTrack Flow for AI Agents - Work JetBrains YouTrack issues without leaving your repo. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1313575&amp;theme=dark&amp;t=1794499989612"></a>
 
 </div>
 
@@ -21,9 +24,11 @@ Capture, pick up, branch, plan, open the PR, and walk the state ladder — all f
 
 ## ✨ What it does
 
-A Claude Code plugin that works [JetBrains YouTrack](https://www.jetbrains.com/youtrack/)
-issues from inside any project repo. No PhpStorm YouTrack plugin needed: it talks to
-YouTrack's own remote MCP server.
+Works [JetBrains YouTrack](https://www.jetbrains.com/youtrack/) issues from inside any
+project repo. It is a **Claude Code plugin** and a portable `SKILL.md` **agent skill**:
+the same workflow runs in Cursor, GitHub Copilot, Codex CLI and other MCP-capable
+agents. No PhpStorm YouTrack plugin needed: it talks to YouTrack's own remote MCP
+server.
 
 |    | Command | What it does |
 |:--:|---------|--------------|
@@ -39,7 +44,8 @@ YouTrack's own remote MCP server.
 
 ### 1. Check the requirements
 
-- Claude Code with plugin support
+- An AI agent that can use MCP servers: Claude Code (plugin route) or another agent
+  (skill route, see step 3)
 - YouTrack **2025.3+** (Cloud or Server) with the remote MCP server at `https://<your-host>/mcp`
 - `git` on your `PATH`
 - `jq` on your `PATH` — needed for the hook protections; the skill itself works without it
@@ -55,26 +61,38 @@ YouTrack's own remote MCP server.
 YouTrack → your avatar → **Profile** → **Account Security** → **New token**.
 Scope: **YouTrack**. Copy the `perm:...` value.
 
-### 3. Export two environment variables
+### 3. Install
 
-Put them in your shell startup (`~/.zshrc`, `~/.bashrc`), then open a new shell and start
-Claude Code from there:
+Pick the route that matches your agent:
+
+|    | Route | How |
+|:--:|-------|-----|
+| 🟣 | **Claude Code** | Plugin: the steps right below. Gives you every feature. |
+| 📦 | **Agensi** | Get the skill from the [Agensi listing](https://www.agensi.io/skills/youtrack-flow-for-ai-agents), then add the YouTrack MCP server to your agent. |
+| 🚀 | **Product Hunt** | Find the product on [Product Hunt](https://www.producthunt.com/products/youtrack-task) and follow its links: <a href="https://www.producthunt.com/products/youtrack-task?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-youtrack-flow-for-ai-agents" target="_blank" rel="noopener noreferrer"><img alt="YouTrack Flow for AI Agents on Product Hunt" width="125" height="27" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1313575&amp;theme=dark&amp;t=1794499989612"></a> |
+| 🧩 | **Cursor, Copilot, Codex, others** | Skill folder plus the YouTrack MCP server in the agent's MCP settings: [Other agents](docs/other-agents.md). |
+
+**Claude Code plugin.** Export two environment variables in your shell startup
+(`~/.zshrc`, `~/.bashrc`), open a new shell and start Claude Code from there:
 
 ```sh
 export YOUTRACK_MCP_URL="https://youtrack.example.com/mcp"
 export YOUTRACK_TOKEN="perm:xxxxxxxxxxxxxxxxxxxx"
 ```
 
-### 4. Install the plugin
+Then install the plugin and restart Claude Code. `/mcp` should now list the `youtrack`
+tools.
 
 ```text
 /plugin marketplace add JtheGunner/youtrack-task
 /plugin install youtrack-task@youtrack-task
 ```
 
-Restart Claude Code. `/mcp` should now list the `youtrack` tools.
+> [!NOTE]
+> Outside Claude Code the review gate runs in its weaker, non-independent mode and
+> `all --auto-merge` stays off. Details in [Other agents](docs/other-agents.md).
 
-### 5. Try it
+### 4. Try it
 
 ```text
 /youtrack-task                 # list your Open / In Progress issues and pick one
@@ -150,33 +168,20 @@ On pickup the plugin:
 | 🚀 | [Usage](docs/usage.md) | Pickup steps, flags, creating issues, parallel worktrees, sub-commands |
 | 🤖 | [Batch (`all`)](docs/batch.md) | Triage, workers, review loop, `--auto-merge`, guard hook |
 | ⚙️ | [Configuration](docs/configuration.md) | Config keys with defaults, what lives where, MCP tools used |
+| 🧩 | [Other agents](docs/other-agents.md) | Cursor, Copilot, Codex and the Agensi package: MCP setup and what differs |
 | 🩺 | [Troubleshooting](docs/troubleshooting.md) | Symptoms and fixes, grouped by topic |
 
 ---
 
 ## 🧩 Use it in other agents
 
-`skills/youtrack-task/` is a self-contained `SKILL.md` skill. It also runs in Cursor,
-GitHub Copilot, Codex CLI and others, and is published on
-[Agensi.io](https://www.agensi.io). What changes there:
-
-1. **Add the YouTrack MCP server to the agent.** Same URL and header
-   (`Authorization: Bearer <token>`), in that agent's MCP settings, for example
-   `.cursor/mcp.json` or `.vscode/mcp.json`. The plugin's `.mcp.json` only applies to
-   Claude Code.
-2. **Tool names are matched by base name** (`get_issue`, `update_issue`, …), not by
-   the `mcp__youtrack__` prefix.
-3. **Bundled `scripts/` are optional.** Without them on disk the skill falls back to
-   plain in-place git (no worktrees).
-4. **The review gate runs in its weaker mode.** The `ticket-reviewer` agent and the
-   hooks live at plugin level. The review is stamped `independent=no`, `pr` asks for
-   confirmation, and `all --auto-merge` stays disabled.
-
-The upload ZIP contains the whole skill folder, so the `reference/*.md` files travel
-with it. Build it with `tools/package-agensi` (output: `dist/agensi/youtrack-task.zip`).
-Pushing a version tag also builds it in CI and attaches it to the GitHub Release; the
-upload to Agensi itself is manual. The skill-level readme is
-[`skills/youtrack-task/README.md`](./skills/youtrack-task/README.md).
+`skills/youtrack-task/` is a self-contained `SKILL.md` skill, so the workflow is not
+tied to Claude Code. It runs in Cursor, GitHub Copilot, Codex CLI and other
+MCP-capable agents, and is listed on
+[Agensi.io](https://www.agensi.io/skills/youtrack-flow-for-ai-agents) and
+[Product Hunt](https://www.producthunt.com/products/youtrack-task). What changes
+outside Claude Code (MCP setup, tool names, optional `scripts/`, the review gate) is
+on the [Other agents](docs/other-agents.md) page.
 
 ---
 

@@ -75,4 +75,4 @@ Find your symptom, apply the fix. Back to the [README](../README.md).
 
 | Symptom | Fix |
 |---------|-----|
-| Skill runs in Cursor / Copilot but no YouTrack tools are found | Add the YouTrack MCP server to that agent's MCP settings (see *Use it in other agents* in the [README](../README.md#-use-it-in-other-agents)); the skill matches tool names by base name, so any prefix works. |
+| Skill runs in Cursor / Copilot but no YouTrack tools are found | Add the YouTrack MCP server to that agent's MCP settings (see [Other agents](./other-agents.md)); the skill matches tool names by base name, so any prefix works. |

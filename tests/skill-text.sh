@@ -185,10 +185,41 @@ for k in list_query local_plan_copy default_new_type; do
 done
 
 # 8b. The README stays the short entry point and links every docs page.
-for d in usage batch configuration troubleshooting; do
+for d in usage batch configuration troubleshooting other-agents; do
   [ -f "$root/docs/$d.md" ] && grep -qF "docs/$d.md" "$root/README.md" \
     && ok "README.md links docs/$d.md" || bad "docs/$d.md is missing or not linked from README.md"
 done
+
+# 8c. The README says up front that the tool is not Claude-Code-only, and links
+# the listings (Agensi, Product Hunt).
+readme="$root/README.md"
+head_block=$(sed -n '1,/^---$/p' "$readme")
+printf '%s' "$head_block" | grep -qiE 'any (MCP-capable )?(AI )?agent' \
+  && ok "README header says the tool works with other AI agents" \
+  || bad "README header does not say the tool works with other AI agents"
+grep -qF 'https://www.agensi.io/skills/youtrack-flow-for-ai-agents' "$readme" \
+  && ok "README links the Agensi listing" || bad "README does not link the Agensi listing"
+grep -qF 'https://www.producthunt.com/products/youtrack-task' "$readme" \
+  && grep -qF 'api.producthunt.com/widgets/embed-image/v1/featured.svg' "$readme" \
+  && ok "README shows the Product Hunt badge linked to the product" \
+  || bad "README is missing the Product Hunt badge or its link"
+
+# 8d. The install step itself offers both marketplaces as alternatives.
+install=$(sed -n '/^### 3\. Install/,/^### 4\./p' "$readme")
+printf '%s' "$install" | grep -qF 'https://www.agensi.io/skills/youtrack-flow-for-ai-agents' \
+  && printf '%s' "$install" | grep -qF 'https://www.producthunt.com/products/youtrack-task' \
+  && printf '%s' "$install" | grep -qF 'api.producthunt.com/widgets/embed-image/v1/featured.svg' \
+  && ok "README install step links Agensi and shows the Product Hunt badge" \
+  || bad "README install step lacks the Agensi link or the Product Hunt badge"
+
+# 8e. A pipe inside a table row would split the cell and break inline HTML (the Product Hunt
+# badge alt text once did): every README table row must have the same cell count as its header.
+awk '
+  /^\|/ { n=gsub(/(^|[^\\])\|/,"&"); if (!intable) { cols=n; intable=1 } else if (n!=cols) { bad=1; print "row " NR ": " n " pipes, header has " cols } next }
+  { intable=0 }
+  END { exit bad }' "$readme" >/dev/null \
+  && ok "README table rows keep their cell count (no stray pipe in inline HTML)" \
+  || bad "a README table row has a stray pipe (e.g. in an img alt text)"
 
 # 9. Confirmation gates: the invocation authorizes the pickup, and a wrong input
 # never becomes an improvised "Shall I continue?" question.

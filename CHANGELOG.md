@@ -4,10 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.18.5 — 2026-11-12
+
+- **Docs: not just a Claude Code plugin.** The README header, tagline and badge now say
+  the tool also runs in Cursor, GitHub Copilot, Codex CLI and other MCP-capable agents.
+  The install step offers four routes (Claude Code plugin, Agensi, Product Hunt, other agents), and
+  the README shows the Product Hunt badge (in the header and in the install table) and links
+  the Agensi listing. The agent setup
+  moved to the new `docs/other-agents.md` (MCP settings per agent, what differs outside
+  Claude Code, building the Agensi package).
+- `tests/skill-text.sh` checks that the README links `docs/other-agents.md`, the Agensi
+  listing and the Product Hunt badge, and that the header names other agents.
 
 - **Docs: shorter, scannable README.** `README.md` is now the entry point only: what
-  the plugin does, a five-step quick start, the task flow, a command cheat sheet and
+  the plugin does, a quick start, the task flow, a command cheat sheet and
   links. The detail moved, unchanged in substance, to `docs/usage.md`,
   `docs/batch.md`, `docs/configuration.md` and `docs/troubleshooting.md` (the
   troubleshooting table is grouped by topic).
