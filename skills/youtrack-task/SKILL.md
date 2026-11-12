@@ -179,6 +179,7 @@ from reading the file) is unknown. Flags override config for one run.
 | `batch_max_parallel` | `3` — parallel workers for `all` |
 | `batch_skip_tags` | `["manual"]` — issues with one of these tags are never worked on by `all` |
 | `batch_review_rounds` | alias of `review_rounds`, kept for existing configs |
+| `reviewer_commands` | *(empty)* — extra commands the read-only reviewer may run, each a whole command matched exactly, e.g. `["ddev exec vendor/bin/pest", "npm run build"]`; a project can add its own in `.youtrack-task/reviewer-commands` on the base branch (see `reference/review.md`) |
 | `[type_prefix]` table | see `reference/branching.md` |
 
 ## Resolving a project
@@ -358,7 +359,10 @@ workflow (TDD where it applies) plus a manual check against the acceptance crite
 `reference/review.md` with `fixer = main-session`: a fresh `ticket-reviewer`, a
 minimal briefing, the result stamped on the exact commit. It applies to every task
 with commits; `--no-review` or `review_before_pr = never` skips it. A `FAILED` gate
-stops here with the open findings — no completion comment that claims the work is done.
+stops here with the open findings — no completion comment that claims the work is done. A
+`BLOCKED` gate (a command the reviewer needed was rejected by the hook, so there is no code
+finding) stops the same way and shows the user the rejected commands and how to allow them
+(`reference/reviewer-allowlist.md`).
 
 Then post the completion comment (template in `reference/writeback.md`: branch,
 files touched, `Review: PASS @ <short-sha>` or `Review: skipped`). Do not push, open

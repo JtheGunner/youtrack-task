@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.19.0 — 2026-11-12
+
+- **Reviewer: an allowed way to verify, still read-only.** The `ticket-reviewer` guard
+  (`hooks/guard-subagent`) now also allows `swift test`, `swift build`, `go build ./...`,
+  `golangci-lint run` and `scripts/*test*`. Options that write or steer a build (`--fix`,
+  `-o`, `-toolexec`, `-ldflags`, `-Xswiftc`, `--package-path`) stay rejected.
+- **New config key `reviewer_commands`** and a per-project file
+  `.youtrack-task/reviewer-commands` (one command per line, `#` comments): extra
+  commands the reviewer may run, each matched **exactly** (whole command, no regex, no
+  prefix). The project file is read from the base branch with `git show`, never from the
+  branch under review, so a branch cannot allow commands for its own review. See
+  `reference/reviewer-allowlist.md` and `docs/configuration.md`.
+- **A rejected reviewer command is no longer a code finding.** The hook marks it
+  `[blocked-by-guard]`; the reviewer reports `BLOCKED_BY_GUARD` and the review gate returns
+  `BLOCKED` without a fix round, without a stamp, listing the commands and how to allow them.
+  Before, "build, lint or CI not checkable" ended as `CHANGES_REQUESTED`.
+- The base branch of `.youtrack-task/reviewer-commands` is resolved from full ref names
+  (`refs/remotes/origin/HEAD`, `refs/remotes/origin/main|master`, `refs/heads/main|master`)
+  and read by commit id, so a tag named `main` or `origin/main` cannot shadow it. The worker
+  guard also denies `git symbolic-ref` writes, `git remote set-head`, `git replace`,
+  `git fetch` / `git pull` into refs (also `--refmap`), `git branch --force/--move/--copy`
+  (also abbreviated), `git checkout -B`, `git switch -C` and `git worktree add -B`, checked on the command with
+  its quote characters removed (and `git -C <dir>` normalised first, the dir read as a whole shell word: quoted, escaped or plain) so quoting an argument
+  does not hide it; the lookups ignore replace refs.
+- `read-config` resolves `reviewer_commands` (`REVIEWER_COMMANDS`, entries joined with `;`).
+  Tests cover the new built-ins, both extra sources and the self-allowing branch.
+
 ## 0.18.5 — 2026-11-12
 
 - **Docs: not just a Claude Code plugin.** The README header, tagline and badge now say

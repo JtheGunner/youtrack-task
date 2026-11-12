@@ -29,7 +29,7 @@ push + open the PR themselves, then run `/youtrack-task link <url>`.
 
       | `--no-review`, or `REVIEW_BEFORE_PR=never` | do this |
       | --- | --- |
-      | neither | run `<skill-dir>/scripts/review-stamp check --id <ID>` per `reference/review.md`. `PASS` with `INDEPENDENT=yes` → continue. `STALE` / `MISSING` → run the review gate now (`fixer = main-session`), then continue on `PASS`. `FAILED` → stop and show the open findings. `PASS` with `INDEPENDENT=no` → say the review was not independent and continue only on explicit confirmation. `SKIPPED` → continue, labelled skipped (below) |
+      | neither | run `<skill-dir>/scripts/review-stamp check --id <ID>` per `reference/review.md`. `PASS` with `INDEPENDENT=yes` → continue. `STALE` / `MISSING` → run the review gate now (`fixer = main-session`), then continue on `PASS`. `FAILED` → stop and show the open findings. `BLOCKED` (the gate ran but the reviewer's command was rejected) → stop and show the commands and the ways to allow them (`reference/review.md`, "Blocked by the guard"). `PASS` with `INDEPENDENT=no` → say the review was not independent and continue only on explicit confirmation. `SKIPPED` → continue, labelled skipped (below) |
       | `--no-review` | ask for explicit confirmation naming the risk (*"this branch has no independent review"*), then record the waiver. A `SKIPPED` stamp already on this commit counts as that confirmation |
       | `REVIEW_BEFORE_PR=never`, no flag | no question; record the waiver |
 

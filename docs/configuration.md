@@ -45,6 +45,7 @@ names are configurable.
 | `review_before_pr` | `always` | `always`: every task with commits is reviewed before push/PR. `never`: skip. |
 | `review_gate_hook` | `off` | `on` makes the `require-review` hook block pushes and `gh pr create` without a review stamp. |
 | `review_rounds` | `2` | Max fix / re-review rounds per issue. `batch_review_rounds` still works as an alias. |
+| `reviewer_commands` | *(none)* | Extra commands the read-only reviewer may run, e.g. `["ddev exec vendor/bin/pest", "npm run build"]`. Each entry is a whole command, matched exactly. See [Letting the reviewer run more](#letting-the-reviewer-run-more). |
 | `confirm_branch_name` | `true` | `false` accepts the computed branch name without asking (it is still shown). |
 | `confirm_pr` | `true` | `false` makes `pr` push and open the PR without the question. Applies to `pr` only. |
 | `[type_prefix]` table | see `reference/branching.md` | Per-Type branch prefix mapping. |
@@ -68,6 +69,30 @@ names are configurable.
 
 Flags override config for one run. See [Usage](./usage.md#flags) for the flag list.
 
+### Letting the reviewer run more
+
+The reviewer is read-only and runs only an allowlist: common test, build and lint
+runners (`npm test`, `pytest`, `go test`, `go build ./...`, `swift test`,
+`golangci-lint run`, `scripts/*test*`, …). Anything else is rejected by the hook and
+reported as *blocked by the guard*, not as a code problem. Two places add commands:
+
+| Where | Use it for |
+|-------|-----------|
+| `reviewer_commands` in `~/.config/youtrack-task/config.toml` | Commands only your machine needs |
+| `.youtrack-task/reviewer-commands` in the repository | Commands the whole team's reviews need, one per line, `#` starts a comment line |
+
+Both match **exactly**: the whole command, word for word. `make verify` does not allow
+`make verify-all`, and redirections, heredocs, `;`, `&&` and `|` stay rejected.
+The repository file is read from the **base branch** (`git show`), never from the
+branch under review: a branch cannot allow commands for its own review, and a change
+to the file takes effect once it is merged.
+
+```text
+# .youtrack-task/reviewer-commands
+ddev exec vendor/bin/pest
+make verify
+```
+
 ## How config is resolved
 
 `scripts/read-config` is step 0 of every invocation. It reads your `config.toml`,
@@ -86,6 +111,7 @@ read the file.
 | 🔐 | API token | `YOUTRACK_TOKEN` env var | 🚫 |
 | 🔐 | Which project an issue is in | Encoded in the issue ID (`INFRA-42`) | 🚫 |
 | ⚙️ | State names, list query, prefix map, branch-name and PR confirmation, superpowers / review / worktree settings | Defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | ✅ defaults only |
+| ⚙️ | Extra reviewer commands (`reviewer_commands`; per project: `.youtrack-task/reviewer-commands`, read from the base branch) | `~/.config/youtrack-task/config.toml`; the project file in the repository | ✅ defaults only |
 | ⚙️ | `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`; review rounds via `review_rounds`) | Defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | ✅ defaults only |
 | 🧩 | The skill and its bundled `scripts/` (workspace setup, worktree sweep/detach, review stamp). `SKILL.md` holds the guardrails and the primary flow; each sub-command's detail sits in `reference/` and is read only when that command runs | `skills/youtrack-task/` | ✅ |
 | 🤖 | Review agent (`ticket-reviewer`, used by every flow), `all` worker (`ticket-worker`) and the guard hook | `agents/`, `hooks/guard-subagent` (plugin install only) | ✅ |

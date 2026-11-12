@@ -21,11 +21,15 @@
 #                   deletion, `git config` writes (aliases), global git options,
 #                   history rewriting (`commit --amend`, `reset --hard`, `clean`,
 #                   `rebase`, `update-ref`, `filter-branch`, `worktree remove
-#                   --force`), `gh repo|release|secret|pr create`,
+#                   --force`), repointing the base refs the reviewer trusts
+#                   (`symbolic-ref` writes, `remote set-head`, `replace`, `fetch` / `pull` into
+#                   refs, `branch -f/-m/-c`, `checkout -B`, `switch -C`, `worktree add -B`), `gh repo|release|secret|pr create`,
 #                   shell wrappers / `-c` / `eval`, command substitution.
 #   ticket-reviewer is read-only: an ALLOWLIST of inspection commands and test
 #                   runners with per-command argument limits; no heredocs, no
-#                   output redirection into files.
+#                   output redirection into files. Extra whole commands come from
+#                   `reviewer_commands` (user config) and `.youtrack-task/reviewer-commands`
+#                   on the base branch, matched exactly (see reviewer_extra_allows).
 #
 # Quoted text is data: separators and `>` inside quotes are masked before the
 # command is split, heredoc bodies are dropped, and words inside quotes never
@@ -248,6 +252,7 @@ emptied=$(printf '%s\n' "$body" | awk -v mode=empty "$awk_quotes") # content: qu
 clean() {
   printf '%s' "$1" | sed -E 's/git +-C +[^ ;&|]+/git/g; s#&> *(/dev/null)##g; s#[0-9]*>>? *(/dev/null)([ ;&|]|$)#\2#g; s#[0-9]*>&[0-9-]+([ ;\&|]|$)#\1#g'
 }
+premask=$masked   # structure before clean(): the base-refs pass normalises `git -C <dir>` itself, quote-aware
 masked=$(clean "$masked")
 emptied=$(clean "$emptied")
 case "$masked" in *'@@BAD@@'*) deny "no shell comments, \$'...' quoting or unterminated quotes; run plain commands." ;; esac
@@ -318,6 +323,68 @@ gradle_allows() {
   [ "$expect_value" = 0 ] && [ "$seen_task" = 1 ]
 }
 
+# ---- reviewer: project-specific verification commands (exact match) ------------
+# Two sources extend the built-in allowlist, each entry a WHOLE command that must equal
+# the checked command word for word (no regex, no prefix):
+#   1. `reviewer_commands` in the user config, resolved by the skill's read-config.
+#   2. `.youtrack-task/reviewer-commands` as committed on the BASE branch: one command
+#      per line, full-line `#` comments. It is read with `git show <base-commit>:<path>`,
+#      never from the working tree, so the branch under review cannot allow commands for
+#      itself; a change to the list has to be merged into the base branch first. The base
+#      is resolved from FULL ref names only (see base_ref), so a tag cannot shadow it.
+# Every deny rule of reviewer_allows (path traversal, --web, ...) still runs before this,
+# and redirections, heredocs, `;`, `&&` and `|` are rejected before a command is compared.
+REVIEWER_COMMANDS_FILE='.youtrack-task/reviewer-commands'
+reviewer_extra_loaded=0
+reviewer_extra_list=""
+
+# Echoes the commit id of the base branch of the repo around $1, or nothing. Only FULL ref
+# names are resolved: a short name such as `main` or `origin/main` is matched against tags
+# first, so a tag created in the checkout would shadow the real base branch. Remote-tracking
+# refs win over local branches; `git show` then gets the commit id, not a name. Every lookup
+# runs with --no-replace-objects, because `git replace` would swap the base commit for another.
+base_ref() {
+  local dir=$1 head ref oid
+  head=$(git --no-replace-objects -C "$dir" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)
+  for ref in "$head" refs/remotes/origin/main refs/remotes/origin/master refs/heads/main refs/heads/master; do
+    case "$ref" in refs/remotes/* | refs/heads/*) ;; *) continue ;; esac
+    oid=$(git --no-replace-objects -C "$dir" rev-parse --verify --quiet "$ref^{commit}" 2>/dev/null)
+    if [ -n "$oid" ]; then printf '%s' "$oid"; return 0; fi
+  done
+  return 0
+}
+
+# One entry per line, normalised like a checked command: no quotes or backslashes, single spaces.
+normalize_entries() {
+  tr -d '\r' | sed -E "s/[\"'\\\\]//g; s/[[:space:]]+/ /g; s/^ //; s/ \$//" | grep -v '^$'
+}
+
+load_reviewer_extra() {
+  local cwd_dir base config_file
+  config_file="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/youtrack-task/scripts/read-config"
+  if [ -x "$config_file" ]; then
+    "$config_file" reviewer_commands 2>/dev/null | tr ';' '\n' | normalize_entries
+  fi
+  cwd_dir=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+  [ -n "$cwd_dir" ] || cwd_dir=$PWD
+  base=$(base_ref "$cwd_dir")
+  [ -n "$base" ] || return 0
+  git --no-replace-objects -C "$cwd_dir" show "$base:$REVIEWER_COMMANDS_FILE" 2>/dev/null | grep -v '^[[:space:]]*#' | normalize_entries
+}
+
+reviewer_extra_allows() {
+  local checked=$1 entry
+  if [ "$reviewer_extra_loaded" = 0 ]; then
+    reviewer_extra_loaded=1
+    reviewer_extra_list=$(load_reviewer_extra)
+  fi
+  [ -n "$reviewer_extra_list" ] || return 1
+  while IFS= read -r entry; do
+    [ "$entry" = "$checked" ] && return 0
+  done <<< "$reviewer_extra_list"
+  return 1
+}
+
 reviewer_allows() {
   # Quotes and backslashes are removed first so they cannot hide an option.
   local s
@@ -341,7 +408,14 @@ reviewer_allows() {
   printf '%s' "$s" | grep -Eq '^sed -n [0-9$,]+p( [^ -][^ ]*)*$' && return 0
   printf '%s' "$s" | grep -Eq '^(npm|pnpm|yarn|bun) (test|run (test|lint|typecheck|check)[a-z:-]*)( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^npx (--no-install )?(jest|vitest|tsc|eslint|playwright test)( |$)' && return 0
+  # Build and lint without write or steering options: no -o / -toolexec / -ldflags / --fix / -Xswiftc /
+  # --package-path, no single-package `go build` (it would drop a binary into the checkout).
+  printf '%s' "$s" | grep -Eq '^swift (test|build)( (--filter|--skip|--configuration|-c) [A-Za-z0-9_./:#-]+| --parallel| --no-parallel| --verbose| -v| --enable-code-coverage)*$' && return 0
+  printf '%s' "$s" | grep -Eq '^go build \./\.\.\.$' && return 0
+  printf '%s' "$s" | grep -Eq '^golangci-lint run( -v| --timeout[= ][0-9]+[smh]| \./[A-Za-z0-9_./-]*)*$' && return 0
+  printf '%s' "$s" | grep -Eq '^((bash|sh) )?(\./)?scripts/[A-Za-z0-9._-]*test[A-Za-z0-9._-]*( |$)' && return 0
   printf '%s' "$s" | grep -Eq '^((php )?(\./)?vendor/bin/(phpunit|pest|phpstan|pint|psalm|rector|phpcs)|pytest|python3? -m pytest|ruff check|eslint|php -l|phpunit|pest|phpstan|php artisan test|composer (test|run(-script)? (test|lint|analyse|check)[a-z:-]*)|go (test|vet)|cargo (test|clippy|check)|make( -[a-zA-Z]+)* (test|check|lint)|ctest|mvn( -[a-zA-Z]+)* test|dotnet test|bats|shellcheck|bash -n|(bash|sh) (\./)?tests?/[A-Za-z0-9._/-]+)( |$)' && return 0
+  reviewer_extra_allows "$s" && return 0
   return 1
 }
 
@@ -364,7 +438,7 @@ while IFS= read -r segment; do
 
   if [ "$role" = reviewer ]; then
     reviewer_allows "$segment" \
-      || deny "the reviewer is read-only; '$segment' is not on its allowlist (inspect with git diff / grep / cat, run the project's tests)."
+      || deny "[blocked-by-guard] the reviewer is read-only; '$segment' is not on its allowlist (inspect with git diff / grep / cat, run the project's tests). Report it as blocked-by-guard, not as a code finding."
     continue
   fi
 
@@ -410,5 +484,29 @@ while IFS= read -r segment; do
       && deny "never force-delete a branch."
   fi
 done < <(segments "$emptied")
+
+# ---- worker: base refs the reviewer trusts (quote characters removed, content kept) --------
+# The reviewer reads .youtrack-task/reviewer-commands from the base branch, so the worker must not
+# be able to repoint that base: origin/HEAD, a moved, renamed, copied or reset branch (also via
+# `worktree add -B`), a fetch or pull writing refs, replace objects. This runs on the text with the quote CHARACTERS removed (the
+# main pass above blanks quoted content, so `git fetch origin "x:refs/heads/main"` would hide there).
+# A denylist cannot be complete (best effort, see the header); the real protection is that the list
+# only counts once merged into the base branch.
+# One shell word: a run of unquoted characters, "double" or 'single' quoted parts and backslash
+# escapes without whitespace in between (what `git -C <word>` takes as its argument).
+sq="'"; dq='"'
+shell_word="((\\\\.|[^ ;&|${dq}${sq}\\\\]|${dq}[^${dq}]*${dq}|${sq}[^${sq}]*${sq})+)"
+base_refs_re='^git (replace|remote set-head|symbolic-ref|(fetch|pull)( .*)? ([^ ]*:[^ ]*|--refmap[= ])|(checkout|switch)( .*)? (-[a-zA-Z]*[BC]|--force-create|--orphan)( |$)|worktree add( .*)? (-[a-zA-Z]*B|--orphan)( |$)|branch( .*)? (-[a-zA-Z]*[fmMcC]|--(f(o(r(c(e)?)?)?)?|m(o(v(e)?)?)?|c(o(p(y)?)?)?))( |$))'
+if [ "$role" = worker ]; then
+  while IFS= read -r qsegment; do
+    [ -n "$qsegment" ] || continue
+    qsegment=$(printf '%s' "$qsegment" | sed -E "s/git +-C +${shell_word}/git/g" | tr -d "\"'\\\\")
+    qsegment=$(strip_assignments "$qsegment") || exit 2
+    printf '%s' "$qsegment" | grep -Eq "$base_refs_re" || continue
+    # Reading one symbolic ref (`git symbolic-ref [--short] HEAD`) stays allowed.
+    printf '%s' "$qsegment" | grep -Eq '^git symbolic-ref( (-q|--quiet|--short|--no-recurse))* [^ -][^ ]*$' \
+      || deny "no repointing of base refs (symbolic-ref writes, remote set-head, replace, fetch / pull into refs, branch --force / --move / --copy, checkout -B / switch -C)."
+  done < <(segments "$premask")
+fi
 
 exit 0

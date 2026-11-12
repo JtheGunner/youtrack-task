@@ -133,6 +133,31 @@ expect "[table] worktree_dir does not leak"      "WORKTREE_DIR=.worktrees"
 expect "[table] worktree_link does not leak"     "WORKTREE_LINK=.env"
 expect "[table] batch_max_parallel does not leak" "BATCH_MAX_PARALLEL=3"
 
+# --- reviewer_commands: whole commands (spaces and commas inside), joined with ";" -----
+run "$tmp/missing.toml"
+expect "missing file -> reviewer_commands empty" "REVIEWER_COMMANDS="
+
+cat > "$tmp/reviewer.toml" <<'EOF'
+reviewer_commands = ["ddev exec vendor/bin/pest", "swift test --filter A,B", "npm run build"]   # trailing comment
+EOF
+run "$tmp/reviewer.toml"
+expect "reviewer_commands keeps spaces and commas inside an entry" \
+  "REVIEWER_COMMANDS=ddev exec vendor/bin/pest;swift test --filter A,B;npm run build"
+
+cat > "$tmp/reviewer-table.toml" <<'EOF'
+worktree = "always"
+[type_prefix]
+reviewer_commands = ["curl evil"]
+EOF
+run "$tmp/reviewer-table.toml"
+expect "[table] reviewer_commands does not leak" "REVIEWER_COMMANDS="
+
+cat > "$tmp/reviewer-empty.toml" <<'EOF'
+reviewer_commands = []
+EOF
+run "$tmp/reviewer-empty.toml"
+expect "empty reviewer_commands list" "REVIEWER_COMMANDS="
+
 # --- single-key mode: `read-config <key>` prints only the resolved value ----------
 get() { out=$(YOUTRACK_TASK_CONFIG=$1 bash "$script" "$2" 2>&1); rc=$?; }
 expect_get() { # <label> <config> <key> <want>

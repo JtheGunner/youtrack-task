@@ -43,7 +43,7 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
    issue ID + title, the `requirements`, `dir`, `base`, `SHA_review` (it reviews
    `git diff <base>...<SHA_review>`). **Never include** the implementer's report,
    plan, commit-message claims, earlier findings, or any conclusion of your own.
-   The reviewer's allowlist in `hooks/guard-subagent` makes it harder for the
+   The reviewer's allowlist (`reference/reviewer-allowlist.md`) makes it harder for the
    reviewer to reach commit messages and PR text (`git log` and `git show` are
    denied), as a best-effort measure: other allowed commands such as
    `git cat-file`, `git shortlog`, `git rev-list --format=%B` and
@@ -52,8 +52,11 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
    `pytest`, `make test`, `bash tests/…`) executes code of the branch under
    review and lies outside the guard, so "read-only" is not enforced there.
 4. **Verdict.**
-   - `PASS` requires every criterion `met`. A `PASS` that lists an `unverifiable`
-     criterion is `CHANGES_REQUESTED`, as is a missing or garbled `VERDICT`.
+   - `PASS` requires every criterion `met`; an `unverifiable` or `blocked-by-guard`
+     criterion, or a missing or garbled `VERDICT`, makes it `CHANGES_REQUESTED`.
+   - `BLOCKED_BY_GUARD`: the only missing proof is a command the hook rejected. Valid
+     only with `FINDINGS: none`, no `not met` criterion and no failed test (else
+     `CHANGES_REQUESTED`); see `reference/reviewer-allowlist.md`.
    - `PASS` is accepted only if `HEAD == SHA_review` and the tree is still clean;
      otherwise it counts as `CHANGES_REQUESTED` (one round consumed).
 5. **`CHANGES_REQUESTED`** → the `fixer` applies the `FINDINGS` and commits, then
@@ -61,13 +64,13 @@ none of them restates it. Bound by the **Guardrails** in `SKILL.md`.
    At most `rounds` fix rounds, so at most `rounds + 1` reviews. A last fix is
    always re-reviewed.
    - `main-session`: apply findings with `superpowers:receiving-code-review` when
-     available (verify each finding before acting; do not implement blindly).
+     available (verify each finding first; never implement blindly).
    - `ticket-worker`: the original briefing plus the reviewer's `FINDINGS`.
 6. **Stamp.** On an accepted `PASS`:
    `<skill-dir>/scripts/review-stamp write --id <ID> --sha <SHA_review> --verdict PASS --independent yes --round <n> --dir <dir>`.
    After the last round still failing: write `--verdict FAILED`, stop, and give the
    user the open findings. Never loop silently.
-7. **Result for the caller:** `PASS` (stamped) or `FAILED` (open findings).
+7. **Result:** `PASS` (stamped), `FAILED` (open findings) or `BLOCKED` (nothing stamped).
 
 ## Checking instead of re-running
 

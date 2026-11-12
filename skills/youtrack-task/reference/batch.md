@@ -144,6 +144,8 @@ and exact-SHA requirements and the stamp lives there; this flow adds only:
   report goes through the table in step 3.
 - Still failing after the last round → the issue goes to the user as
   *needs-human* with the open findings. Never loop silently.
+- A `BLOCKED` result (the reviewer needed a command the hook rejected) is *needs-human*
+  too, with the rejected commands in the report; no fix round is spent on it.
 - **A PR only ever follows a stamped `PASS` on the final HEAD**; a last fix is
   always re-reviewed.
 

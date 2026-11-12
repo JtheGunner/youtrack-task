@@ -57,7 +57,9 @@ Details behind the steps:
 - **Review gate.** Either way the work goes through a fresh, independent
   `ticket-reviewer` subagent that never sees your session's reasoning. A `PASS` is
   stamped on that exact commit. The completion comment is posted next, and
-  `/youtrack-task pr` is the following step.
+  `/youtrack-task pr` is the following step. The reviewer is read-only and runs an
+  allowlist; a command it needs but may not run ends the gate as `BLOCKED`, not as a
+  code finding (see [Configuration](configuration.md#letting-the-reviewer-run-more)).
 
 ### Flags
 

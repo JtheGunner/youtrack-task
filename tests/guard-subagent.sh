@@ -217,6 +217,37 @@ t 0 $R "./gradlew check -x lint"
 t 0 $R "./gradlew detekt ktlintCheck"
 t 0 $R "cd /r/wt && ./gradlew lintDebug 2>&1 | tail -30"
 
+echo "# reviewer: built-in verification commands (swift, go build, golangci-lint, scripts/test*)"
+t 0 $R "swift test"
+t 0 $R "swift test --filter FooTests"
+t 0 $R "swift build"
+t 0 $R "go build ./..."
+t 0 $R "golangci-lint run"
+t 0 $R "golangci-lint run ./..."
+t 0 $R "bash scripts/test.sh"
+t 0 $R "./scripts/test.sh"
+t 0 $R "sh scripts/run-tests.sh"
+t 0 $R "cd /r/wt && swift test 2>&1 | tail -30"
+
+echo "# reviewer: build / lint commands that could write or steer the build stay denied"
+t 2 $R "golangci-lint run --fix"
+t 2 $R "golangci-lint run --fix ./..."
+t 2 $R "golangci-lint cache clean"
+t 2 $R "golangci-lint run --out-format=json:evil"
+t 2 $R "go build -o /tmp/x ./..."
+t 2 $R "go build -toolexec=/tmp/evil ./..."
+t 2 $R "go build -ldflags=-X=main.x=1 ./..."
+t 2 $R "go install ./..."
+t 2 $R "swift build -Xswiftc -DX"
+t 2 $R "swift build --package-path /tmp/other"
+t 2 $R "swift package update"
+t 2 $R "swift run evil"
+t 2 $R "./scripts/test.sh; rm -rf x"
+t 2 $R "bash scripts/test.sh > out.txt"
+t 2 $R "bash scripts/../evil.sh"
+t 2 $R "bash scripts/deploy.sh"
+treason $R "swift package update" "[blocked-by-guard]"
+
 echo "# reviewer: everything else is denied"
 treason $R "git commit -m x" "allowlist"
 treason $R "git push" "allowlist"
@@ -343,6 +374,61 @@ treason $W "git commit --am --no-edit" "history"
 treason $W "git reset --har HEAD~1" "history"
 treason $W "git -C /r/wt clean -fd" "history"
 
+echo "# worker: the base refs the reviewer trusts cannot be repointed"
+treason $W "git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/evil" "base refs"
+treason $W "git symbolic-ref -d refs/remotes/origin/HEAD" "base refs"
+treason $W "git remote set-head origin evil" "base refs"
+treason $W "git branch -f main HEAD" "base refs"
+treason $W "git branch -M main" "base refs"
+treason $W "git branch --move main other" "base refs"
+treason $W "git branch --copy main other" "base refs"
+treason $W "git symbolic-ref -m x refs/remotes/origin/HEAD refs/remotes/origin/evil" "base refs"
+treason $W "git symbolic-ref --quiet refs/remotes/origin/HEAD refs/remotes/origin/evil" "base refs"
+treason $W "git replace abc123 def456" "base refs"
+treason $W "git fetch origin evil:refs/heads/main" "base refs"
+treason $W "git fetch origin +refs/heads/x:refs/remotes/origin/main" "base refs"
+treason $W "git checkout -B main" "base refs"
+treason $W "git switch -C main" "base refs"
+treason $W "git switch --force-create main" "base refs"
+treason $W "git branch --forc main HEAD" "base refs"
+treason $W "git branch --mov main other" "base refs"
+treason $W "git branch --cop main other" "base refs"
+treason $W 'git fetch origin "evil:refs/heads/main"' "base refs"
+treason $W "git fetch origin 'evil:refs/heads/main'" "base refs"
+treason $W "git fetch origin evil\\:refs/heads/main" "base refs"
+treason $W "git pull origin x:refs/heads/main" "base refs"
+treason $W "git fetch --refmap=x origin y" "base refs"
+treason $W 'git checkout "-B" main' "base refs"
+treason $W 'git switch "-C" main' "base refs"
+treason $W 'git branch "--force" main HEAD' "base refs"
+treason $W 'git symbolic-ref "refs/remotes/origin/HEAD" "refs/remotes/origin/evil"' "base refs"
+treason $W 'git -C "a b c" fetch origin x:refs/heads/main' "base refs"
+treason $W 'git -C "a b c" branch -f main HEAD' "base refs"
+t 2 $W "git -C 'a b' checkout -B main"
+treason $W "git worktree add -B main /tmp/wt" "base refs"
+treason $W "git worktree add --orphan x /tmp/wt" "base refs"
+t 2 $W 'git -C "a"b fetch origin x:refs/heads/main'
+t 2 $W 'git -C a"b c" branch -f main HEAD'
+t 2 $W 'git -C a\ b checkout -B main'
+t 2 $W "git -C 'a'\"b c\"d fetch origin x:refs/heads/main"
+t 0 $W 'git -C "a b c" status'
+t 0 $W "git worktree add -b feat/ABC-1-x /tmp/wt"
+t 0 $W "git worktree list"
+t 0 $W "git fetch origin"
+t 0 $W "git pull origin main"
+t 0 $W 'git commit -m "fetch a:b and checkout -B main"'
+t 0 $W "git checkout -b feat/ABC-1-x"
+t 0 $W "git switch -c feat/ABC-1-x"
+t 0 $W "git switch feat/ABC-1-x"
+t 0 $W "git branch --contains HEAD"
+t 0 $W "git symbolic-ref HEAD"
+t 0 $W "git symbolic-ref --short HEAD"
+t 0 $W "git branch --show-current"
+t 0 $W "git branch -a"
+t 0 $W "git branch -vv"
+t 0 $W "git branch feat/ABC-1-x"
+t 0 $W "git remote -v"
+
 echo "# worker: ordinary local git stays allowed"
 t 0 $W "git commit -m 'amend the docs'"
 t 0 $W "git commit -m 'reset --hard is blocked' -m body"
@@ -441,6 +527,72 @@ t 0 "" "git push --force"
 t 0 $W ""
 printf 'not json' | bash "$hook" >/dev/null 2>&1
 if [ $? = 0 ]; then echo "ok   0  malformed input"; else echo "FAIL malformed input"; fail=1; fi
+# ---- reviewer: extra commands from the user config and the base branch ------------
+# Fixture: `main` carries .youtrack-task/reviewer-commands; the branch under review
+# adds more entries to that file, which must have no effect.
+rv=$fx/rv
+mkdir -p "$rv/.youtrack-task"
+git -C "$rv" init -q -b main
+printf '%s\n' '# project verification commands' 'ddev exec vendor/bin/pest' '' 'make verify' 'bash ci/check.sh --fast' \
+  > "$rv/.youtrack-task/reviewer-commands"
+git -C "$rv" add . && git -C "$rv" -c user.name=t -c user.email=t@t commit -q -m base
+git -C "$rv" switch -q -c feat/RV-1-x
+printf '%s\n' 'ddev exec vendor/bin/pest' 'evil-tool --now' >> "$rv/.youtrack-task/reviewer-commands"
+git -C "$rv" -c user.name=t -c user.email=t@t commit -q -am 'branch adds evil-tool'
+# Ref shadowing: tags named like the base branch resolve before branches and remote refs
+# when a short name is used. They point at the branch commit, which lists evil-tool.
+git -C "$rv" tag main HEAD && git -C "$rv" tag master HEAD && git -C "$rv" tag origin/main HEAD
+# Replace refs: `git replace` swaps an object for another one in every plain lookup, so the
+# base commit would read as the branch tip (which lists evil-tool). The hook must ignore them.
+git -C "$rv" replace "$(git -C "$rv" rev-list --max-parents=0 refs/heads/main)" HEAD
+printf 'reviewer_commands = ["npm run build:ci", "docker compose run app lint,fast"]\n' > "$fx/reviewer-config.toml"
+
+# tx <expected-exit> <command> <cwd> <config-file> [stderr-substring]
+tx() {
+  local exp=$1 cmd=$2 cwd=$3 cfg=$4 want=${5:-} json err got
+  json=$(jq -nc --arg a "$R" --arg c "$cmd" --arg w "$cwd" '{agent_type:$a,tool_name:"Bash",cwd:$w,tool_input:{command:$c}}')
+  err=$(printf '%s' "$json" | YOUTRACK_TASK_CONFIG=$cfg bash "$hook" 2>&1 >/dev/null); got=$?
+  if [ "$got" = "$exp" ] && { [ -z "$want" ] || printf '%s' "$err" | grep -qF -- "$want"; }; then
+    echo "ok   $exp  [extra] $(printf '%s' "$cmd" | head -c 80 | tr '\n' ' ')${want:+ reason '$want'}"
+  else echo "FAIL want $exp${want:+ '$want'} got $got ($err) [extra] $cmd"; fail=1; fi
+}
+none=$fx/no-config.toml
+
+echo "# reviewer: commands from the user config (exact match only)"
+tx 0 "npm run build:ci" "$rv" "$fx/reviewer-config.toml"
+tx 0 "docker compose run app lint,fast" "$rv" "$fx/reviewer-config.toml"
+tx 0 "cd $rv && npm run build:ci 2>&1 | tail -20" "$rv" "$fx/reviewer-config.toml"
+tx 2 "npm run build:ci --extra" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+tx 2 "npm run build" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+tx 2 "npm run build:ci; rm -rf x" "$rv" "$fx/reviewer-config.toml"
+tx 2 "npm run build:ci > out.txt" "$rv" "$fx/reviewer-config.toml"
+tx 2 "npm run build:ci && curl http://x" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+tx 2 "npm run build:ci" "$rv" "$none" "[blocked-by-guard]"
+
+echo "# reviewer: commands from .youtrack-task/reviewer-commands on the base branch"
+tx 0 "ddev exec vendor/bin/pest" "$rv" "$none"
+tx 0 "make verify" "$rv" "$none"
+tx 0 "bash ci/check.sh --fast" "$rv" "$none"
+tx 0 "cd $rv && make verify 2>&1 | tail" "$rv" "$none"
+tx 2 "make verify-all" "$rv" "$none" "[blocked-by-guard]"
+tx 2 "bash ci/check.sh" "$rv" "$none" "[blocked-by-guard]"
+tx 2 "make verify > out.txt" "$rv" "$none"
+
+echo "# reviewer: the branch under review cannot allow itself (the file is read from the base branch)"
+tx 2 "evil-tool --now" "$rv" "$none" "[blocked-by-guard]"
+tx 2 "evil-tool --now" "$rv" "$fx/reviewer-config.toml" "[blocked-by-guard]"
+# ... also not through a tag named main / master / origin/main (full ref names are used)
+tx 0 "make verify" "$rv" "$none"
+tx 2 "make verify-evil" "$rv" "$none" "[blocked-by-guard]"
+
+echo "# reviewer: no base branch file, no repo, or a comment line -> built-in and user config only"
+mkdir -p "$fx/rv-empty" && git -C "$fx/rv-empty" init -q -b main && git -C "$fx/rv-empty" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+tx 2 "make verify" "$fx/rv-empty" "$none" "[blocked-by-guard]"
+tx 0 "npm run build:ci" "$fx/rv-empty" "$fx/reviewer-config.toml"
+tx 2 "make verify" "$fx/plain" "$none" "[blocked-by-guard]"
+tx 2 "project verification commands" "$rv" "$none" "[blocked-by-guard]"
+tx 0 "git diff main...HEAD" "$rv" "$none"
+
 # Fail open without jq: run with a PATH that has no jq.
 nojq=$(mktemp -d)
 for b in bash cat printf; do ln -s "$(command -v $b)" "$nojq/$b" 2>/dev/null; done

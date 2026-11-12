@@ -62,6 +62,7 @@ youtrack-task/
 │           ├── projects.md       # project resolution: the procedure, the 20-item `find_projects` cap + paging loop
 │           ├── superpowers.md    # routing for the superpowers plan/impl path
 │           ├── review.md         # the review gate: one procedure for primary flow, `pr` and `all` (stamp contract and hook internals: this file)
+│           ├── reviewer-allowlist.md # what the reviewer may run (built-in, `reviewer_commands`, `.youtrack-task/reviewer-commands` on the base branch) and the `BLOCKED` result
 │           ├── batch.md          # contract for `all`: triage, workers, scheduling the review gate, PRs, merge
 │           └── worktrees.md      # contract for the two scripts
 ├── .github/workflows/
@@ -246,7 +247,19 @@ them → merge **only** with `--auto-merge`.
   read-only allowlist as a best-effort measure (test runners such as Gradle check
   tasks are allowed; the code they run is outside the guard) and are instructed
   not to read commit messages or PR text — `git log` / `git show` are denied, but
-  a few other allowed commands can still show them.
+  a few other allowed commands can still show them. The allowlist has three layers:
+  built-in patterns (test, build and lint runners; no write or steering options such
+  as `--fix`, `-o`, `-toolexec`), the exact commands of `reviewer_commands` in the
+  user config, and the exact commands of `.youtrack-task/reviewer-commands` as
+  committed on the base branch (read with `git show <commit>` from a base resolved by
+  full ref name, so neither the branch under review nor a same-named tag can allow
+  commands for its own review; lookups ignore replace refs, and the worker may not
+  repoint `origin/HEAD`, move or reset a branch, fetch / pull into refs or use `git replace`).
+  Like the rest of the guard this is a denylist and best effort: the list only counts once
+  merged into the base branch, and branch protection stays the real boundary. A rejected command
+  carries `[blocked-by-guard]`; the reviewer reports it as `BLOCKED_BY_GUARD`
+  instead of a code finding and the gate returns `BLOCKED` without a fix round or a
+  stamp (`reference/reviewer-allowlist.md`).
   `hooks/guard-subagent` enforces this via the hook input's `agent_type` — a
   best-effort layer; branch protection and a limited token are the real
   boundary. For the worker it also denies history rewriting (`git commit
@@ -549,6 +562,7 @@ the user.
 # review_before_pr  = "always"        # always ("auto" is a synonym) | never
 # review_rounds     = 2               # fix + re-review rounds per issue (review gate and `all`)
 # review_gate_hook  = "off"           # on: hooks/require-review blocks unreviewed pushes / PRs
+# reviewer_commands = ["ddev exec vendor/bin/pest"]  # extra whole commands the read-only reviewer may run (default: none)
 # confirm_branch_name = true          # false: accept the computed branch name without asking
 # confirm_pr        = true            # false: `pr` pushes + opens the PR without the confirmation question
 # worktree          = "auto"          # auto (checkout busy) | off | always

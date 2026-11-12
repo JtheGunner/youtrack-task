@@ -42,6 +42,14 @@
 # review_before_pr = "always"
 # review_rounds    = 2   # max fix / re-review rounds per issue (alias: batch_review_rounds)
 
+# Extra commands the read-only reviewer may run, on top of its built-in allowlist
+# (test, build and lint runners). Each entry is a WHOLE command, matched exactly:
+# no regex, no prefix, and redirections, heredocs, `;`, `&&` and `|` stay rejected.
+# A project can add its own list in `.youtrack-task/reviewer-commands` (one command
+# per line, `#` comments), read from the base branch, never from the branch under
+# review. See reference/reviewer-allowlist.md.
+# reviewer_commands = ["ddev exec vendor/bin/pest", "npm run build"]   # default: none
+
 # Enforce the review gate with a hook: in the main session, block `git push` and
 # `gh pr create` of an issue branch (name contains an issue ID) unless the exact
 # commit has a review stamp (PASS, or a recorded `pr --no-review` waiver).
