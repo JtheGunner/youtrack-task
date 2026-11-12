@@ -2,7 +2,7 @@
 
 <img src="./assets/logo.png" alt="youtrack-task logo" width="128" height="128">
 
-# YouTrack Claude Code integration
+# YouTrack Flow for AI Agents
 
 **Work JetBrains YouTrack issues without leaving your repo.**
 Capture, pick up, branch, plan, open the PR, and walk the state ladder — all from inside Claude Code.
