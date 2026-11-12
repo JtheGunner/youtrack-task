@@ -130,7 +130,7 @@ On pickup the plugin:
 2. 🌿 **Creates** the branch `‹prefix›/‹ID›-‹slug›` (in a worktree if configured)
 3. 📌 **Moves** the issue to *In Progress* and comments
 4. 📝 **Plans** the work and, once you approve, posts the plan as a comment
-5. 🛠️ **Implements** it only when you pass `--implement`, then runs the review gate
+5. 🛠️ **Implements** it only when you pass `--implement`, then runs the review gate. The reviewer is read-only; a project can allow more commands for it in `.youtrack-task/reviewer-commands` ([how](docs/configuration.md#letting-the-reviewer-run-more))
 
 > [!IMPORTANT]
 > Nothing is pushed until you run `pr`, and it asks first. Branch names, commits and
@@ -167,7 +167,7 @@ On pickup the plugin:
 |:-:|------|--------|
 | 🚀 | [Usage](docs/usage.md) | Pickup steps, flags, creating issues, parallel worktrees, sub-commands |
 | 🤖 | [Batch (`all`)](docs/batch.md) | Triage, workers, review loop, `--auto-merge`, guard hook |
-| ⚙️ | [Configuration](docs/configuration.md) | Config keys with defaults, what lives where, MCP tools used |
+| ⚙️ | [Configuration](docs/configuration.md) | Config keys with defaults, extra reviewer commands, what lives where, MCP tools used |
 | 🧩 | [Other agents](docs/other-agents.md) | Cursor, Copilot, Codex and the Agensi package: MCP setup and what differs |
 | 🩺 | [Troubleshooting](docs/troubleshooting.md) | Symptoms and fixes, grouped by topic |
 

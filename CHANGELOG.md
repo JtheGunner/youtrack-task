@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.19.1 — 2026-11-12
+
+- **Docs: README mentions the reviewer's extra commands.** The review-gate step of the README
+  says the reviewer is read-only and that a project can allow more commands for it in
+  `.youtrack-task/reviewer-commands`, linking `docs/configuration.md#letting-the-reviewer-run-more`;
+  the Configuration entry of the docs table names them. No behaviour change.
+- `tests/skill-text.sh` checks that the README links that section and that the heading exists.
+
 ## 0.19.0 — 2026-11-12
 
 - **Reviewer: an allowed way to verify, still read-only.** The `ticket-reviewer` guard
