@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.21.0 — 2026-11-22
+
+- **The config file creates and maintains itself.** A `SessionStart` hook (`hooks/sync-config`)
+  runs once per plugin version, on the first Claude Code start after an install or update.
+  Without `~/.config/youtrack-task/config.toml` it creates the file from `config.example.toml`,
+  so you start from one file with every option. With one, it appends the options the new version
+  added (commented out, with their comment, placed before any `[table]` header so they still work when uncommented) and removes the ones it dropped, judged against a
+  snapshot of the previous example. Your own values, keys and comments are never touched, a
+  `config.toml.bak` is written before any change, and one line tells you what happened. An
+  unchanged version exits at once; `read-config` stays read-only. The first update after
+  adopting this removes nothing, because there is no earlier snapshot.
+- `tests/sync-config.sh` covers create, no-op, add, prune, idempotence, backup, the
+  `[type_prefix]` block, the real example and the read-only case.
+
 ## 0.20.0 — 2026-11-22
 
 - **Chat language follows the session, else the issue.** The skill now has a rule for what it

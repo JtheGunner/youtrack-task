@@ -32,7 +32,8 @@ youtrack-task/
 │   └── marketplace.json     # so `/plugin marketplace add JtheGunner/youtrack-task` works
 ├── .mcp.json                # YouTrack HTTP MCP server, values from env vars
 ├── hooks/
-│   ├── hooks.json           # PreToolUse: YouTrack `create_issue`; Bash, Edit, Write, MultiEdit from `all` subagents (timeout 10 s)
+│   ├── hooks.json           # SessionStart (startup): sync-config; PreToolUse: YouTrack `create_issue`; Bash, Edit, Write, MultiEdit from `all` subagents (timeout 10 s)
+│   ├── sync-config          # once per plugin version: create config.toml from config.example.toml, or add new options (commented) and remove obsolete ones
 │   ├── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
 │   ├── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only; worker file writes only inside its worktree)
 │   └── require-review       # opt-in (review_gate_hook): no push / gh pr create of an issue branch without a review stamp
@@ -595,6 +596,25 @@ the user.
 
 `config.example.toml` in the repo is this block with every line commented and
 dummy values — no real query, no real state names beyond YouTrack defaults.
+
+**Keeping the file in step (`hooks/sync-config`).** A plugin `SessionStart` hook
+(matcher `startup`) runs its work once per plugin version: the last synced version is
+stamped in `${CLAUDE_PLUGIN_DATA}`, and an unchanged version exits at once, so normal
+sessions are unaffected. On a new version (first install or an update):
+
+| `config.toml` | The hook |
+| --- | --- |
+| missing | copies `config.example.toml` there |
+| present | adds the example's options it lacks, commented out (`# key = default` with their comment) before the first active `[table]` header, since `read-config` ignores everything after it (the `[type_prefix]` table is appended as a block at the end when absent altogether), and removes options the example no longer has |
+
+An option counts as present when it appears active or commented. Removal uses a
+snapshot of the previous example kept next to the stamp: only options that snapshot
+shipped are removed (the active and the commented line, plus the comment lines directly
+above that match the snapshot). Your own keys and comments are never touched, and the
+first run without a snapshot removes nothing. `config.toml.bak` is written before any
+change, and the hook shows one line saying what it created, added or removed. It never
+fails a session: when it cannot write it warns and leaves the stamp unset, so the next
+session tries again. `read-config` stays read-only.
 
 ## Error handling
 
