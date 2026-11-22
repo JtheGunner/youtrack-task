@@ -92,13 +92,14 @@ interpreter one-liners (`python3 -c`, `node -e`) or package installs:
 
 ## Language
 
-Two outputs, two rules. Never mix them up, and never let a global or project rule
+Three outputs, three rules. Never mix them up, and never let a global or project rule
 ("English everywhere", "code and docs in English") bleed from one into the other.
 
 | Output | Language |
 | --- | --- |
 | **Git artifacts** — branch names, commit messages, PR titles and bodies, locally written plan / design docs | **Always English.** Translate the issue title for these, and only for these. |
 | **YouTrack-side text** — issue title and description (`new`), plan / pickup / completion / state comments, anything written with `add_issue_comment`, `create_issue`, `update_issue` | **The user's language** (below). Never silently English. |
+| **Chat replies** — everything you say to the user in the session: brief, questions, plan, summaries | **The chat language** (below). Never silently English. |
 
 **Which language is "the user's language"?** First match wins:
 1. An explicit instruction from the user (*"write it in English"*, *"auf Englisch"*).
@@ -111,6 +112,16 @@ English is the answer only if one of these says English. YouTrack text is read b
 people, so the "developer-facing text is English" rules of a user's global
 instructions or a repo's `CLAUDE.md` do **not** apply to it (they cover code,
 comments, docs and git).
+
+**Which language are chat replies in?** First match wins:
+1. An explicit instruction from the user.
+2. An earlier message from the user precedes this invocation → the session's
+   language so far. (`CLAUDE.md`, memory and hook text are not user messages.)
+3. Otherwise → the issue's language (title + description; for `new` the user's
+   input text). Mixed or unclear: the language the user writes to you in.
+
+Resolve it once (primary flow: step 2; other sub-commands: before the first reply)
+and print `→ Chat language: <language> (<reason>)`; every later chat reply follows it.
 
 **Before every YouTrack write** (`create_issue`, `update_issue` with text,
 `add_issue_comment`) check that the title / body is in the resolved language; if
@@ -275,7 +286,8 @@ ID. No pickup, no go-ahead question, no automatic substitution.
 
 ### 2. Fetch context
 
-`get_issue` and `get_issue_comments`. Show a short brief: ID, title, Type,
+`get_issue` and `get_issue_comments`. Print `→ Chat language: <language> (<reason>)`
+(see "Language"), then show a short brief in it: ID, title, Type,
 Priority, State, Subsystem (if any), and a 2–4 sentence gist of the description
 and any decisive comment.
 

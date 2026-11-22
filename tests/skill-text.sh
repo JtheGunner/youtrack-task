@@ -71,7 +71,7 @@ done
 # 6. SKILL.md stays small and loads only what the invocation needs.
 # The target is about 350 lines; the Guardrails, Language, Config table and the
 # primary flow have to stay whole, so there is a little headroom.
-max_lines=390
+max_lines=400
 lines=$(wc -l < "$skill/SKILL.md" | tr -d ' ')
 [ "$lines" -le "$max_lines" ] && ok "SKILL.md has $lines lines (max $max_lines)" \
   || bad "SKILL.md has $lines lines, max $max_lines"
@@ -256,6 +256,20 @@ n=$(printf '%s' "$step4" | grep -cF '→ Branch:')
 grep -qiE 'only after the user has seen it' "$skill/reference/branching.md" \
   && bad "branching.md still has the unconditional 'only after the user has seen it' wording" \
   || ok "branching.md leaves the question to the table in SKILL.md step 4"
+
+# 10. Chat language: resolved once, shown in the step-2 brief, defined only in SKILL.md.
+langsec=$(sed -n '/^## Language/,/^## Scripts/p' "$skill/SKILL.md")
+step2=$(printf '%s\n' "$flow" | sed -n '/^### 2\./,/^### 3\./p')
+printf '%s' "$langsec" | grep -qF '**Chat replies**' \
+  && printf '%s' "$langsec" | grep -qiE 'earlier message (of|from) the user' \
+  && ok "Language section resolves the chat language from an earlier user message, else the issue" \
+  || bad "Language section has no 'Chat replies' rule keyed on an earlier user message"
+printf '%s' "$step2" | grep -qF '→ Chat language:' \
+  && ok "step 2 prints the '→ Chat language:' line" \
+  || bad "step 2 does not print the '→ Chat language:' line"
+chatcopies=$(grep -rniE 'chat language|chat replies' "$skill/reference" || true)
+[ -z "$chatcopies" ] && ok "chat-language rule is defined only in SKILL.md" \
+  || bad "chat-language rule is restated in a reference file" "$chatcopies"
 
 [ "$fail" = 0 ] && echo "ALL OK" || echo "FAILURES"
 exit "$fail"
