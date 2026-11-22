@@ -14,9 +14,10 @@ and `${YOUTRACK_TOKEN}`. Nothing instance-specific is stored in this repo.
 
 ## Config overrides
 
-Optional and only needed if your workflow differs from the defaults. Copy
-[`config.example.toml`](../config.example.toml) to
-`~/.config/youtrack-task/config.toml` and uncomment what you need.
+Optional and only needed if your workflow differs from the defaults. The plugin
+creates `~/.config/youtrack-task/config.toml` for you from
+[`config.example.toml`](../config.example.toml) (see
+[Config file upkeep](#config-file-upkeep)); uncomment what you need.
 
 > [!NOTE]
 > Arrays such as `worktree_clone` must be written on a **single line**. A multi-line
@@ -93,6 +94,26 @@ ddev exec vendor/bin/pest
 make verify
 ```
 
+## Config file upkeep
+
+The plugin keeps `~/.config/youtrack-task/config.toml` in step with
+[`config.example.toml`](../config.example.toml), once per plugin version: the first
+Claude Code start after you install or update it (a `SessionStart` hook,
+`hooks/sync-config`). Sessions on an unchanged version are not affected.
+
+| Your `config.toml` | What happens |
+|--------------------|--------------|
+| missing | It is created from the example, with every option and its comment, all commented out. |
+| present, options added in the new version | They are appended at the end, commented out (`# key = default`) with their comment, under a `# --- added by youtrack-task … ---` line. |
+| present, options removed in the new version | Those options (active or commented) are removed, with the comment lines the plugin wrote above them. |
+
+Options count as present when they appear active or commented, so a second run changes
+nothing. Your own values, keys and comments are never touched. Before any change the
+hook writes `config.toml.bak`, and it shows one line saying what it created, added or
+removed. The first update after you adopt this feature removes nothing, because there
+is no earlier example to compare against. If the config directory is not writable, the
+hook warns and tries again next session.
+
 ## How config is resolved
 
 `scripts/read-config` is step 0 of every invocation. It reads your `config.toml`,
@@ -110,6 +131,7 @@ read the file.
 | 🔐 | YouTrack URL | `YOUTRACK_MCP_URL` env var | 🚫 |
 | 🔐 | API token | `YOUTRACK_TOKEN` env var | 🚫 |
 | 🔐 | Which project an issue is in | Encoded in the issue ID (`INFRA-42`) | 🚫 |
+| ⚙️ | The config file itself: created, extended and pruned once per plugin version | `hooks/sync-config`, state in the plugin data dir | ✅ |
 | ⚙️ | State names, list query, prefix map, branch-name and PR confirmation, superpowers / review / worktree settings | Defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | ✅ defaults only |
 | ⚙️ | Extra reviewer commands (`reviewer_commands`; per project: `.youtrack-task/reviewer-commands`, read from the base branch) | `~/.config/youtrack-task/config.toml`; the project file in the repository | ✅ defaults only |
 | ⚙️ | `all` settings (`batch_query`, `batch_max_parallel`, `batch_skip_tags`; review rounds via `review_rounds`) | Defaults in the skill; overrides in `~/.config/youtrack-task/config.toml` | ✅ defaults only |

@@ -1,6 +1,18 @@
 {
-  "description": "Guards direct YouTrack create_issue calls (an Assignee must always be set, text in the user's language), confines the `all` sub-command's worker and reviewer subagents (no pushes or merges, read-only reviewer, worker file writes only inside its worktree), and — only when review_gate_hook is on — blocks pushing or opening a PR for an issue branch without a review stamp.",
+  "description": "Once per plugin version, creates ~/.config/youtrack-task/config.toml from config.example.toml or syncs it (adds new options commented out, removes obsolete ones). Guards direct YouTrack create_issue calls (an Assignee must always be set, text in the user's language), confines the `all` sub-command's worker and reviewer subagents (no pushes or merges, read-only reviewer, worker file writes only inside its worktree), and — only when review_gate_hook is on — blocks pushing or opening a PR for an issue branch without a review stamp.",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/sync-config\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "mcp__.*youtrack.*__create_issue",

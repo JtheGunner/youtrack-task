@@ -168,7 +168,7 @@ On pickup the plugin:
 |:-:|------|--------|
 | 🚀 | [Usage](docs/usage.md) | Pickup steps, flags, creating issues, parallel worktrees, sub-commands |
 | 🤖 | [Batch (`all`)](docs/batch.md) | Triage, workers, review loop, `--auto-merge`, guard hook |
-| ⚙️ | [Configuration](docs/configuration.md) | Config keys with defaults, extra reviewer commands, what lives where, MCP tools used |
+| ⚙️ | [Configuration](docs/configuration.md) | Config keys with defaults, how the config file is created and kept up to date, extra reviewer commands, what lives where, MCP tools used |
 | 🧩 | [Other agents](docs/other-agents.md) | Cursor, Copilot, Codex and the Agensi package: MCP setup and what differs |
 | 🩺 | [Troubleshooting](docs/troubleshooting.md) | Symptoms and fixes, grouped by topic |
 

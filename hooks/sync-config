@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# SessionStart hook: keep the user's config.toml in step with config.example.toml.
+#
+# Runs its work once per plugin version: the last synced version is stamped in the
+# plugin data dir, which survives updates. An unchanged version exits at once
+# without touching anything, so the hook has no effect on normal sessions.
+#
+# On a new version (first install or an update):
+#   - config.toml missing    -> copy config.example.toml there.
+#   - config.toml present    -> append the example's options it lacks, commented out
+#                               (`# key = default`, with their comment), and remove the
+#                               options the example no longer has. An option counts as
+#                               present when it appears active or commented. Removal is
+#                               driven by a snapshot of the previous example, so only
+#                               options this plugin once shipped are ever removed.
+#                               Your own keys and comments are never touched. A backup
+#                               (config.toml.bak) is written before any change.
+#
+# Best effort: it never fails a session. When it cannot write, it shows a warning
+# and leaves the stamp unset so the next session tries again. Needs bash, sed, awk,
+# cmp; no jq.
+#
+# Environment: CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA (set by Claude Code),
+# YOUTRACK_TASK_CONFIG (config path override, as in scripts/read-config).
+set -u
+
+ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+DATA="${CLAUDE_PLUGIN_DATA:-${XDG_STATE_HOME:-$HOME/.local/state}/youtrack-task}"
+CFG="${YOUTRACK_TASK_CONFIG:-$HOME/.config/youtrack-task/config.toml}"
+EXAMPLE="$ROOT/config.example.toml"
+
+version=$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$ROOT/.claude-plugin/plugin.json" 2>/dev/null | head -1)
+[ -n "$version" ] && [ -f "$EXAMPLE" ] || exit 0
+
+STAMP="$DATA/config-synced-version"
+SNAPSHOT="$DATA/config.example.snapshot"
+[ "$(cat "$STAMP" 2>/dev/null)" = "$version" ] && exit 0
+
+tmp=$(mktemp -d 2>/dev/null) || exit 0
+trap 'rm -rf "$tmp"' EXIT
+
+say() { # $1 = message ; shown to the user, never to the model's task
+  local m=${1//\\/\\\\}
+  m=${m//\"/\\\"}
+  printf '{"systemMessage":"youtrack-task: %s"}\n' "$m"
+}
+
+give_up() {
+  say "could not update $CFG ($1); will try again next session."
+  exit 0
+}
+
+# entries <file>: the options of a config file as a stream. Each option starts with
+# "@@KEY <name>", followed by its comment lines and its own line. The [type_prefix]
+# table is one option whose body runs to the next blank line.
+entries() {
+  awk '
+    /^[[:space:]]*$/ { pending = ""; intable = 0; next }
+    intable { print; next }
+    /^#[[:space:]]*\[[a-z_]+\][[:space:]]*$/ {
+      key = $0; sub(/^#[[:space:]]*/, "", key); sub(/[[:space:]]*$/, "", key)
+      print "@@KEY " key; printf "%s", pending; print; pending = ""; intable = 1; next
+    }
+    /^#?[[:space:]]*[a-z_]+[[:space:]]*=/ {
+      key = $0; sub(/^#?[[:space:]]*/, "", key); sub(/[[:space:]]*=.*/, "", key)
+      print "@@KEY " key; printf "%s", pending; print; pending = ""; next
+    }
+    { pending = pending $0 "\n" }
+  ' "$1"
+}
+
+keys_of() { entries "$1" | sed -n 's/^@@KEY //p'; }
+
+entry_text() { # $1 = file, $2 = key
+  entries "$1" | awk -v k="$2" '/^@@KEY /{ on = ($0 == "@@KEY " k); next } on'
+}
+
+is_present() { # $1 = file, $2 = key
+  case "$2" in
+    \[*) grep -Eq "^#?[[:space:]]*\\[${2#[}[[:space:]]*" "$1" ;;
+    *)   grep -Eq "^#?[[:space:]]*$2[[:space:]]*=" "$1" ;;
+  esac
+}
+
+remove_key() { # $1 = file (rewritten in place), $2 = key, $3 = file with the key's old entry text
+  awk -v key="$2" -v entry="$3" '
+    BEGIN { while ((getline l < entry) > 0) T[++m] = l }
+    { U[NR] = $0 }
+    END {
+      kre = "^#?[[:space:]]*" key "[[:space:]]*="
+      for (i = 1; i <= NR; i++) if (U[i] ~ kre) {
+        gone[i] = 1
+        j = i - 1; t = m - 1
+        while (t >= 1 && j >= 1 && !(j in gone) && U[j] == T[t]) { gone[j] = 1; j--; t-- }
+      }
+      for (i = 1; i <= NR; i++) if (!(i in gone)) print U[i]
+    }
+  ' "$1" > "$1.out" && cat "$1.out" > "$1"
+}
+
+join() { local IFS=,; echo "$*" | sed 's/,/, /g'; }
+
+created=""; added=(); removed=()
+
+if [ ! -f "$CFG" ]; then
+  mkdir -p "$(dirname "$CFG")" 2>/dev/null && cp "$EXAMPLE" "$CFG" 2>/dev/null || give_up "cannot create it"
+  created=1
+else
+  cp "$CFG" "$tmp/new" || give_up "cannot read it"
+
+  if [ -f "$SNAPSHOT" ]; then
+    keys_of "$EXAMPLE" | sort > "$tmp/current-keys"
+    while IFS= read -r key; do
+      case "$key" in \[*) continue ;; esac
+      grep -qxF -- "$key" "$tmp/current-keys" && continue
+      is_present "$tmp/new" "$key" || continue
+      entry_text "$SNAPSHOT" "$key" > "$tmp/entry"
+      remove_key "$tmp/new" "$key" "$tmp/entry" && removed+=("$key")
+    done < <(keys_of "$SNAPSHOT")
+  fi
+
+  block=""
+  while IFS= read -r key; do
+    is_present "$tmp/new" "$key" && continue
+    block="${block}
+$(entry_text "$EXAMPLE" "$key")
+"
+    case "$key" in \[*) ;; *) added+=("$key") ;; esac
+  done < <(keys_of "$EXAMPLE")
+
+  if [ -n "$block" ]; then
+    [ -z "$(tail -c1 "$tmp/new")" ] || echo >> "$tmp/new"
+    { printf '\n# --- added by youtrack-task %s (config sync) ---\n' "$version"; printf '%s\n' "$block" | sed '1{/^$/d;}'; } >> "$tmp/new"
+  fi
+
+  if ! cmp -s "$CFG" "$tmp/new"; then
+    cp "$CFG" "$CFG.bak" 2>/dev/null || give_up "cannot write a backup next to it"
+    cat "$tmp/new" > "$CFG" 2>/dev/null || give_up "cannot write it"
+  else
+    added=(); removed=()
+  fi
+fi
+
+mkdir -p "$DATA" 2>/dev/null && cp "$EXAMPLE" "$SNAPSHOT" 2>/dev/null && printf '%s\n' "$version" > "$STAMP" 2>/dev/null \
+  || give_up "cannot write the sync state to $DATA"
+
+parts=()
+[ -n "$created" ] && parts+=("created $CFG with all options.")
+[ "${#added[@]}" -gt 0 ] && parts+=("added new options to $CFG, commented out: $(join "${added[@]}").")
+[ "${#removed[@]}" -gt 0 ] && parts+=("removed obsolete options from $CFG: $(join "${removed[@]}") (backup: $CFG.bak).")
+[ "${#parts[@]}" -gt 0 ] && say "${parts[*]}"
+exit 0
