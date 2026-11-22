@@ -104,7 +104,7 @@ Claude Code start after you install or update it (a `SessionStart` hook,
 | Your `config.toml` | What happens |
 |--------------------|--------------|
 | missing | It is created from the example, with every option and its comment, all commented out. |
-| present, options added in the new version | They are appended at the end, commented out (`# key = default`) with their comment, under a `# --- added by youtrack-task … ---` line. |
+| present, options added in the new version | They are added commented out (`# key = default`) with their comment, under a `# --- added by youtrack-task … ---` line. They go before your first `[table]` header, because options below a table header are not read. |
 | present, options removed in the new version | Those options (active or commented) are removed, with the comment lines the plugin wrote above them. |
 
 Options count as present when they appear active or commented, so a second run changes

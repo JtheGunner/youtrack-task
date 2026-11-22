@@ -605,7 +605,7 @@ sessions are unaffected. On a new version (first install or an update):
 | `config.toml` | The hook |
 | --- | --- |
 | missing | copies `config.example.toml` there |
-| present | appends the example's options it lacks, commented out (`# key = default` with their comment; the `[type_prefix]` table as a block when absent altogether), and removes options the example no longer has |
+| present | adds the example's options it lacks, commented out (`# key = default` with their comment) before the first active `[table]` header, since `read-config` ignores everything after it (the `[type_prefix]` table is appended as a block at the end when absent altogether), and removes options the example no longer has |
 
 An option counts as present when it appears active or commented. Removal uses a
 snapshot of the previous example kept next to the stamp: only options that snapshot

@@ -10,7 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   runs once per plugin version, on the first Claude Code start after an install or update.
   Without `~/.config/youtrack-task/config.toml` it creates the file from `config.example.toml`,
   so you start from one file with every option. With one, it appends the options the new version
-  added (commented out, with their comment) and removes the ones it dropped, judged against a
+  added (commented out, with their comment, placed before any `[table]` header so they still work when uncommented) and removes the ones it dropped, judged against a
   snapshot of the previous example. Your own values, keys and comments are never touched, a
   `config.toml.bak` is written before any change, and one line tells you what happened. An
   unchanged version exits at once; `read-config` stays read-only. The first update after

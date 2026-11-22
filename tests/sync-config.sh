@@ -153,6 +153,21 @@ printf '[type_prefix]\nBug = "feat"\n' > "$cfg"
 run_hook
 lacks "$cfg" "# Bug" "table: an existing table is left alone"
 
+# 6b. New options go before an active table, so uncommenting them still works ----
+fixture early; example=$(cat "$root/config.example.toml"); release 5.0.0
+printf 'worktree = "always"\n\n[type_prefix]\nBug = "feat"\n' > "$cfg"
+run_hook
+header_line=$(grep -nx '\[type_prefix\]' "$cfg" | head -1 | cut -d: -f1)
+gate_line=$(grep -nx '# review_gate_hook = "off"' "$cfg" | head -1 | cut -d: -f1)
+{ [ -n "$gate_line" ] && [ -n "$header_line" ] && [ "$gate_line" -lt "$header_line" ]; } \
+  && ok "active table: new option lands before the table header" \
+  || bad "active table: new option lands before the table header" "$(cat "$cfg")"
+[ "$(grep -c '^# --- added by' "$cfg")" -eq 1 ] && ok "active table: one marker" || bad "active table: one marker" "$(cat "$cfg")"
+sed -i.tmp 's/^# review_gate_hook = "off"/review_gate_hook = "on"/' "$cfg" && rm -f "$cfg.tmp"
+got=$(YOUTRACK_TASK_CONFIG=$cfg bash "$root/skills/youtrack-task/scripts/read-config" review_gate_hook)
+[ "$got" = "on" ] && ok "active table: an uncommented new option is read by read-config" || bad "active table: an uncommented new option is read by read-config (got '$got')"
+grep -qxF 'Bug = "feat"' "$cfg" && ok "active table: table rows untouched" || bad "active table: table rows untouched"
+
 # 7. The real example: complete on creation, stable on re-run -------------------
 fixture real; example=$(cat "$root/config.example.toml"); release 9.0.0
 run_hook
