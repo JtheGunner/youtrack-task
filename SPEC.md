@@ -111,6 +111,13 @@ session language), is shown as a `Language:` line in the `new` confirmation, is
 re-checked before every YouTrack write, and global "English everywhere" rules do
 not apply to YouTrack text (SKILL.md "Language" is the contract).
 
+Chat replies have their own rule: user instruction → the session's language when
+an earlier user message precedes the invocation (`CLAUDE.md`, memory and hook text
+do not count) → the issue's language (for `new`, the input text; mixed or unclear:
+the language the user writes in). It is resolved once and printed as
+`→ Chat language: <language> (<reason>)` at the top of the step-2 brief, so later
+replies follow a visible value instead of the model's habit.
+
 ### Nothing instance-specific in the repo
 
 The repo is public and must leak neither the YouTrack URL nor any
