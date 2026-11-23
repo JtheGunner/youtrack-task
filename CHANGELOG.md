@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.21.1 — 2026-11-23
+
+- **Fix: the chat language held in the primary flow only.** In `all --auto-merge` runs the
+  language was German in one session and English in the next, with the same invocation: only
+  the primary flow printed `→ Chat language:`, so `all` and the other sub-commands depended on
+  the model remembering the rule. Now `read-config` (step 0, run on every invocation) ends with
+  a `CHAT_LANGUAGE_TODO=` reminder, `all` prints the line as its first output and names the
+  language in the worker and reviewer briefing, and the other sub-commands print it right
+  after step 0.
+- **Fix: the language fell back to English after a compaction.** The compaction summary is
+  English and says nothing about the chat language. A new `SessionStart` hook with matcher
+  `compact` (`hooks/remind-chat-language`) reminds the agent of the last printed language and to
+  relay notices from hooks and plugins such as claude-mem in it. Text claude-mem writes itself
+  is not under the plugin's control.
+- `SKILL.md` line budget 400 → 410 for the Language table. New `tests/remind-chat-language.sh`.
+
 ## 0.21.0 — 2026-11-22
 
 - **The config file creates and maintains itself.** A `SessionStart` hook (`hooks/sync-config`)

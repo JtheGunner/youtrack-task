@@ -135,7 +135,8 @@ On pickup the plugin:
 > [!IMPORTANT]
 > Nothing is pushed until you run `pr`, and it asks first. Branch names, commits and
 > PR text are always English; YouTrack comments follow the issue's language. Chat
-> replies keep your session's language, or follow the issue's in a fresh session.
+> replies keep your session's language, or follow the issue's in a fresh session,
+> in every sub-command including `all`, and across a compaction.
 
 ---
 

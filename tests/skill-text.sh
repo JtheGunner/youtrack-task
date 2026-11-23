@@ -71,7 +71,7 @@ done
 # 6. SKILL.md stays small and loads only what the invocation needs.
 # The target is about 350 lines; the Guardrails, Language, Config table and the
 # primary flow have to stay whole, so there is a little headroom.
-max_lines=400
+max_lines=410
 lines=$(wc -l < "$skill/SKILL.md" | tr -d ' ')
 [ "$lines" -le "$max_lines" ] && ok "SKILL.md has $lines lines (max $max_lines)" \
   || bad "SKILL.md has $lines lines, max $max_lines"
@@ -267,9 +267,22 @@ printf '%s' "$langsec" | grep -qF '**Chat replies**' \
 printf '%s' "$step2" | grep -qF '→ Chat language:' \
   && ok "step 2 prints the '→ Chat language:' line" \
   || bad "step 2 does not print the '→ Chat language:' line"
-chatcopies=$(grep -rniE 'chat language|chat replies' "$skill/reference" || true)
+chatcopies=$(grep -rniE 'chat replies' "$skill/reference" || true)
 [ -z "$chatcopies" ] && ok "chat-language rule is defined only in SKILL.md" \
   || bad "chat-language rule is restated in a reference file" "$chatcopies"
+
+# 11. Every invocation resolves the chat language, not only the primary flow (YOU-45).
+printf '%s' "$langsec" | grep -qF 'CHAT_LANGUAGE_TODO' \
+  && printf '%s' "$langsec" | grep -qiE 'any other sub-command' \
+  && ok "Language section names the step-0 reminder and the line for every other sub-command" \
+  || bad "Language section has no table row for the other sub-commands / no CHAT_LANGUAGE_TODO"
+grep -qF '→ Chat language:' "$skill/reference/batch.md" \
+  && ok "batch.md prints the '→ Chat language:' line first" \
+  || bad "batch.md does not print the '→ Chat language:' line"
+workerbrief=$(sed -n '/^## 3\. Work/,/^Handle the report/p' "$skill/reference/batch.md")
+printf '%s' "$workerbrief" | grep -qiE 'language' \
+  && ok "worker briefing names the reply language" \
+  || bad "worker briefing does not name the reply language"
 
 [ "$fail" = 0 ] && echo "ALL OK" || echo "FAILURES"
 exit "$fail"

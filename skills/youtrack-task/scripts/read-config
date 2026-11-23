@@ -16,6 +16,7 @@
 #   CONFIG_FILE=<path>|none
 #   <KEY>=<value>   upper-cased config key; list keys are space-separated, except
 #                   REVIEWER_COMMANDS: whole commands joined with ";"
+#   CHAT_LANGUAGE_TODO=<instruction>   last line; a reminder, not a config key
 #
 # Keep the defaults in sync with config.example.toml and the Config table in
 # SKILL.md.
@@ -85,6 +86,10 @@ resolve_all() {
   rounds=$(cfg_scalar review_rounds)
   [ -n "$rounds" ] || rounds=$(cfg_scalar batch_review_rounds)
   echo "REVIEW_ROUNDS=${rounds:-2}"
+
+  # Not a config value: a reminder for the one command every invocation runs, so the
+  # chat language is resolved and printed for every sub-command, not only step 2.
+  echo 'CHAT_LANGUAGE_TODO=print "→ Chat language: <language> (<reason>)" before your first reply (SKILL.md "Language")'
 }
 
 all=$(resolve_all)

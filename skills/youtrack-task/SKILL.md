@@ -120,8 +120,17 @@ comments, docs and git).
 3. Otherwise → the issue's language (title + description; for `new` the user's
    input text). Mixed or unclear: the language the user writes to you in.
 
-Resolve it once (primary flow: step 2; other sub-commands: before the first reply)
-and print `→ Chat language: <language> (<reason>)`; every later chat reply follows it.
+Resolve it once per invocation and print `→ Chat language: <language> (<reason>)`;
+every later chat reply follows it. The step-0 output ends with a `CHAT_LANGUAGE_TODO=`
+line as the reminder. Where the line comes:
+
+| Invocation | The line is printed |
+| --- | --- |
+| primary flow | step 2, before the brief |
+| any other sub-command, `all` included | straight after step 0, before the first reply |
+
+A compaction summary is not a user message; after one, keep the last printed language
+(a `SessionStart` hook reminds you). In `all`, the briefing to workers and reviewers names it.
 
 **Before every YouTrack write** (`create_issue`, `update_issue` with text,
 `add_issue_comment`) check that the title / body is in the resolved language; if

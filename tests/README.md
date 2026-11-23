@@ -132,7 +132,7 @@ Use a throwaway or low-stakes issue.
 | 75  | more than 20 matching tickets, `all --dry-run` | `search_issues` is called repeatedly with `offset` 0, 20, … until a short page; all tickets are in the table |
 | 76  | no candidate is *ready*, `all` | the table is printed and the run stops; no question such as "should I run X instead?" |
 | 77  | `tests/setup-workspace.sh` | every case prints `ok`, ends with `ALL OK`; exit 0 (a base that exists only locally is the start point in place, in a linked worktree and in a new worktree, even when HEAD is another branch; `origin/<base>` beats a diverged local `<base>`; an unresolvable base gives `ERROR=cannot-resolve-base` (exit 2) with no branch or worktree created; a custom `worktree_dir` is created and resumed) |
-| 78  | `shellcheck -S warning hooks/guard-subagent hooks/require-review hooks/require-assignee hooks/sync-config skills/youtrack-task/scripts/*` | no output, exit 0 (intentional exceptions carry a `# shellcheck disable=… # reason` comment) |
+| 78  | `shellcheck -S warning hooks/guard-subagent hooks/require-review hooks/require-assignee hooks/sync-config hooks/remind-chat-language skills/youtrack-task/scripts/*` | no output, exit 0 (intentional exceptions carry a `# shellcheck disable=… # reason` comment) |
 | 79  | open a PR against `main` | the `ci` workflow runs `tests/*.sh`, ShellCheck, `jq empty` on all JSON files and the plugin/marketplace version check; all green |
 | 80  | bump only `plugin.json` (not `marketplace.json`) and push | the `ci` job fails on the version-consistency step |
 | 81  | push a `v*` tag whose version differs from either manifest, or with a failing `ci` | the release workflow stops before building the ZIP |
@@ -183,4 +183,9 @@ Use a throwaway or low-stakes issue.
 | 126 | install the plugin with no `~/.config/youtrack-task/config.toml`, restart Claude Code | one line at session start says the config was created; the file has every option, commented out, with its comment |
 | 127 | after 126, edit one value, then update to a version that adds an option and drops another, restart | one line names the added and removed options; the new option is appended commented, the dropped one is gone, your edited value and own comments are intact, `config.toml.bak` holds the old file; a second restart prints nothing |
 | 128 | make `~/.config/youtrack-task` read-only, install or update, restart | a warning *"could not update …"* appears and the session works normally; after fixing the permissions the next start syncs |
-| 129 | `jq empty hooks/hooks.json`, then inspect it | a `SessionStart` entry with matcher `startup` runs `hooks/sync-config`, `timeout: 10` |
+| 129 | `jq empty hooks/hooks.json`, then inspect it | a `SessionStart` entry with matcher `startup` runs `hooks/sync-config`, `timeout: 10`; one with matcher `compact` runs `hooks/remind-chat-language` |
+| 130 | fresh session, German issue, `/youtrack-task all --auto-merge` (run it several times) | every run starts with `→ Chat language: German (issue)`; triage, status, batch confirmation and summary are German each time |
+| 131 | same, but you wrote in English before the invocation | `→ Chat language: English (session)`; everything English |
+| 132 | `/youtrack-task done <ID>` (or `comment`, `testing`, `pr`) in a fresh session with a German issue | the first reply is preceded by `→ Chat language: German (issue)` |
+| 133 | in a German `all` run, let the context compact (`/compact`), then continue | replies after the compaction stay German, including short status lines and relayed claude-mem notices |
+| 134 | `tests/remind-chat-language.sh`, `tests/read-config.sh`, `tests/skill-text.sh` | every case prints `ok`; exit 0 (reminder text, `compact` matcher, `CHAT_LANGUAGE_TODO` line, table row for the other sub-commands, `batch.md` line and worker briefing) |

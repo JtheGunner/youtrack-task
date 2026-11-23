@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# SessionStart hook (matcher: compact): after a compaction, remind the model which
+# language the chat is in.
+#
+# The compaction summary is written in English and carries no language marker, so
+# without a reminder short replies drift back to English. The hook keeps no state:
+# the language was printed in the conversation as `→ Chat language: …` (SKILL.md
+# "Language"), and this text only points at it. Whatever the hook prints on stdout
+# is added to the session context.
+#
+# It never fails a session and has no effect on sessions that did not use
+# /youtrack-task (the text says so).
+set -u
+
+cat <<'EOF'
+youtrack-task reminder (the conversation was just compacted):
+If /youtrack-task ran in this session, keep replying in the language of its last printed `→ Chat language:` line, or in the language the user writes to you if there is none.
+The compaction summary is not a user message, and the language it is written in is not the chat language.
+Notices from hooks and plugins (for example claude-mem) are not user messages either: relay them in the chat language, do not switch to theirs.
+Git artifacts stay English; YouTrack-side text follows the user's / the issue's language.
+EOF
+exit 0
