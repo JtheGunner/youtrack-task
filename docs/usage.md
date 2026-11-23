@@ -194,7 +194,7 @@ cd ~/projects/admin-dashboard-vue && claude
 |--------|----------|
 | Branch names, commit messages, PR title and body | Always English, even for a German issue. |
 | YouTrack comments and the title/description of issues created by `new` | The issue's language. Your own "English everywhere" rules for code and docs don't override this. |
-| What the agent says to you in the chat | Your instruction if you gave one. Otherwise the session's language if you had already written to the agent before the invocation, else the issue's language. The brief starts with `→ Chat language: <language> (<reason>)`. |
+| What the agent says to you in the chat | Your instruction if you gave one. Otherwise the session's language if you had already written to the agent before the invocation, else the issue's language. Every invocation prints `→ Chat language: <language> (<reason>)` first: before the brief in the primary flow, straight after loading the config in `all` and every other sub-command. Workers and reviewers in `all` are told the language too, and after a compaction a `SessionStart` hook reminds the agent of it. |
 
 ---
 

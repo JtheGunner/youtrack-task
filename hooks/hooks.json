@@ -1,5 +1,5 @@
 {
-  "description": "Once per plugin version, creates ~/.config/youtrack-task/config.toml from config.example.toml or syncs it (adds new options commented out, removes obsolete ones). Guards direct YouTrack create_issue calls (an Assignee must always be set, text in the user's language), confines the `all` sub-command's worker and reviewer subagents (no pushes or merges, read-only reviewer, worker file writes only inside its worktree), and — only when review_gate_hook is on — blocks pushing or opening a PR for an issue branch without a review stamp.",
+  "description": "After a compaction, reminds the model of the chat language (the summary is English and not a user message). Once per plugin version, creates ~/.config/youtrack-task/config.toml from config.example.toml or syncs it (adds new options commented out, removes obsolete ones). Guards direct YouTrack create_issue calls (an Assignee must always be set, text in the user's language), confines the `all` sub-command's worker and reviewer subagents (no pushes or merges, read-only reviewer, worker file writes only inside its worktree), and — only when review_gate_hook is on — blocks pushing or opening a PR for an issue branch without a review stamp.",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,16 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/sync-config\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/remind-chat-language\"",
             "timeout": 10
           }
         ]

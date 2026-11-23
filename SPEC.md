@@ -32,8 +32,9 @@ youtrack-task/
 │   └── marketplace.json     # so `/plugin marketplace add JtheGunner/youtrack-task` works
 ├── .mcp.json                # YouTrack HTTP MCP server, values from env vars
 ├── hooks/
-│   ├── hooks.json           # SessionStart (startup): sync-config; PreToolUse: YouTrack `create_issue`; Bash, Edit, Write, MultiEdit from `all` subagents (timeout 10 s)
+│   ├── hooks.json           # SessionStart (startup): sync-config, (compact): remind-chat-language; PreToolUse: YouTrack `create_issue`; Bash, Edit, Write, MultiEdit from `all` subagents (timeout 10 s)
 │   ├── sync-config          # once per plugin version: create config.toml from config.example.toml, or add new options (commented) and remove obsolete ones
+│   ├── remind-chat-language # after a compaction: reminds the model of the chat language (stateless)
 │   ├── require-assignee     # rejects a create_issue without Assignee (Claude Code only)
 │   ├── guard-subagent       # confines ticket-worker / ticket-reviewer (push, merge, read-only; worker file writes only inside its worktree)
 │   └── require-review       # opt-in (review_gate_hook): no push / gh pr create of an issue branch without a review stamp
@@ -117,7 +118,13 @@ an earlier user message precedes the invocation (`CLAUDE.md`, memory and hook te
 do not count) → the issue's language (for `new`, the input text; mixed or unclear:
 the language the user writes in). It is resolved once and printed as
 `→ Chat language: <language> (<reason>)` at the top of the step-2 brief, so later
-replies follow a visible value instead of the model's habit.
+replies follow a visible value instead of the model's habit. The line is printed in
+every invocation: `read-config` (step 0, which always runs) ends with a
+`CHAT_LANGUAGE_TODO=` reminder, the primary flow prints it in step 2, `all` and the
+other sub-commands right after step 0. `all` names the language in the worker and
+reviewer briefing. A compaction summary is not a user message: a `SessionStart` hook
+with matcher `compact` (`hooks/remind-chat-language`, stateless) reminds the model of
+the last printed language and to relay hook and plugin notices in it.
 
 ### Nothing instance-specific in the repo
 

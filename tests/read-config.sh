@@ -26,6 +26,11 @@ expect "missing file -> worktree auto"         "WORKTREE=auto"
 expect "missing file -> clone default"         "WORKTREE_CLONE=node_modules vendor"
 expect "missing file -> review rounds 2"       "REVIEW_ROUNDS=2"
 expect "missing file -> batch_query not state-bound" "BATCH_QUERY=for: me #Unresolved sort by: updated desc"
+if printf '%s\n' "$out" | grep -qE '^CHAT_LANGUAGE_TODO=.*→ Chat language:'; then echo "ok   output carries the chat-language reminder line"
+else echo "FAIL output carries no CHAT_LANGUAGE_TODO reminder"; fail=1; fi
+single=$(YOUTRACK_TASK_CONFIG=$tmp/missing.toml bash "$script" worktree 2>&1)
+[ "$single" = "auto" ] && echo "ok   single-key mode ignores the reminder line" \
+  || { echo "FAIL single-key mode printed '$single', want 'auto'"; fail=1; }
 
 cat > "$tmp/user.toml" <<'EOF'
 # comment

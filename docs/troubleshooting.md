@@ -73,6 +73,8 @@ Find your symptom, apply the fix. Back to the [README](../README.md).
 | The review ends `BLOCKED` / the reviewer reports `blocked-by-guard`, or says build, lint or CI could not be checked | The reviewer needed a command that is not on its allowlist (for example `swift build` with flags, a `ddev` wrapper, a project script). That is missing proof, not a code finding, so no fix round is spent. Allow the exact command: add it to `.youtrack-task/reviewer-commands` in the repo (merge it into the base branch first, a branch cannot allow itself) or to `reviewer_commands` in your config, then run the review again. Or waive on purpose with `pr --no-review`. Details: [Letting the reviewer run more](configuration.md#letting-the-reviewer-run-more). |
 | A worker command or file write is rejected by the hook | Working as intended: workers never push or merge, use no network tools and write only inside their worktree; the main session pushes after review. Needs `jq`; if you see no guard at all, check that the plugin (not just the skill) is installed and up to date. |
 
+| The chat switches to English in an `all` run or after a compaction | Fixed in 0.21.1. Before, only the primary flow printed `→ Chat language:`, so `all` depended on the model's habit, and the English compaction summary pulled short replies to English. Now every invocation prints the line, and a `SessionStart` hook (`hooks/remind-chat-language`) reminds the agent after a compaction. Limit: text that claude-mem itself writes is not under the plugin's control; the agent is told to relay it in the chat language. |
+
 ## 🧩 Other agents
 
 | Symptom | Fix |
